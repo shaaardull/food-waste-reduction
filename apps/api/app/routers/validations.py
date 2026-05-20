@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,7 +21,7 @@ from app.models.fraud_signal import FraudSignal
 from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
-from app.models.restaurant import Restaurant, RestaurantStaff
+from app.models.restaurant import RestaurantStaff
 from app.models.reward import Reward, RewardRule
 from app.models.staff_validation import StaffValidation
 from app.models.user import User
@@ -29,7 +29,6 @@ from app.schemas.validation import (
     EscalateIn,
     PendingValidationOut,
     ValidationIn,
-    ValidationOut,
 )
 from app.security import get_current_user, new_redemption_code
 from app.services import rate_limit, storage
@@ -151,7 +150,7 @@ async def submit_validation(
     else:  # rejected
         final_score = Decimal("0")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     validation = StaffValidation(
         meal_session_id=session.id,
         staff_user_id=user.id,
@@ -293,7 +292,7 @@ async def _build_pending(db: AsyncSession, session: MealSession) -> PendingValid
 
     age_seconds = 0
     if score is not None:
-        age_seconds = int((datetime.now(timezone.utc) - score.created_at).total_seconds())
+        age_seconds = int((datetime.now(UTC) - score.created_at).total_seconds())
 
     return PendingValidationOut(
         session_id=session.id,

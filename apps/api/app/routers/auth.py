@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -66,7 +66,7 @@ async def login(payload: LoginIn, db: AsyncSession = Depends(get_db)) -> AuthOut
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
-    user.last_login_at = datetime.now(timezone.utc)
+    user.last_login_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(user)
     token = create_access_token(user.id, extra_claims={"role": user.role})
@@ -93,7 +93,7 @@ async def otp_verify(payload: OtpVerifyIn, db: AsyncSession = Depends(get_db)) -
         synthetic_email = f"phone+{phone.replace('+', '').replace(' ', '')}@plate-clean.local"
         user = User(email=synthetic_email, phone=phone, role="diner")
         db.add(user)
-    user.last_login_at = datetime.now(timezone.utc)
+    user.last_login_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(user)
     token = create_access_token(user.id, extra_claims={"role": user.role})
@@ -117,7 +117,7 @@ async def delete_account(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> dict[str, str]:
     """Ethics rule 5: one-tap delete. Marks deleted_at; nightly job purges associated data."""
-    user.deleted_at = datetime.now(timezone.utc)
+    user.deleted_at = datetime.now(UTC)
     user.email = f"deleted+{user.id}@plate-clean.local"
     user.phone = None
     user.password_hash = None

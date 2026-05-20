@@ -53,11 +53,17 @@ TOOL_DEFINITION = {
             "confidence": {"type": "number", "minimum": 0, "maximum": 1},
             "notes": {
                 "type": "string",
-                "description": "Any observations: occlusion, lighting issues, suspicious patterns, mismatched dishes.",
+                "description": (
+                    "Any observations: occlusion, lighting issues, suspicious patterns, "
+                    "mismatched dishes."
+                ),
             },
             "suspicious": {
                 "type": "boolean",
-                "description": "Set true if the after-image appears unrelated to the before-image or shows tampering.",
+                "description": (
+                    "Set true if the after-image appears unrelated to the before-image "
+                    "or shows tampering."
+                ),
             },
         },
     },

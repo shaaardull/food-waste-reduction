@@ -5,7 +5,7 @@ thread/process per task and we don't want to mix the asyncio loop here.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 import yaml
@@ -84,7 +84,7 @@ def score_meal_session(self, session_id_str: str) -> dict:  # noqa: ANN001
             )
         except Exception as exc:  # noqa: BLE001
             log.error("score_task_failed", error=str(exc), session_id=session_id_str)
-            raise self.retry(exc=exc)
+            raise self.retry(exc=exc) from exc
 
         overall = float(result.get("overall_consumption", 0.0))
         confidence = float(result.get("confidence", 0.0))
@@ -119,7 +119,7 @@ def score_meal_session(self, session_id_str: str) -> dict:  # noqa: ANN001
             )
 
         session.status = "pending_staff_validation"
-        session.updated_at = datetime.now(timezone.utc)
+        session.updated_at = datetime.now(UTC)
         db.commit()
 
     log.info(

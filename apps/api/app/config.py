@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     S3_REGION: str = "us-east-1"
     S3_BUCKET: str = "plate-clean-images"
     S3_ACCESS_KEY: str = "minioadmin"
-    S3_SECRET_KEY: str = "minioadmin"
+    S3_SECRET_KEY: str = "minioadmin"  # noqa: S105 -- dev-only default, real value via env
     S3_PUBLIC_BASE_URL: str = "http://localhost:9000"
 
     ANTHROPIC_API_KEY: str = ""

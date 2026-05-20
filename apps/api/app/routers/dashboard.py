@@ -1,8 +1,8 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,6 @@ from app.db.session import get_db
 from app.errors import NotRestaurantStaff
 from app.models.dispute import Dispute
 from app.models.meal_session import MealSession
-from app.models.reward import Reward
 from app.models.restaurant import RestaurantStaff
 from app.models.staff_validation import StaffValidation
 from app.models.user import User
@@ -43,7 +42,7 @@ async def summary(
 ) -> dict[str, Any]:
     await _ensure_staff(db, user, restaurant_id)
     days = {"7d": 7, "30d": 30, "90d": 90}[range]
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    since = datetime.now(UTC) - timedelta(days=days)
 
     sessions_count = await db.scalar(
         select(func.count(MealSession.id)).where(

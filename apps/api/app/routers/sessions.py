@@ -1,10 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.db.session import get_db
@@ -17,6 +16,7 @@ from app.errors import (
     WrongSessionStatus,
 )
 from app.models.consumption_score import ConsumptionScore
+from app.models.dispute import Dispute
 from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
@@ -38,7 +38,6 @@ from app.schemas.session import (
 )
 from app.security import get_current_user, haversine_m
 from app.services import fraud, nonce, rate_limit, storage
-from app.models.dispute import Dispute
 
 router = APIRouter()
 settings = get_settings()
@@ -56,7 +55,7 @@ async def create_session(
     if restaurant is None or not restaurant.is_active:
         raise HTTPException(status_code=404, detail="Restaurant not found")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     session = MealSession(
         diner_user_id=user.id,
         restaurant_id=restaurant.id,
@@ -158,7 +157,7 @@ async def capture_before(
         phase="before",
         image_s3_key=key,
         image_sha256=sha,
-        captured_at=datetime.now(timezone.utc),
+        captured_at=datetime.now(UTC),
         client_lat=client_lat,
         client_lng=client_lng,
         device_fingerprint=device_fingerprint,
@@ -168,9 +167,9 @@ async def capture_before(
     session.status = "before_captured"
     try:
         await db.commit()
-    except Exception:
+    except Exception as exc:
         await db.rollback()
-        raise DuplicateCapture()
+        raise DuplicateCapture() from exc
     await db.refresh(capture)
 
     after_nonce = await nonce.issue(session.id, "after", settings.NONCE_AFTER_TTL_MINUTES)
@@ -214,7 +213,7 @@ async def capture_after(
     if before_cap is None:
         raise WrongSessionStatus("before_captured", session.status)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     delta = now - before_cap.captured_at
     if delta < timedelta(minutes=settings.MIN_MINUTES_BETWEEN_CAPTURES):
         await fraud.record(
@@ -275,9 +274,9 @@ async def capture_after(
     session.device_fingerprint = device_fingerprint
     try:
         await db.commit()
-    except Exception:
+    except Exception as exc:
         await db.rollback()
-        raise DuplicateCapture()
+        raise DuplicateCapture() from exc
     await db.refresh(capture)
 
     # Enqueue scoring task (Celery). Imported here to avoid circular dependency at module load.
@@ -413,7 +412,7 @@ async def _load_session(
 
 
 def _ensure_session_alive(session: MealSession) -> None:
-    if session.expires_at < datetime.now(timezone.utc):
+    if session.expires_at < datetime.now(UTC):
         raise SessionExpired()
 
 

@@ -82,7 +82,9 @@ def run() -> None:
             print(f"+ diner {diner_email} (password: plate-clean-demo)")
 
         for idx, r in enumerate(RESTAURANTS, start=1):
-            restaurant = db.execute(select(Restaurant).where(Restaurant.slug == r["slug"])).scalar_one_or_none()
+            restaurant = db.execute(
+                select(Restaurant).where(Restaurant.slug == r["slug"])
+            ).scalar_one_or_none()
             if restaurant is None:
                 restaurant = Restaurant(
                     name=r["name"],

@@ -1,6 +1,5 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy import select
@@ -98,7 +97,7 @@ async def redeem_reward(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     reward, session = await _staff_for_code(db, user, code)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if reward.redeemed_at:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already redeemed")
     if reward.voided_at:
@@ -129,7 +128,7 @@ async def void_reward(
         raise HTTPException(status_code=400, detail="reason required")
     if reward.voided_at:
         return {"redemption_code": reward.redemption_code, "voided_at": reward.voided_at.isoformat()}
-    reward.voided_at = datetime.now(timezone.utc)
+    reward.voided_at = datetime.now(UTC)
     reward.voided_reason = reason
     await db.commit()
     await db.refresh(reward)
