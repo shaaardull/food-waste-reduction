@@ -23,6 +23,7 @@ from app.models.plate_capture import PlateCapture
 from app.services import storage
 from app.services.phash import continuity_check
 from app.vision.anthropic_client import score_images
+from app.vision.service_client import infer_via_service
 
 log = get_logger(__name__)
 settings = get_settings()
@@ -46,6 +47,27 @@ def _ordered_items_yaml(db: Session, session_id: UUID) -> str:
         for item, menu in rows
     ]
     return yaml.safe_dump(data, sort_keys=False)
+
+
+def _expected_dishes_payload(db: Session, session_id: UUID) -> list[dict[str, str]]:
+    """Shape ordered items for the services/vision /infer payload."""
+    rows = db.execute(
+        select(MealSessionItem, MenuItem)
+        .join(MenuItem, MealSessionItem.menu_item_id == MenuItem.id)
+        .where(MealSessionItem.meal_session_id == session_id)
+    ).all()
+    return [
+        {
+            "name": menu.name,
+            "portion_size": item.portion_size or "regular",
+            **(
+                {"reference_image_url": menu.reference_image_url}
+                if menu.reference_image_url
+                else {}
+            ),
+        }
+        for item, menu in rows
+    ]
 
 
 @celery_app.task(name="vision.score_meal_session", bind=True, max_retries=2, default_retry_delay=15)
@@ -108,9 +130,20 @@ def score_meal_session(self, session_id_str: str) -> dict:  # noqa: ANN001
             log.warning("phash_continuity_error", session_id=session_id_str, error=str(exc))
 
         try:
-            result, processing_ms, model_version = score_images(
-                before_bytes, before_mime, after_bytes, after_mime, ordered_items_yaml
-            )
+            if settings.USE_VISION_SERVICE:
+                # Phase 2 path: dispatch to services/vision over HTTP, using
+                # signed S3 URLs the service can fetch.
+                before_url = storage.signed_url(captures["before"].image_s3_key)
+                after_url = storage.signed_url(captures["after"].image_s3_key)
+                expected_dishes = _expected_dishes_payload(db, session.id)
+                result, processing_ms, model_version = infer_via_service(
+                    before_url, after_url, expected_dishes
+                )
+            else:
+                # Phase 1 default: inline Anthropic call.
+                result, processing_ms, model_version = score_images(
+                    before_bytes, before_mime, after_bytes, after_mime, ordered_items_yaml
+                )
         except Exception as exc:  # noqa: BLE001
             log.error("score_task_failed", error=str(exc), session_id=session_id_str)
             raise self.retry(exc=exc) from exc

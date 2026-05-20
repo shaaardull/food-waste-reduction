@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     VISION_MODEL: str = "claude-sonnet-4-5"
     VISION_TIMEOUT_SECONDS: int = 30
 
+    # Phase 2: when set, the scoring task posts to services/vision instead of
+    # calling Anthropic in-process. Wire the URL and flip the flag to migrate.
+    USE_VISION_SERVICE: bool = False
+    VISION_SERVICE_URL: str = "http://localhost:8001"
+    VISION_SERVICE_TIMEOUT_SECONDS: int = 30
+
     GEOFENCE_DEFAULT_RADIUS_M: int = 100
     GEOFENCE_MODE: Literal["warn", "block"] = "warn"
     MAX_SESSIONS_PER_USER_PER_DAY: int = 3
