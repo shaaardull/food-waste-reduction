@@ -191,12 +191,25 @@ async def submit_validation(
                 # Cap hit → approve but don't issue another reward this day.
                 session.status = "staff_approved"
             else:
+                # Look up the menu item so we can record its price as the
+                # reward's base value. If the diner later switches to
+                # bill_discount, we'll re-anchor on the rule's
+                # bill_discount_minor (or fall back to this).
+                reward_item = await db.get(MenuItem, rule.reward_menu_item_id)
+                menu_value = (
+                    reward_item.price_minor if reward_item is not None else 0
+                )
+                half_value_at = now + timedelta(days=settings.REWARD_FULL_VALUE_DAYS)
+                expires_at = now + timedelta(days=settings.REWARD_EXPIRY_DAYS)
                 reward = Reward(
                     meal_session_id=session.id,
                     reward_rule_id=rule.id,
                     redemption_code=new_redemption_code(),
+                    reward_type="menu_item",
+                    value_minor=menu_value,
                     issued_at=now,
-                    expires_at=now + timedelta(hours=settings.REWARD_EXPIRY_HOURS),
+                    half_value_at=half_value_at,
+                    expires_at=expires_at,
                 )
                 db.add(reward)
                 session.status = "rewarded"
@@ -204,7 +217,11 @@ async def submit_validation(
                 reward_out = {
                     "id": str(reward.id),
                     "redemption_code": reward.redemption_code,
+                    "reward_type": reward.reward_type,
+                    "value_minor": reward.value_minor,
+                    "half_value_at": reward.half_value_at.isoformat(),
                     "expires_at": reward.expires_at.isoformat(),
+                    "allowed_reward_types": list(rule.allowed_reward_types or []),
                 }
         else:
             session.status = "staff_approved"

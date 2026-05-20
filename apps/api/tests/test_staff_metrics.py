@@ -135,7 +135,12 @@ def test_week_window_starts_seven_days_back(db: Session):
 
 
 def test_compute_week_writes_snapshot(db: Session):
-    restaurant_id = db.execute(text("SELECT id FROM restaurants LIMIT 1")).scalar_one()
+    # Use a dedicated restaurant so stale validations from prior tests or
+    # live-stack smokes don't bleed into the aggregate.
+    from tests.conftest import make_restaurant
+
+    restaurant, _, _ = make_restaurant(db, name="StaffMetrics Compute")
+    restaurant_id = restaurant.id
     staff = _make_staff(db, 100, restaurant_id)
     diner = _make_diner(db, 1)
     now = datetime.now(UTC)

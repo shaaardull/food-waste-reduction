@@ -64,7 +64,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S105", "S106", "S107", "N814"]  # passwords + import aliases ok in tests
+"tests/*" = ["S105", "S106", "S107", "N814", "S608"]  # passwords + import aliases + interpolated test cleanup SQL ok in tests
 "app/scripts/seed.py" = ["T20", "S105", "S106"]
 "app/security.py" = ["N806"]  # haversine's R is a standard constant name
 

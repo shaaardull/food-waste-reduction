@@ -163,6 +163,68 @@ def cleanup_run_artifacts() -> Iterator[None]:
                 p=f"itest-{RUN_TAG}-%"
             )
         )
+        # Also catch dependents on itest-restaurants whose own prefix differs
+        # (e.g. test_staff_metrics uses 'staff-metrics-test-' emails and
+        # 'TEST-STAFF-METRICS-' table codes).
+        itest_slug = f"itest-{RUN_TAG}-%"
+        for table, fk in (
+            ("staff_validations", "restaurant_id"),
+            ("staff_metrics_snapshots", "restaurant_id"),
+            ("rewards", "reward_rule_id IN (SELECT id FROM reward_rules WHERE restaurant_id"),
+        ):
+            if "(" in fk:
+                s.execute(
+                    text(f"DELETE FROM {table} WHERE {fk} IN "
+                         "(SELECT id FROM restaurants WHERE slug LIKE :p))").bindparams(
+                        p=itest_slug
+                    )
+                )
+            else:
+                s.execute(
+                    text(f"DELETE FROM {table} WHERE {fk} IN "
+                         "(SELECT id FROM restaurants WHERE slug LIKE :p)").bindparams(
+                        p=itest_slug
+                    )
+                )
+        # Wipe meal-session children + meal_sessions for itest-restaurants.
+        for table in (
+            "consumption_scores",
+            "plate_captures",
+            "meal_session_items",
+            "disputes",
+            "fraud_signals",
+        ):
+            s.execute(
+                text(f"DELETE FROM {table} WHERE meal_session_id IN "
+                     "(SELECT id FROM meal_sessions WHERE restaurant_id IN "
+                     "(SELECT id FROM restaurants WHERE slug LIKE :p))").bindparams(
+                    p=itest_slug
+                )
+            )
+        s.execute(
+            text("DELETE FROM meal_sessions WHERE restaurant_id IN "
+                 "(SELECT id FROM restaurants WHERE slug LIKE :p)").bindparams(
+                p=itest_slug
+            )
+        )
+        s.execute(
+            text("DELETE FROM reward_rules WHERE restaurant_id IN "
+                 "(SELECT id FROM restaurants WHERE slug LIKE :p)").bindparams(
+                p=itest_slug
+            )
+        )
+        s.execute(
+            text("DELETE FROM menu_items WHERE restaurant_id IN "
+                 "(SELECT id FROM restaurants WHERE slug LIKE :p)").bindparams(
+                p=itest_slug
+            )
+        )
+        s.execute(
+            text("DELETE FROM restaurant_staff WHERE restaurant_id IN "
+                 "(SELECT id FROM restaurants WHERE slug LIKE :p)").bindparams(
+                p=itest_slug
+            )
+        )
         s.execute(
             text("DELETE FROM restaurants WHERE slug LIKE :p").bindparams(
                 p=f"itest-{RUN_TAG}-%"
