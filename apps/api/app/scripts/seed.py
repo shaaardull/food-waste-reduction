@@ -157,6 +157,11 @@ def run() -> None:
                             reward_menu_item_id=reward_item.id,
                             daily_redemption_cap_per_user=1,
                             is_active=True,
+                            # §12: diner picks menu item OR bill discount.
+                            allowed_reward_types=["menu_item", "bill_discount"],
+                            # Default the bill discount to the dessert's price so
+                            # the diner's two options have the same nominal value.
+                            bill_discount_minor=reward_item.price_minor,
                         )
                     )
                     print(f"+ reward rule on {r['slug']}: free {reward_item.name} at 0.75 threshold")

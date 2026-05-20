@@ -53,7 +53,9 @@ class Settings(BaseSettings):
     NONCE_AFTER_TTL_MINUTES: int = 30
     SESSION_TTL_HOURS: int = 4
     MIN_MINUTES_BETWEEN_CAPTURES: int = 5
-    REWARD_EXPIRY_HOURS: int = 24
+    # §12 reward window: full value within 15 days; half value days 16-30; expired after.
+    REWARD_FULL_VALUE_DAYS: int = 15
+    REWARD_EXPIRY_DAYS: int = 30
 
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174"
 
