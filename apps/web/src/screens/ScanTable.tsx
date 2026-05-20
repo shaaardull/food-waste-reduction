@@ -13,6 +13,7 @@ interface SessionCreateOut {
 export function ScanTable() {
   const navigate = useNavigate();
   const token = useAuthStore((s) => s.token);
+  const setActiveRestaurant = useAuthStore((s) => s.setActiveRestaurant);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [restaurantId, setRestaurantId] = useState<string>('');
   const [tableCode, setTableCode] = useState('T-01');
@@ -33,6 +34,8 @@ export function ScanTable() {
     setError(null);
     setBusy(true);
     try {
+      const chosen = restaurants.find((r) => r.id === restaurantId) ?? null;
+      setActiveRestaurant(chosen);
       const res = await api.post<SessionCreateOut>(
         '/sessions',
         { table_code: tableCode, restaurant_id: restaurantId },

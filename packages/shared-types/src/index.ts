@@ -64,6 +64,9 @@ export interface Restaurant {
   timezone: string;
   currency: string;
   is_active: boolean;
+  theme_primary_color: string;
+  theme_logo_url?: string | null;
+  tagline?: string | null;
 }
 
 export interface MenuItem {
