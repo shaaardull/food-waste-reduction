@@ -5,6 +5,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
 import './index.css';
 import { App } from './App';
+import { AdminOnboard } from './screens/AdminOnboard';
 import { Login } from './screens/Login';
 import { ValidationQueue } from './screens/ValidationQueue';
 import { ValidationDetail } from './screens/ValidationDetail';
@@ -26,6 +27,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="validations" element={<ValidationQueue />} />
             <Route path="validations/:sessionId" element={<ValidationDetail />} />
             <Route path="redeem" element={<Redeem />} />
+            <Route path="admin/restaurants/new" element={<AdminOnboard />} />
           </Route>
         </Routes>
       </BrowserRouter>

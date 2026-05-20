@@ -1,18 +1,29 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './lib/auth';
+import { useApplyTheme } from './lib/theme';
 
 export function App() {
   const navigate = useNavigate();
   const loc = useLocation();
-  const { user, clearAuth, restaurantId } = useAuthStore();
+  const { user, clearAuth, activeRestaurant } = useAuthStore();
+  useApplyTheme(activeRestaurant);
 
   return (
     <div className="min-h-full flex flex-col">
       <header className="bg-white border-b border-slate-200 px-4 py-3">
         <div className="max-w-screen-xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-6">
-            <Link to="/" className="font-semibold text-brand-700">
-              Plate-Clean &mdash; Staff
+            <Link to="/" className="font-semibold text-brand-700 flex items-center gap-2">
+              {activeRestaurant?.theme_logo_url && (
+                <img
+                  src={activeRestaurant.theme_logo_url}
+                  alt=""
+                  className="h-6 w-6 rounded object-cover"
+                />
+              )}
+              <span>
+                {activeRestaurant ? `${activeRestaurant.name} · Staff` : 'Plate-Clean · Staff'}
+              </span>
             </Link>
             {user && (
               <nav className="flex gap-4 text-sm">
@@ -25,15 +36,17 @@ export function App() {
                 <Link to="/" className="hover:underline">
                   Summary
                 </Link>
+                {user.role === 'admin' && (
+                  <Link to="/admin/restaurants/new" className="hover:underline">
+                    Onboard restaurant
+                  </Link>
+                )}
               </nav>
             )}
           </div>
           {user ? (
             <div className="flex items-center gap-3 text-sm text-slate-600">
-              <span>
-                {user.display_name ?? user.email}
-                {restaurantId ? ` · ${restaurantId.slice(0, 8)}…` : ''}
-              </span>
+              <span>{user.display_name ?? user.email}</span>
               <button
                 onClick={() => {
                   clearAuth();

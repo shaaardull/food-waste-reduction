@@ -1,17 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { Restaurant } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
-interface Restaurant {
-  id: string;
-  name: string;
-  slug: string;
-}
-
 export function Login() {
   const navigate = useNavigate();
-  const { setAuth, setRestaurantId } = useAuthStore();
+  const { setAuth, setRestaurantId, setActiveRestaurant } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -44,7 +39,11 @@ export function Login() {
         return;
       }
       setAuth(res.user, res.token);
-      if (chosen) setRestaurantId(chosen);
+      if (chosen) {
+        setRestaurantId(chosen);
+        const chosenRestaurant = restaurants.find((r) => r.id === chosen) ?? null;
+        setActiveRestaurant(chosenRestaurant);
+      }
       navigate('/validations');
     } catch (err) {
       if (err instanceof ApiException) setError(err.message);
