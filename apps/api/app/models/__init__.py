@@ -6,6 +6,7 @@ from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
 from app.models.restaurant import Restaurant, RestaurantStaff
 from app.models.reward import Reward, RewardRule
+from app.models.staff_metrics import StaffMetricsSnapshot
 from app.models.staff_validation import StaffValidation
 from app.models.user import User
 
@@ -20,6 +21,7 @@ __all__ = [
     "PlateCapture",
     "ConsumptionScore",
     "StaffValidation",
+    "StaffMetricsSnapshot",
     "Reward",
     "FraudSignal",
     "Dispute",
