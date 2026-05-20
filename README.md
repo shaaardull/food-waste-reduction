@@ -117,9 +117,12 @@ What's wired up in this scaffold (see CLAUDE.md §9 for the full deliverable lis
 - ✅ Diner PWA: scan/order/capture/wait-for-staff/redemption screens, Workbox PWA manifest
 - ✅ Copy-lint deny list (ethics rule 7) and code-level enforcement of the threshold floor (rule 1)
 - ✅ docker-compose, GitHub Actions CI
-- ⏳ Perceptual-hash continuity check (Phase 2)
-- ⏳ Score-distribution daily Celery cron (Phase 2)
-- ⏳ Per-staff approval/override metrics with 4-week alert (Phase 2)
+- ✅ Perceptual-hash continuity check in the scoring task (fraud signal #6)
+- ✅ Daily score-distribution anomaly Celery beat job (fraud signal #10)
+- ✅ Weekly staff metrics with 4-week 2× median alert (ethics rule 8 rolling alert)
+- ✅ Standalone `services/vision` microservice with pluggable backends — Phase 2 §6.2
+- ✅ **72 tests passing** across `apps/api` + `services/vision`; ruff clean
+- ✅ **End-to-end live smoke verified**: diner signup → before/after capture (MinIO) → Celery picks up `vision.score_meal_session` → services/vision fetches signed URLs from MinIO → stub backend returns 0.8 → ConsumptionScore persisted → staff approves → reward `PLATE-XXXX` → staff redeems. Logs confirm every hop.
 
 ## Open product decisions
 
