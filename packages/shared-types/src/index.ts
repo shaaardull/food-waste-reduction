@@ -121,16 +121,26 @@ export interface StaffValidation {
   decision_latency_ms: number;
 }
 
+export type RewardType = 'menu_item' | 'bill_discount';
+
 export interface Reward {
   id: string;
-  meal_session_id: string;
-  reward_rule_id: string;
+  meal_session_id?: string;
+  reward_rule_id?: string;
   redemption_code: string;
+  reward_type: RewardType;
+  value_minor: number;
   issued_at: string;
+  half_value_at: string;
   expires_at: string;
   redeemed_at?: string | null;
+  redeemed_value_minor?: number | null;
   voided_at?: string | null;
   voided_reason?: string | null;
+  /** Server-computed value at the time of the response (full / half / 0). */
+  current_value_minor?: number;
+  /** Returned in the `validate` response so the diner UI can offer the type choice. */
+  allowed_reward_types?: RewardType[];
 }
 
 export interface ApiError {

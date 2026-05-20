@@ -1,19 +1,25 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
+import type { Reward } from '@plate-clean/shared-types';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
+import { ChooseRewardType, TYPE_LABEL, formatValue } from '../components/ChooseRewardType';
 
 interface SessionDetail {
   session: { id: string; status: string };
   items: Array<{ menu_item_id: string; quantity: number }>;
   captures: Array<{ phase: string; captured_at: string }>;
   score?: { overall_score: number; suspicious: boolean } | null;
-  reward?: { redemption_code: string; expires_at: string } | null;
+  reward?: Reward | null;
 }
 
 export function SessionStatus() {
   const { id = '' } = useParams();
   const token = useAuthStore((s) => s.token);
+
+  // Once the diner has explicitly chosen a type (or had no choice), reveal the code.
+  const [typeChosen, setTypeChosen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['session', id],
@@ -34,7 +40,9 @@ export function SessionStatus() {
   return (
     <section className="space-y-5">
       <h1 className="text-xl font-semibold">Your meal</h1>
-      <p className="text-sm text-slate-600">Status: <span className="font-medium">{prettyStatus(status)}</span></p>
+      <p className="text-sm text-slate-600">
+        Status: <span className="font-medium">{prettyStatus(status)}</span>
+      </p>
 
       {status === 'open' && (
         <Link
@@ -78,11 +86,7 @@ export function SessionStatus() {
       )}
 
       {status === 'rewarded' && data.reward && (
-        <div className="rounded-lg border-2 border-brand-600 bg-brand-50 p-4 space-y-2">
-          <p className="text-sm text-slate-600">Show this to your server:</p>
-          <p className="text-3xl font-bold text-brand-700 tracking-wide">{data.reward.redemption_code}</p>
-          <p className="text-xs text-slate-500">Expires {new Date(data.reward.expires_at).toLocaleString()}</p>
-        </div>
+        <RewardPanel reward={data.reward} typeChosen={typeChosen} onChosen={() => setTypeChosen(true)} />
       )}
 
       {status === 'staff_rejected' && (
@@ -102,6 +106,55 @@ export function SessionStatus() {
         </details>
       )}
     </section>
+  );
+}
+
+interface RewardPanelProps {
+  reward: Reward;
+  typeChosen: boolean;
+  onChosen: () => void;
+}
+
+function RewardPanel({ reward, typeChosen, onChosen }: RewardPanelProps) {
+  const allowed = reward.allowed_reward_types ?? ['menu_item', 'bill_discount'];
+  const hasChoice = allowed.length > 1;
+  // If only one type is allowed, or the diner has already picked, jump straight to the code.
+  const showCode = !hasChoice || typeChosen || Boolean(reward.redeemed_at);
+
+  if (!showCode) {
+    return <ChooseRewardType reward={reward} onChosen={onChosen} />;
+  }
+
+  const value = reward.current_value_minor ?? reward.value_minor;
+  const expires = new Date(reward.expires_at);
+  const halfAt = new Date(reward.half_value_at);
+  const now = new Date();
+  const inHalfWindow = now >= halfAt && now < expires;
+
+  return (
+    <div className="rounded-lg border-2 border-brand-600 bg-brand-50 p-4 space-y-2">
+      <p className="text-sm text-slate-600">Show this to your server:</p>
+      <p className="text-3xl font-bold text-brand-700 tracking-wide">{reward.redemption_code}</p>
+      <p className="text-sm text-slate-600">
+        Type: <span className="font-medium">{TYPE_LABEL[reward.reward_type]}</span>
+      </p>
+      <p className="text-sm">
+        Current value: <span className="font-medium">{formatValue(value)}</span>
+        {inHalfWindow && (
+          <span className="ml-2 text-amber-700 text-xs">
+            (half value &mdash; expires {expires.toLocaleDateString()})
+          </span>
+        )}
+        {!inHalfWindow && now < halfAt && (
+          <span className="ml-2 text-xs text-slate-500">
+            full value until {halfAt.toLocaleDateString()}
+          </span>
+        )}
+      </p>
+      {reward.redeemed_at && (
+        <p className="text-xs text-slate-500">Redeemed {new Date(reward.redeemed_at).toLocaleString()}</p>
+      )}
+    </div>
   );
 }
 
