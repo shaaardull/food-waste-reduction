@@ -101,6 +101,25 @@ services:
         condition: service_started
     command: celery -A app.celery_app.celery_app beat --loglevel=info
 
+  vision:
+    # Phase 2 inference microservice (CLAUDE.md §6.2). Defaults to the
+    # 'stub' backend so it can run without an Anthropic key or trained model.
+    # Flip apps/api's USE_VISION_SERVICE=true to route traffic through here.
+    build:
+      context: ../../services/vision
+      dockerfile: Dockerfile
+    env_file:
+      - ../../.env
+    environment:
+      VISION_BACKEND: stub
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
 volumes:
   postgres-data:
   minio-data:
