@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 
 from app.config import get_settings
 
@@ -8,7 +9,11 @@ celery_app = Celery(
     "plate_clean",
     broker=_settings.REDIS_URL,
     backend=_settings.REDIS_URL,
-    include=["app.tasks.scoring"],
+    include=[
+        "app.tasks.scoring",
+        "app.tasks.anomaly",
+        "app.tasks.staff_metrics",
+    ],
 )
 
 celery_app.conf.update(
@@ -21,4 +26,16 @@ celery_app.conf.update(
     task_default_retry_delay=10,
     task_track_started=True,
     worker_max_tasks_per_child=200,
+    beat_schedule={
+        # Fraud signal #10: nightly at 02:30 UTC.
+        "score-anomaly-scan-nightly": {
+            "task": "fraud.score_anomaly_scan",
+            "schedule": crontab(hour=2, minute=30),
+        },
+        # Ethics rule 8: Monday 03:00 UTC, looks at the prior 7 days.
+        "staff-metrics-weekly": {
+            "task": "metrics.staff_metrics_weekly",
+            "schedule": crontab(hour=3, minute=0, day_of_week="mon"),
+        },
+    },
 )

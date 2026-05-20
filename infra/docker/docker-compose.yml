@@ -86,6 +86,21 @@ services:
         condition: service_healthy
     command: celery -A app.celery_app.celery_app worker --loglevel=info --concurrency=2
 
+  beat:
+    build:
+      context: ../../apps/api
+      dockerfile: Dockerfile
+    env_file:
+      - ../../.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://plate:plate@postgres:5432/plate_clean
+      DATABASE_URL_SYNC: postgresql://plate:plate@postgres:5432/plate_clean
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      worker:
+        condition: service_started
+    command: celery -A app.celery_app.celery_app beat --loglevel=info
+
 volumes:
   postgres-data:
   minio-data:
