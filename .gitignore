@@ -48,6 +48,7 @@ logs/
 .minio-data/
 .postgres-data/
 .redis-data/
+dump.rdb
 
 # Test artifacts
 playwright-report/

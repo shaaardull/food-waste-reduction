@@ -64,7 +64,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S105", "S106"]
+"tests/*" = ["S105", "S106", "S107", "N814"]  # passwords + import aliases ok in tests
 "app/scripts/seed.py" = ["T20", "S105", "S106"]
 "app/security.py" = ["N806"]  # haversine's R is a standard constant name
 
@@ -76,6 +76,8 @@ plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 addopts = "-ra --strict-markers"
