@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@plate-clean/eslint-config": "workspace:*",
+    "@types/node": "^22.7.0",
     "@types/react": "^18.3.7",
     "@types/react-dom": "^18.3.0",
     "@typescript-eslint/eslint-plugin": "^8.7.0",

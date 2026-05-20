@@ -19,7 +19,7 @@ interface Geo {
 }
 
 function dataUrlToBlob(dataUrl: string): Blob {
-  const [meta, b64] = dataUrl.split(',');
+  const [meta = '', b64 = ''] = dataUrl.split(',');
   const mime = meta.match(/data:(.*?);/)?.[1] ?? 'image/jpeg';
   const bin = atob(b64);
   const arr = new Uint8Array(bin.length);

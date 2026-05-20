@@ -5,9 +5,11 @@ import { fileURLToPath } from 'node:url';
 
 import { COPY_DENY_LIST } from '../src/lib/copy-lint';
 
-const ROOT = fileURLToPath(new URL('../src', import.meta.url));
-const EXTS = new Set(['.ts', '.tsx']);
-const SKIP = new Set(['copy-lint.ts']);
+const SRC = fileURLToPath(new URL('../src', import.meta.url));
+const EXTS = new Set(['.tsx']); // .tsx only — that's where user-facing copy lives
+// Only scan directories that hold user-facing screens / components.
+const INCLUDE_DIRS = ['screens', 'components'];
+const SKIP_FILES = new Set(['copy-lint.ts']);
 
 async function walk(dir: string): Promise<string[]> {
   const entries = await readdir(dir);
@@ -17,23 +19,36 @@ async function walk(dir: string): Promise<string[]> {
     const st = await stat(full);
     if (st.isDirectory()) {
       out.push(...(await walk(full)));
-    } else if (EXTS.has(extname(e)) && !SKIP.has(e)) {
+    } else if (EXTS.has(extname(e)) && !SKIP_FILES.has(e)) {
       out.push(full);
     }
   }
   return out;
 }
 
-const files = await walk(ROOT);
+const roots = await Promise.all(INCLUDE_DIRS.map((d) => walk(join(SRC, d))));
+// Also lint App.tsx at the src root (chrome / nav copy).
+const appFile = join(SRC, 'App.tsx');
+const files = [...roots.flat(), appFile];
+
 const offences: { file: string; line: number; word: string; text: string }[] = [];
+
+// Only flag words inside string literals (' " or `) or JSX text — not random identifier
+// fragments. Word boundaries (\b) keep "body" from matching "bodyA" etc.
+function shouldFlag(line: string, word: string): boolean {
+  const re = new RegExp(`\\b${word}\\b`, 'i');
+  if (!re.test(line)) return false;
+  // Require the line to contain a string literal or JSX text content.
+  // (cheap heuristic: a quote or > delimiter present)
+  return /["'`]/.test(line) || /^[^<>{}]*[a-z]/i.test(line.trim());
+}
 
 for (const file of files) {
   const src = await readFile(file, 'utf8');
   const lines = src.split('\n');
   lines.forEach((line, i) => {
-    const lower = line.toLowerCase();
     for (const word of COPY_DENY_LIST) {
-      if (lower.includes(word)) {
+      if (shouldFlag(line, word)) {
         offences.push({ file, line: i + 1, word, text: line.trim() });
       }
     }
