@@ -21,6 +21,7 @@ from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
 from app.services import storage
+from app.services.phash import continuity_check
 from app.vision.anthropic_client import score_images
 
 log = get_logger(__name__)
@@ -77,6 +78,34 @@ def score_meal_session(self, session_id_str: str) -> dict:  # noqa: ANN001
         after_mime = "image/jpeg" if captures["after"].image_s3_key.endswith(".jpg") else "image/png"
 
         ordered_items_yaml = _ordered_items_yaml(db, session.id)
+
+        # Fraud signal #6: phash continuity between before/after non-food frame.
+        try:
+            phash = continuity_check(before_bytes, after_bytes)
+            if not phash.matched:
+                db.add(
+                    FraudSignal(
+                        meal_session_id=session.id,
+                        user_id=session.diner_user_id,
+                        signal_type="image_metadata_mismatch",
+                        severity="block",
+                        details={
+                            "reason": "phash_continuity_failed",
+                            "hamming_distance": phash.distance,
+                            "max_allowed": 8,
+                            "before_hash": phash.before_hash,
+                            "after_hash": phash.after_hash,
+                        },
+                    )
+                )
+                log.warning(
+                    "phash_continuity_failed",
+                    session_id=session_id_str,
+                    distance=phash.distance,
+                )
+        except Exception as exc:  # noqa: BLE001
+            # Don't fail the whole scoring path on a phash hiccup; just log it.
+            log.warning("phash_continuity_error", session_id=session_id_str, error=str(exc))
 
         try:
             result, processing_ms, model_version = score_images(
