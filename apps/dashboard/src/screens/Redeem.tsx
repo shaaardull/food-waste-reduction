@@ -2,16 +2,41 @@ import { useState } from 'react';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
+type RewardType = 'menu_item' | 'bill_discount';
+
+interface RewardBody {
+  id: string;
+  redemption_code: string;
+  reward_type: RewardType;
+  value_minor: number;
+  current_value_minor?: number;
+  issued_at: string;
+  half_value_at: string;
+  expires_at: string;
+  redeemed_at: string | null;
+  redeemed_value_minor: number | null;
+  voided_at: string | null;
+}
+
 interface Lookup {
-  reward: {
-    redemption_code: string;
-    issued_at: string;
-    expires_at: string;
-    redeemed_at: string | null;
-    voided_at: string | null;
-  };
+  reward: RewardBody;
   session: { id: string; status: string; table_code: string };
   score: number | null;
+}
+
+const TYPE_LABEL: Record<RewardType, string> = {
+  menu_item: 'Free dish',
+  bill_discount: 'Bill discount',
+};
+
+const TYPE_INSTRUCTION: Record<RewardType, string> = {
+  menu_item: "Send the dish from the reward rule. Don't ring up payment for it.",
+  bill_discount:
+    "Apply the discount amount to this customer's current bill (or note for their next visit).",
+};
+
+function formatValue(minor: number): string {
+  return `₹${(minor / 100).toFixed(0)}`;
 }
 
 export function Redeem() {
@@ -55,6 +80,13 @@ export function Redeem() {
     }
   }
 
+  const r = lookup?.reward;
+  const expired = r ? new Date(r.expires_at) <= new Date() : false;
+  const inHalfWindow = r
+    ? !expired && new Date(r.half_value_at) <= new Date()
+    : false;
+  const valueNow = r ? r.current_value_minor ?? r.value_minor : 0;
+
   return (
     <section className="max-w-md mx-auto space-y-4">
       <h1 className="text-xl font-semibold">Redeem a reward code</h1>
@@ -75,29 +107,50 @@ export function Redeem() {
         </button>
       </form>
       {error && <p className="text-sm text-red-700">{error}</p>}
-      {lookup && (
+      {r && lookup && (
         <div className="rounded-lg bg-white border border-slate-200 p-3 space-y-2 text-sm">
-          <p className="font-mono text-lg">{lookup.reward.redemption_code}</p>
+          <p className="font-mono text-lg">{r.redemption_code}</p>
           <p className="text-slate-600">Table {lookup.session.table_code}</p>
+
+          <div
+            className={`rounded-md p-2 text-sm ${
+              r.reward_type === 'bill_discount'
+                ? 'bg-amber-50 border border-amber-200'
+                : 'bg-brand-50 border border-brand-600/30'
+            }`}
+          >
+            <div className="font-medium">{TYPE_LABEL[r.reward_type]}</div>
+            <div className="text-xs text-slate-600">{TYPE_INSTRUCTION[r.reward_type]}</div>
+            <div className="mt-1">
+              Pay out: <span className="font-semibold">{formatValue(valueNow)}</span>
+              {inHalfWindow && (
+                <span className="ml-2 text-amber-700 text-xs">half value</span>
+              )}
+            </div>
+          </div>
+
           <p className="text-slate-600">
-            Issued {new Date(lookup.reward.issued_at).toLocaleString()} · expires{' '}
-            {new Date(lookup.reward.expires_at).toLocaleString()}
+            Issued {new Date(r.issued_at).toLocaleDateString()} &middot; expires{' '}
+            {new Date(r.expires_at).toLocaleDateString()}
           </p>
           {lookup.score !== null && (
             <p className="text-slate-600">Final score: {Math.round(lookup.score * 100)}%</p>
           )}
-          {lookup.reward.redeemed_at ? (
+          {r.redeemed_at ? (
             <p className="text-amber-700">
-              Already redeemed at {new Date(lookup.reward.redeemed_at).toLocaleString()}.
+              Already redeemed at {new Date(r.redeemed_at).toLocaleString()}
+              {r.redeemed_value_minor != null && ` for ${formatValue(r.redeemed_value_minor)}`}.
             </p>
-          ) : lookup.reward.voided_at ? (
+          ) : r.voided_at ? (
             <p className="text-red-700">Voided.</p>
+          ) : expired ? (
+            <p className="text-red-700">Expired.</p>
           ) : (
             <button
               onClick={redeem}
               className="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-2"
             >
-              Mark redeemed
+              Mark redeemed ({formatValue(valueNow)})
             </button>
           )}
         </div>
