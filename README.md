@@ -124,12 +124,13 @@ What's wired up in this scaffold (see CLAUDE.md §9 for the full deliverable lis
 - ✅ **72 tests passing** across `apps/api` + `services/vision`; ruff clean
 - ✅ **End-to-end live smoke verified**: diner signup → before/after capture (MinIO) → Celery picks up `vision.score_meal_session` → services/vision fetches signed URLs from MinIO → stub backend returns 0.8 → ConsumptionScore persisted → staff approves → reward `PLATE-XXXX` → staff redeems. Logs confirm every hop.
 
-## Open product decisions
+## Locked-in product decisions
 
-See CLAUDE.md §12. The defaults baked into the seed and prompts assume:
+See CLAUDE.md §12 for the full text. Summary of the five Phase 1 decisions:
 
-- Cuisine for pilot: North Indian & coastal Konkan
-- Country: India (INR, Asia/Kolkata, console OTP in dev)
-- Multi-tenancy: single app for all restaurants
-
-Anything in those that's wrong, raise it before going further — they're easy to swap now, hard to swap later.
+- **Reward type** — Diner picks `menu_item` (free dish) or `bill_discount` (same value off next bill at the same restaurant) at claim time. No UPI payouts in Phase 1.
+- **Reward validity** — Day 0–15: full value. Day 16–30: half value. Day 31+: expired. `POST /rewards/:code/choose-type` lets the diner switch type before redemption.
+- **Multi-tenancy** — Single app at `plate-clean.app`, restaurant-scoped theming loaded per restaurant slug.
+- **POS integration** — Manual entry via the in-app menu for the pilot. POS integrations (Petpooja / urbanpiper) deferred to Phase 3.
+- **Cuisine** — North Indian + coastal Konkan (matches the seed).
+- **Country** — India: INR, Asia/Kolkata, msg91 OTP in prod (console in dev), DPDP Act privacy text.

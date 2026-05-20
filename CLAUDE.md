@@ -831,15 +831,19 @@ GitHub Actions workflows:
 
 ---
 
-## 12\. Open decisions to confirm before starting
+## 12\. Locked-in decisions (Phase 1)
 
-These were left intentionally undecided. Raise them, don't guess:
+All five §12 decisions are now resolved. Keep this section as the source of truth; flag a follow-up if any change.
 
-- **Payments:** Phase 1 has no payments. Are rewards purely menu items, or do we ever issue cash discounts? Affects whether we need a payments integration.  
-- **Multi-tenancy model:** is there one app for all restaurants (we assume yes), or do chains want their own branded PWA? Affects domain/PWA manifest strategy.  
-- **POS integration timing:** if a launch restaurant already uses a POS, do we wait for integration or scrape orders manually for the pilot?  
-- **Cuisine for pilot:** the prompt examples and menu seed should match the actual pilot cuisine. Default: North Indian. Confirm.  
-- **Country for pilot:** affects OTP provider, currency, timezone defaults, legal text. Default: India.
+- **Payments / reward type:** Diner picks one of two reward types at claim time:  
+  - `menu_item` — a free dish from the restaurant's menu (default).  
+  - `bill_discount` — equivalent value applied as a discount on the next bill at the same restaurant.  
+  No UPI payouts or external payment integration in Phase 1.  
+- **Reward validity window:** Day 0–15 from issuance → 100% value; day 16–30 → 50% value; day 31+ → expired (HTTP 410 on redeem). Persisted as `rewards.half_value_at` and `rewards.expires_at`; `rewards.redeemed_value_minor` snapshots the actual value paid out. Endpoint: `POST /rewards/:code/choose-type {"reward_type": "menu_item"|"bill_discount"}` lets the diner switch before redemption.  
+- **Multi-tenancy:** Single app at `plate-clean.app` for all restaurants. Restaurants get a slug-scoped landing screen with theming loaded from the `restaurants` row. No branded sub-domains.  
+- **POS integration:** Manual order entry for the pilot via the lightweight in-app menu (`POST /sessions/:id/items`). POS integration (Petpooja / urbanpiper) deferred to Phase 3.  
+- **Cuisine for pilot:** North Indian + coastal Konkan. The seed (`apps/api/app/scripts/seed.py`) creates Spice Trail and Konkan Kitchen with 20 dishes total. The Anthropic prompt is tuned to these.  
+- **Country for pilot:** India. INR currency, Asia/Kolkata timezone, console OTP provider in dev (msg91 in prod), DPDP Act privacy text.
 
 ---
 
