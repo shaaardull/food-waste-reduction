@@ -4,7 +4,16 @@ import type { Restaurant } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
-type Step = 'restaurant' | 'menu' | 'reward' | 'done';
+type Step = 'restaurant' | 'menu' | 'reward' | 'staff' | 'done';
+
+type StaffRole = 'owner' | 'manager' | 'server';
+
+interface InvitedStaff {
+  user_id: string;
+  email: string;
+  role: StaffRole;
+  password: string;
+}
 
 interface MenuItemForm {
   name: string;
@@ -58,10 +67,17 @@ export function AdminOnboard() {
   const [thresholdPct, setThresholdPct] = useState(75);
   const [rewardMenuItemId, setRewardMenuItemId] = useState<string>('');
 
+  // Step 4 (staff) state
+  const [staffEmail, setStaffEmail] = useState('');
+  const [staffName, setStaffName] = useState('');
+  const [staffRole, setStaffRole] = useState<StaffRole>('owner');
+  const [staffPassword, setStaffPassword] = useState('');
+
   // Derived state across steps
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [createdMenu, setCreatedMenu] = useState<CreatedMenuItem[]>([]);
   const [rewardRule, setRewardRule] = useState<CreatedRewardRule | null>(null);
+  const [invitedStaff, setInvitedStaff] = useState<InvitedStaff[]>([]);
 
   if (!user || user.role !== 'admin') {
     return (
@@ -139,7 +155,45 @@ export function AdminOnboard() {
         token,
       );
       setRewardRule(rule);
-      setStep('done');
+      // Pre-fill the staff invite with the slug-based suggested owner email.
+      setStaffEmail(`owner@${restaurant.slug}.local`);
+      setStaffRole('owner');
+      setStep('staff');
+    } catch (err) {
+      if (err instanceof ApiException) setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function inviteStaff(e: React.FormEvent) {
+    e.preventDefault();
+    if (!restaurant) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await api.post<{ user_id: string; email: string; role: StaffRole }>(
+        `/restaurants/${restaurant.id}/staff`,
+        {
+          email: staffEmail.trim().toLowerCase(),
+          display_name: staffName || undefined,
+          role: staffRole,
+          password: staffPassword,
+        },
+        token,
+      );
+      setInvitedStaff([
+        ...invitedStaff,
+        { user_id: res.user_id, email: res.email, role: res.role, password: staffPassword },
+      ]);
+      // Reset the form for the next invite. Suggest a default for the
+      // remaining roles to make multi-invite quick.
+      const nextRole: StaffRole =
+        invitedStaff.some((s) => s.role === 'owner') || staffRole === 'owner' ? 'manager' : 'owner';
+      setStaffRole(nextRole);
+      setStaffEmail('');
+      setStaffName('');
+      setStaffPassword('');
     } catch (err) {
       if (err instanceof ApiException) setError(err.message);
     } finally {
@@ -151,14 +205,16 @@ export function AdminOnboard() {
     <section className="max-w-xl mx-auto space-y-5">
       <header className="space-y-1">
         <h1 className="text-xl font-semibold">Onboard a restaurant</h1>
-        <ol className="text-xs text-slate-600 flex gap-2">
+        <ol className="text-xs text-slate-600 flex gap-2 flex-wrap">
           <li className={step === 'restaurant' ? 'text-brand-700 font-medium' : ''}>1. Details</li>
           <li>›</li>
           <li className={step === 'menu' ? 'text-brand-700 font-medium' : ''}>2. Menu</li>
           <li>›</li>
           <li className={step === 'reward' ? 'text-brand-700 font-medium' : ''}>3. Reward rule</li>
           <li>›</li>
-          <li className={step === 'done' ? 'text-brand-700 font-medium' : ''}>4. Done</li>
+          <li className={step === 'staff' ? 'text-brand-700 font-medium' : ''}>4. Invite staff</li>
+          <li>›</li>
+          <li className={step === 'done' ? 'text-brand-700 font-medium' : ''}>5. Done</li>
         </ol>
       </header>
       {error && (
@@ -375,6 +431,100 @@ export function AdminOnboard() {
         </div>
       )}
 
+      {step === 'staff' && restaurant && (
+        <div className="space-y-4">
+          <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
+            <p className="text-sm text-slate-600">
+              Invite the people who'll run the restaurant. Start with one{' '}
+              <strong>owner</strong> (they can edit the restaurant + invite more staff later), then
+              optionally add managers / servers now. Each invite creates a staff account with the
+              password you set &mdash; hand the credentials over out of band.
+            </p>
+            <form onSubmit={inviteStaff} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Email">
+                  <input
+                    required
+                    type="email"
+                    value={staffEmail}
+                    onChange={(e) => setStaffEmail(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  />
+                </Field>
+                <Field label="Display name (optional)">
+                  <input
+                    value={staffName}
+                    onChange={(e) => setStaffName(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Role">
+                  <select
+                    value={staffRole}
+                    onChange={(e) => setStaffRole(e.target.value as StaffRole)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2"
+                  >
+                    <option value="owner">Owner</option>
+                    <option value="manager">Manager</option>
+                    <option value="server">Server</option>
+                  </select>
+                </Field>
+                <Field
+                  label="Temporary password"
+                  hint="At least 8 characters. They can change it after signing in."
+                >
+                  <input
+                    required
+                    type="text"
+                    minLength={8}
+                    value={staffPassword}
+                    onChange={(e) => setStaffPassword(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono"
+                    placeholder="plate-clean-demo"
+                  />
+                </Field>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={busy || !staffEmail || staffPassword.length < 8}
+                  className="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 text-sm disabled:opacity-50"
+                >
+                  {busy ? 'Sending…' : 'Send invite'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep('done')}
+                  disabled={invitedStaff.length === 0 && busy}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm"
+                >
+                  {invitedStaff.length === 0 ? 'Skip & finish' : 'Finish'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {invitedStaff.length > 0 && (
+            <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-2">
+              <p className="text-sm font-medium">Invited so far ({invitedStaff.length}):</p>
+              <ul className="text-sm space-y-1">
+                {invitedStaff.map((s) => (
+                  <li key={s.user_id} className="font-mono text-xs">
+                    {s.email} · {s.role} · pw <span className="text-slate-500">{s.password}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-slate-500">
+                Copy each credential to share securely. They aren't persisted in the UI after you leave
+                this screen.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {step === 'done' && restaurant && rewardRule && (
         <div className="space-y-3 bg-brand-50 border border-brand-600/40 rounded-lg p-4">
           <p className="font-medium text-brand-700">All set.</p>
@@ -389,11 +539,28 @@ export function AdminOnboard() {
             <li>
               Reward rule: <strong>{rewardRule.name}</strong> at {thresholdPct}% consumption.
             </li>
+            <li>
+              {invitedStaff.length > 0
+                ? `${invitedStaff.length} staff invited (${invitedStaff
+                    .map((s) => s.role)
+                    .join(', ')}).`
+                : 'No staff invited yet — invite from the restaurant settings later.'}
+            </li>
           </ul>
+          {invitedStaff.length > 0 && (
+            <div className="rounded-md bg-white border border-slate-200 p-3 text-xs space-y-1">
+              <p className="font-medium text-slate-700">Credentials (copy out of band):</p>
+              <ul className="space-y-0.5 font-mono">
+                {invitedStaff.map((s) => (
+                  <li key={s.user_id}>
+                    {s.email} ({s.role}) — pw {s.password}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <p className="text-xs text-slate-600">
-            Next: invite a server / owner via{' '}
-            <code className="text-xs">POST /restaurants/{restaurant.id}/staff</code> (a staff-invite UI
-            is a fast-follow). For now, point owners at <code>/login</code> with their credentials.
+            Owners can sign in at <code>/login</code>, pick the restaurant, and start approving sessions.
           </p>
           <button
             onClick={() => navigate('/validations')}
