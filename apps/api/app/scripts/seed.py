@@ -27,6 +27,8 @@ RESTAURANTS = [
         "longitude": 72.8307,
         "currency": "INR",
         "timezone": "Asia/Kolkata",
+        "theme_primary_color": "#b45309",  # amber-700
+        "tagline": "North Indian classics. Done quietly.",
         "menu": [
             ("Butter Chicken", "main", 38000, True),
             ("Paneer Tikka Masala", "main", 32000, True),
@@ -48,6 +50,8 @@ RESTAURANTS = [
         "longitude": 72.8295,
         "currency": "INR",
         "timezone": "Asia/Kolkata",
+        "theme_primary_color": "#0e7490",  # cyan-700
+        "tagline": "Coastal kitchen, family recipes.",
         "menu": [
             ("Sol Kadhi", "drink", 8000, False),
             ("Fish Thali", "main", 45000, True),
@@ -67,6 +71,21 @@ RESTAURANTS = [
 def run() -> None:
     engine = create_engine(settings.DATABASE_URL_SYNC, future=True)
     with Session(engine, future=True) as db:
+        # Admin (platform operator) — has access to POST /restaurants and the
+        # onboarding wizard in the dashboard.
+        admin_email = "admin@example.com"
+        admin = db.execute(select(User).where(User.email == admin_email)).scalar_one_or_none()
+        if admin is None:
+            admin = User(
+                email=admin_email,
+                display_name="Demo Admin",
+                password_hash=hash_password("plate-clean-demo"),
+                role="admin",
+            )
+            db.add(admin)
+            db.flush()
+            print(f"+ admin {admin_email} (password: plate-clean-demo)")
+
         # Diner
         diner_email = "diner@example.com"
         diner = db.execute(select(User).where(User.email == diner_email)).scalar_one_or_none()
@@ -96,6 +115,8 @@ def run() -> None:
                     timezone=r["timezone"],
                     currency=r["currency"],
                     is_active=True,
+                    theme_primary_color=r.get("theme_primary_color", "#0f766e"),
+                    tagline=r.get("tagline"),
                 )
                 db.add(restaurant)
                 db.flush()

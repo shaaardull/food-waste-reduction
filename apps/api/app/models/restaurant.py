@@ -27,6 +27,13 @@ class Restaurant(Base, UUIDPKMixin, TimestampMixin):
     timezone: Mapped[str] = mapped_column(String, nullable=False, default="UTC")
     currency: Mapped[str] = mapped_column(String, nullable=False, default="INR")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # §12 multi-tenancy: each restaurant gets a slug-scoped theme on the
+    # shared PWA. Hex color, optional logo / tagline.
+    theme_primary_color: Mapped[str] = mapped_column(
+        String, nullable=False, default="#0f766e", server_default="#0f766e"
+    )
+    theme_logo_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    tagline: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class RestaurantStaff(Base, UUIDPKMixin, TimestampMixin):

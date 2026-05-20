@@ -352,7 +352,21 @@ async def client() -> AsyncIterator:
 
 
 def png_bytes(size: int = 64, color: tuple[int, int, int] = (180, 90, 60)) -> bytes:
+    """A solid-color PNG with one unique pixel per call.
+
+    The unique pixel keeps each call's sha256 distinct so the duplicate-hash
+    fraud check (signal #5) doesn't collide between repeat test runs against
+    a shared dev database.
+    """
+    from PIL import ImageDraw
+
     img = Image.new("RGB", (size, size), color)
+    draw = ImageDraw.Draw(img)
+    # Random pixel in a corner, unique per call.
+    rx = uuid.uuid4().int % 256
+    gx = (uuid.uuid4().int >> 8) % 256
+    bx = (uuid.uuid4().int >> 16) % 256
+    draw.point((0, 0), fill=(rx, gx, bx))
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
