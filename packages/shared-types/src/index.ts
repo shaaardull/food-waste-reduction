@@ -1,0 +1,142 @@
+export type UserRole = 'diner' | 'staff' | 'admin';
+
+export type StaffRole = 'owner' | 'manager' | 'server';
+
+export type MealSessionStatus =
+  | 'open'
+  | 'before_captured'
+  | 'eating'
+  | 'after_submitted'
+  | 'scored'
+  | 'pending_staff_validation'
+  | 'staff_approved'
+  | 'staff_rejected'
+  | 'rewarded'
+  | 'expired'
+  | 'disputed';
+
+export type CapturePhase = 'before' | 'after';
+
+export type ValidationDecision = 'approved' | 'rejected' | 'adjusted';
+
+export type ValidationReasonCode =
+  | 'plate_not_clean_enough'
+  | 'wrong_plate_photographed'
+  | 'food_hidden_or_discarded'
+  | 'image_quality_issue'
+  | 'model_overestimated'
+  | 'model_underestimated'
+  | 'dispute_with_diner'
+  | 'other';
+
+export type FraudSignalType =
+  | 'geofence_violation'
+  | 'time_between_captures_too_short'
+  | 'duplicate_image_hash'
+  | 'image_metadata_mismatch'
+  | 'score_distribution_anomaly'
+  | 'velocity_anomaly'
+  | 'manual_flag';
+
+export type FraudSeverity = 'info' | 'warning' | 'block';
+
+export type PortionSize = 'small' | 'regular' | 'large';
+
+export interface User {
+  id: string;
+  email: string;
+  phone?: string | null;
+  display_name?: string | null;
+  role: UserRole;
+  email_verified_at?: string | null;
+  last_login_at?: string | null;
+  created_at: string;
+}
+
+export interface Restaurant {
+  id: string;
+  name: string;
+  slug: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  geofence_radius_m: number;
+  timezone: string;
+  currency: string;
+  is_active: boolean;
+}
+
+export interface MenuItem {
+  id: string;
+  restaurant_id: string;
+  name: string;
+  description?: string | null;
+  price_minor: number;
+  category?: string | null;
+  is_reward_eligible: boolean;
+  is_active: boolean;
+  reference_image_url?: string | null;
+}
+
+export interface MealSession {
+  id: string;
+  diner_user_id: string;
+  restaurant_id: string;
+  table_code: string;
+  status: MealSessionStatus;
+  started_at: string;
+  expires_at: string;
+}
+
+export interface PerItemScore {
+  menu_item_id?: string;
+  dish_name: string;
+  consumption: number;
+  confidence: number;
+}
+
+export interface ConsumptionScore {
+  id: string;
+  meal_session_id: string;
+  overall_score: number;
+  per_item_scores: PerItemScore[];
+  model_name: string;
+  model_version: string;
+  processing_ms: number;
+  notes?: string | null;
+  suspicious?: boolean;
+}
+
+export interface StaffValidation {
+  id: string;
+  meal_session_id: string;
+  staff_user_id: string;
+  restaurant_id: string;
+  decision: ValidationDecision;
+  model_score: number;
+  final_score: number;
+  reason_code?: ValidationReasonCode | null;
+  notes?: string | null;
+  decided_at: string;
+  decision_latency_ms: number;
+}
+
+export interface Reward {
+  id: string;
+  meal_session_id: string;
+  reward_rule_id: string;
+  redemption_code: string;
+  issued_at: string;
+  expires_at: string;
+  redeemed_at?: string | null;
+  voided_at?: string | null;
+  voided_reason?: string | null;
+}
+
+export interface ApiError {
+  error: {
+    code: string;
+    message: string;
+    details?: Record<string, unknown>;
+  };
+}

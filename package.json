@@ -1,0 +1,27 @@
+{
+  "name": "plate-clean-rewards",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vision-AI PWA that rewards diners for finishing their meals. See CLAUDE.md.",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "lint:copy": "turbo run lint:copy",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "prettier-plugin-tailwindcss": "^0.6.8",
+    "turbo": "^2.1.3",
+    "typescript": "^5.6.2"
+  }
+}

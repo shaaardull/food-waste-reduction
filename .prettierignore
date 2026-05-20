@@ -1,0 +1,8 @@
+node_modules
+dist
+build
+.turbo
+.next
+coverage
+pnpm-lock.yaml
+**/migrations/versions
