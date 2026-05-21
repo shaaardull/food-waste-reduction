@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview",
+    "preview": "vite preview --port 4173 --host 0.0.0.0",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:copy": "tsx scripts/lint-copy.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "@plate-clean/shared-types": "workspace:*",
@@ -27,6 +29,7 @@
   },
   "devDependencies": {
     "@plate-clean/eslint-config": "workspace:*",
+    "@playwright/test": "^1.48.0",
     "@types/node": "^22.7.0",
     "@types/react": "^18.3.7",
     "@types/react-dom": "^18.3.0",
