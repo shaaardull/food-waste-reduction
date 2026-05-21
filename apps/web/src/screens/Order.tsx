@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import type { MenuItem, PortionSize } from '@plate-clean/shared-types';
@@ -15,6 +16,7 @@ interface Line {
 }
 
 export function Order() {
+  const { t } = useTranslation();
   const { id: sessionId = '' } = useParams();
   const navigate = useNavigate();
   const token = useAuthStore((s) => s.token);
@@ -87,11 +89,8 @@ export function Order() {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-xl font-semibold">Place your order</h1>
-      <p className="text-sm text-slate-600">
-        Pick what you ordered. Default portion is small &mdash; pick more only if you're sure you'll
-        eat it.
-      </p>
+      <h1 className="text-xl font-semibold">{t('order.title')}</h1>
+      <p className="text-sm text-slate-600">{t('order.blurb')}</p>
       <ul className="space-y-2">
         {menu.map((item) => {
           const line = lines[item.id];
@@ -122,7 +121,7 @@ export function Order() {
                           : 'border-slate-300 text-slate-700'
                       }`}
                     >
-                      {p}
+                      {t(`order.portion.${p}`)}
                     </button>
                   ))}
                 </div>
@@ -133,13 +132,15 @@ export function Order() {
       </ul>
       {error && <p className="text-sm text-red-700">{error}</p>}
       <div className="flex items-center justify-between sticky bottom-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
-        <div className="text-sm">Total ~ {total.toFixed(2)}</div>
+        <div className="text-sm">
+          {t('order.total_label', { amount: total.toFixed(2) })}
+        </div>
         <button
           onClick={submit}
           disabled={busy || Object.keys(lines).length === 0}
           className="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 disabled:opacity-50"
         >
-          {busy ? 'Saving…' : 'Send to kitchen'}
+          {busy ? t('order.saving') : t('order.send_to_kitchen')}
         </button>
       </div>
     </section>

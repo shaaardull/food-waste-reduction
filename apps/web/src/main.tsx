@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
 import './index.css';
+import './lib/i18n'; // initialises i18next before any screen renders
 import { App } from './App';
 import { Landing } from './screens/Landing';
 import { Login } from './screens/Login';

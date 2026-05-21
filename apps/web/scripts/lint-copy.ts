@@ -29,8 +29,24 @@ async function walk(dir: string): Promise<string[]> {
 const roots = await Promise.all(INCLUDE_DIRS.map((d) => walk(join(SRC, d))));
 // Also lint App.tsx at the src root (chrome / nav copy).
 const appFile = join(SRC, 'App.tsx');
-const files = [...roots.flat(), appFile];
 
+// Locale JSON files are the authoritative home for user-facing copy
+// (CLAUDE.md §0 + the i18n setup). Scan them as full JSON so translators
+// can't introduce deny-list terms either.
+const LOCALES_DIR = join(SRC, 'locales');
+async function localeFiles(): Promise<string[]> {
+  try {
+    const entries = await readdir(LOCALES_DIR);
+    return entries
+      .filter((e) => extname(e) === '.json')
+      .map((e) => join(LOCALES_DIR, e));
+  } catch {
+    return [];
+  }
+}
+
+const sourceFiles = [...roots.flat(), appFile];
+const localeJsonFiles = await localeFiles();
 const offences: { file: string; line: number; word: string; text: string }[] = [];
 
 // Only flag words inside string literals (' " or `) or JSX text — not random identifier
@@ -43,7 +59,7 @@ function shouldFlag(line: string, word: string): boolean {
   return /["'`]/.test(line) || /^[^<>{}]*[a-z]/i.test(line.trim());
 }
 
-for (const file of files) {
+for (const file of sourceFiles) {
   const src = await readFile(file, 'utf8');
   const lines = src.split('\n');
   lines.forEach((line, i) => {
@@ -53,6 +69,32 @@ for (const file of files) {
       }
     }
   });
+}
+
+// Locale JSON: only flag inside string values, never inside keys (which are
+// stable identifiers like 'body_image' — though the deny list shouldn't be
+// matching those anyway). Cheapest correct version: walk the parsed tree.
+function walkJsonStrings(node: unknown, file: string, path: string[]) {
+  if (typeof node === 'string') {
+    for (const word of COPY_DENY_LIST) {
+      const re = new RegExp(`\\b${word}\\b`, 'i');
+      if (re.test(node)) {
+        offences.push({ file, line: 0, word, text: `${path.join('.')}: ${node}` });
+      }
+    }
+  } else if (Array.isArray(node)) {
+    node.forEach((v, i) => walkJsonStrings(v, file, [...path, String(i)]));
+  } else if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node)) {
+      walkJsonStrings(v, file, [...path, k]);
+    }
+  }
+}
+
+for (const file of localeJsonFiles) {
+  const raw = await readFile(file, 'utf8');
+  const parsed = JSON.parse(raw) as unknown;
+  walkJsonStrings(parsed, file, []);
 }
 
 if (offences.length > 0) {

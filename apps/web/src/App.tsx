@@ -1,8 +1,10 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from './lib/auth';
 import { useApplyTheme } from './lib/theme';
 
 export function App() {
+  const { t } = useTranslation();
   const loc = useLocation();
   const user = useAuthStore((s) => s.user);
   const activeRestaurant = useAuthStore((s) => s.activeRestaurant);
@@ -20,21 +22,21 @@ export function App() {
                 className="h-6 w-6 rounded object-cover bg-white/10"
               />
             )}
-            <span>{activeRestaurant?.name ?? 'Plate-Clean'}</span>
+            <span>{activeRestaurant?.name ?? t('app.name')}</span>
           </Link>
           <nav className="flex gap-3 text-sm">
             {user ? (
               <>
                 <Link to="/rewards" className="hover:underline">
-                  Rewards
+                  {t('app.nav.rewards')}
                 </Link>
                 <Link to="/profile" className="hover:underline">
-                  Profile
+                  {t('app.nav.profile')}
                 </Link>
               </>
             ) : loc.pathname !== '/login' ? (
               <Link to="/login" className="hover:underline">
-                Sign in
+                {t('app.nav.sign_in')}
               </Link>
             ) : null}
           </nav>
@@ -48,9 +50,7 @@ export function App() {
       <main className="flex-1 max-w-screen-sm w-full mx-auto px-4 py-5">
         <Outlet />
       </main>
-      <footer className="text-center text-xs text-slate-500 py-4">
-        Finishing a meal isn't a moral test &mdash; it's a small win for the planet.
-      </footer>
+      <footer className="text-center text-xs text-slate-500 py-4">{t('app.footer')}</footer>
     </div>
   );
 }

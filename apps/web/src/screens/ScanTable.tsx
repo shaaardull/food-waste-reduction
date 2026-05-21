@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import type { Restaurant } from '@plate-clean/shared-types';
@@ -11,6 +12,7 @@ interface SessionCreateOut {
 }
 
 export function ScanTable() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const token = useAuthStore((s) => s.token);
   const setActiveRestaurant = useAuthStore((s) => s.setActiveRestaurant);
@@ -27,8 +29,8 @@ export function ScanTable() {
         setRestaurants(rs);
         if (rs[0]) setRestaurantId(rs[0].id);
       })
-      .catch(() => setError('Could not load restaurants.'));
-  }, []);
+      .catch(() => setError(t('scan.load_error')));
+  }, [t]);
 
   async function start() {
     setError(null);
@@ -45,7 +47,7 @@ export function ScanTable() {
       navigate(`/sessions/${res.session_id}/order`);
     } catch (err) {
       if (err instanceof ApiException) setError(err.message);
-      else setError('Could not start session.');
+      else setError(t('scan.start_error'));
     } finally {
       setBusy(false);
     }
@@ -53,13 +55,10 @@ export function ScanTable() {
 
   return (
     <section className="space-y-5">
-      <h1 className="text-xl font-semibold">Start a meal</h1>
-      <p className="text-sm text-slate-600">
-        In production this screen scans a QR sticker on your table. For the pilot, pick a restaurant and
-        type your table code.
-      </p>
+      <h1 className="text-xl font-semibold">{t('scan.title')}</h1>
+      <p className="text-sm text-slate-600">{t('scan.blurb')}</p>
       <label className="block">
-        <span className="text-sm text-slate-600">Restaurant</span>
+        <span className="text-sm text-slate-600">{t('scan.restaurant_label')}</span>
         <select
           value={restaurantId}
           onChange={(e) => setRestaurantId(e.target.value)}
@@ -73,7 +72,7 @@ export function ScanTable() {
         </select>
       </label>
       <label className="block">
-        <span className="text-sm text-slate-600">Table code</span>
+        <span className="text-sm text-slate-600">{t('scan.table_code_label')}</span>
         <input
           value={tableCode}
           onChange={(e) => setTableCode(e.target.value)}
@@ -86,7 +85,7 @@ export function ScanTable() {
         disabled={busy || !restaurantId}
         className="w-full rounded-md bg-brand-600 hover:bg-brand-700 text-white py-2 font-medium disabled:opacity-50"
       >
-        {busy ? 'Starting…' : 'Open a session'}
+        {busy ? t('scan.starting') : t('scan.start')}
       </button>
     </section>
   );

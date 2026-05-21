@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Webcam from 'react-webcam';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
@@ -28,6 +29,7 @@ function dataUrlToBlob(dataUrl: string): Blob {
 }
 
 export function Capture({ sessionId, phase, title, blurb, cta, nextPath }: Props) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const token = useAuthStore((s) => s.token);
   const webcamRef = useRef<Webcam>(null);
@@ -57,7 +59,7 @@ export function Capture({ sessionId, phase, title, blurb, cta, nextPath }: Props
     try {
       const nonce = sessionStorage.getItem(`nonce-${phase}-${sessionId}`);
       if (!nonce) {
-        setError('Missing capture token. Re-open the session from the kitchen flow.');
+        setError(t('capture.missing_nonce'));
         setBusy(false);
         return;
       }
@@ -83,7 +85,7 @@ export function Capture({ sessionId, phase, title, blurb, cta, nextPath }: Props
       navigate(nextPath);
     } catch (err) {
       if (err instanceof ApiException) setError(err.message);
-      else setError('Could not upload. Try again.');
+      else setError(t('capture.generic_error'));
     } finally {
       setBusy(false);
     }
@@ -113,7 +115,7 @@ export function Capture({ sessionId, phase, title, blurb, cta, nextPath }: Props
             onClick={snap}
             className="flex-1 rounded-md bg-brand-600 hover:bg-brand-700 text-white py-3 font-medium"
           >
-            Take picture
+            {t('capture.take_picture')}
           </button>
         ) : (
           <>
@@ -121,14 +123,14 @@ export function Capture({ sessionId, phase, title, blurb, cta, nextPath }: Props
               onClick={() => setPreview(null)}
               className="flex-1 rounded-md border border-slate-300 py-3"
             >
-              Retake
+              {t('capture.retake')}
             </button>
             <button
               onClick={send}
               disabled={busy}
               className="flex-1 rounded-md bg-brand-600 hover:bg-brand-700 text-white py-3 disabled:opacity-50"
             >
-              {busy ? 'Sending…' : cta}
+              {busy ? t('capture.sending') : cta}
             </button>
           </>
         )}

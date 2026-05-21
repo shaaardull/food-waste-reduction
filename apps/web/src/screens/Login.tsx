@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import type { User } from '@plate-clean/shared-types';
@@ -7,6 +8,7 @@ import type { User } from '@plate-clean/shared-types';
 type Mode = 'sign-in' | 'sign-up';
 
 export function Login() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
   const [mode, setMode] = useState<Mode>('sign-in');
@@ -32,7 +34,7 @@ export function Login() {
       navigate('/scan');
     } catch (err) {
       if (err instanceof ApiException) setError(err.message);
-      else setError('Something went wrong.');
+      else setError(t('login.generic_error'));
     } finally {
       setBusy(false);
     }
@@ -40,10 +42,12 @@ export function Login() {
 
   return (
     <section className="space-y-5">
-      <h1 className="text-xl font-semibold">{mode === 'sign-in' ? 'Welcome back' : 'Create your account'}</h1>
+      <h1 className="text-xl font-semibold">
+        {mode === 'sign-in' ? t('login.welcome_back') : t('login.create_account')}
+      </h1>
       <form onSubmit={submit} className="space-y-3">
         <label className="block">
-          <span className="text-sm text-slate-600">Email</span>
+          <span className="text-sm text-slate-600">{t('login.email')}</span>
           <input
             required
             type="email"
@@ -54,7 +58,7 @@ export function Login() {
         </label>
         {mode === 'sign-up' && (
           <label className="block">
-            <span className="text-sm text-slate-600">Display name</span>
+            <span className="text-sm text-slate-600">{t('login.display_name')}</span>
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
@@ -63,7 +67,7 @@ export function Login() {
           </label>
         )}
         <label className="block">
-          <span className="text-sm text-slate-600">Password</span>
+          <span className="text-sm text-slate-600">{t('login.password')}</span>
           <input
             required
             type="password"
@@ -82,7 +86,7 @@ export function Login() {
               onChange={(e) => setIsAdult(e.target.checked)}
               className="mt-1"
             />
-            <span>I confirm I am 18 or older.</span>
+            <span>{t('login.age_confirm')}</span>
           </label>
         )}
         {error && <p className="text-sm text-red-700">{error}</p>}
@@ -91,14 +95,18 @@ export function Login() {
           disabled={busy}
           className="w-full rounded-md bg-brand-600 hover:bg-brand-700 text-white py-2 font-medium disabled:opacity-50"
         >
-          {busy ? 'Working…' : mode === 'sign-in' ? 'Sign in' : 'Create account'}
+          {busy
+            ? t('login.working')
+            : mode === 'sign-in'
+              ? t('login.submit_sign_in')
+              : t('login.submit_create')}
         </button>
       </form>
       <button
         onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}
         className="text-sm text-brand-700 hover:underline"
       >
-        {mode === 'sign-in' ? "New here? Create an account" : 'Already have an account? Sign in'}
+        {mode === 'sign-in' ? t('login.switch_to_sign_up') : t('login.switch_to_sign_in')}
       </button>
     </section>
   );

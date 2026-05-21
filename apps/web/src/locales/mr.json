@@ -1,0 +1,123 @@
+{
+  "app": {
+    "name": "[mr] Plate-Clean",
+    "footer": "[mr] Finishing a meal isn't a moral test — it's a small win for the planet.",
+    "nav": {
+      "rewards": "[mr] Rewards",
+      "profile": "[mr] Profile",
+      "sign_in": "[mr] Sign in"
+    }
+  },
+  "landing": {
+    "headline": "[mr] Finish your plate, unlock a reward.",
+    "description": "[mr] Snap a photo when you sit down, and another before you ask for the bill. A server reviews it. If you cleared most of what you ordered, the kitchen sends a small treat your way.",
+    "scan_qr": "[mr] Scan your table QR",
+    "sign_in_to_start": "[mr] Sign in to start",
+    "tagline_disclaimer": "[mr] Less food into the bin means less methane out of it. That's the only scoreboard we keep."
+  },
+  "login": {
+    "welcome_back": "[mr] Welcome back",
+    "create_account": "[mr] Create your account",
+    "email": "[mr] Email",
+    "display_name": "[mr] Display name",
+    "password": "[mr] Password",
+    "age_confirm": "[mr] I confirm I am 18 or older.",
+    "submit_sign_in": "[mr] Sign in",
+    "submit_create": "[mr] Create account",
+    "working": "[mr] Working…",
+    "switch_to_sign_up": "[mr] New here? Create an account",
+    "switch_to_sign_in": "[mr] Already have an account? Sign in",
+    "generic_error": "[mr] Something went wrong."
+  },
+  "scan": {
+    "title": "[mr] Start a meal",
+    "blurb": "[mr] In production this screen scans a QR sticker on your table. For the pilot, pick a restaurant and type your table code.",
+    "restaurant_label": "[mr] Restaurant",
+    "table_code_label": "[mr] Table code",
+    "start": "[mr] Open a session",
+    "starting": "[mr] Starting…",
+    "load_error": "[mr] Could not load restaurants.",
+    "start_error": "[mr] Could not start session."
+  },
+  "order": {
+    "title": "[mr] Place your order",
+    "blurb": "[mr] Pick what you ordered. Default portion is small — pick more only if you're sure you'll eat it.",
+    "total_label": "[mr] Total ~ {{amount}}",
+    "send_to_kitchen": "[mr] Send to kitchen",
+    "saving": "[mr] Saving…",
+    "portion": {
+      "small": "[mr] small",
+      "regular": "[mr] regular",
+      "large": "[mr] large"
+    }
+  },
+  "capture": {
+    "before_title": "[mr] Before photo",
+    "before_blurb": "[mr] Hold the camera over your plates. Try to fit everything you ordered in the frame.",
+    "before_cta": "[mr] Send to kitchen",
+    "after_title": "[mr] After photo",
+    "after_blurb": "[mr] Snap your plates the way they are right now. A server will review the picture next.",
+    "after_cta": "[mr] Submit for review",
+    "take_picture": "[mr] Take picture",
+    "retake": "[mr] Retake",
+    "sending": "[mr] Sending…",
+    "missing_nonce": "[mr] Missing capture token. Re-open the session from the kitchen flow.",
+    "generic_error": "[mr] Could not upload. Try again."
+  },
+  "session_status": {
+    "title": "[mr] Your meal",
+    "status_label": "[mr] Status",
+    "take_before": "[mr] Take the before photo",
+    "between_meals_hint": "[mr] Enjoy your meal. When you're ready to pay, come back here.",
+    "claim_after": "[mr] Claim — take the after photo",
+    "review_heading": "[mr] Your server is reviewing — usually under a minute.",
+    "review_blurb": "[mr] A staff member checks the photo against your table before any reward is issued. We'll update this screen the moment they decide.",
+    "approved_heading": "[mr] Approved — thanks for finishing what you ordered.",
+    "approved_blurb": "[mr] Your score was just below the threshold this time, so no reward today. Try a smaller portion next visit to land it.",
+    "rejected_heading": "[mr] No reward this time.",
+    "rejected_blurb": "[mr] The server didn't see enough food finished to qualify. If you think this is wrong, you can raise a dispute — an owner will look at it within 48 hours.",
+    "session_details": "[mr] Session details",
+    "loading": "[mr] Loading…"
+  },
+  "reward_panel": {
+    "show_to_server": "[mr] Show this to your server:",
+    "type_label": "[mr] Type",
+    "current_value_label": "[mr] Current value",
+    "half_value_until": "[mr] (half value — expires {{date}})",
+    "full_until": "[mr] full value until {{date}}",
+    "redeemed_at": "[mr] Redeemed {{datetime}}"
+  },
+  "choose_reward": {
+    "heading": "[mr] Pick how you'd like your reward.",
+    "value_blurb": "[mr] Value: <strong>{{amount}}</strong>. Same either way. You have 30 days — full value for the first 15, half value after.",
+    "type": {
+      "menu_item_label": "[mr] A free dish",
+      "menu_item_blurb": "[mr] Hand the code to your server. The kitchen sends out the dish.",
+      "bill_discount_label": "[mr] Discount off your next bill",
+      "bill_discount_blurb": "[mr] Same value, applied as a discount the next time you eat at this restaurant. Good for 30 days."
+    }
+  },
+  "rewards": {
+    "title": "[mr] Your rewards",
+    "empty": "[mr] Nothing here yet. Finish your next meal and one will show up.",
+    "loading": "[mr] Loading…",
+    "issued_expires": "[mr] Issued {{issued}} · expires {{expires}}",
+    "redeemed_for": "[mr] Redeemed {{datetime}} for {{amount}}",
+    "redeemed_no_amount": "[mr] Redeemed {{datetime}}",
+    "voided": "[mr] Voided",
+    "expired": "[mr] Expired",
+    "available": "[mr] Available",
+    "half_value_suffix": "[mr] (half value)"
+  },
+  "profile": {
+    "title": "[mr] Profile",
+    "email_label": "[mr] Email",
+    "role_label": "[mr] Role",
+    "sign_out": "[mr] Sign out",
+    "delete_account": "[mr] Delete my account",
+    "delete_confirm": "[mr] Delete your account and all associated data? This cannot be undone.",
+    "delete_blurb": "[mr] Deletion happens within 7 days. Photos from your sessions are removed too.",
+    "language_label": "[mr] Language",
+    "sign_in_first": "[mr] Sign in first."
+  }
+}
