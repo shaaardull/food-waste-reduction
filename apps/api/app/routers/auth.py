@@ -1,12 +1,16 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.errors import ApiError
+from app.models.meal_session import MealSession, MealSessionItem
+from app.models.menu_item import MenuItem
+from app.models.staff_validation import StaffValidation
 from app.models.user import User
 from app.schemas.auth import (
     AuthOut,
@@ -19,6 +23,7 @@ from app.schemas.auth import (
     UserPatchIn,
 )
 from app.security import create_access_token, get_current_user, hash_password, verify_password
+from app.services import sustainability as sustainability_svc
 from app.services.otp import request_otp, verify_otp
 
 router = APIRouter()
@@ -141,3 +146,51 @@ async def delete_account(
     user.display_name = None
     await db.commit()
     return {"status": "deletion_scheduled"}
+
+
+@router.get("/me/sustainability")
+async def my_sustainability(
+    days: int = Query(default=30, ge=1, le=365),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Ethics rule 3: 'you saved 0.4 kg CO₂e this month' encouraged copy.
+
+    Pulls every staff-validated meal session this diner had in the last
+    `days`, looks up the ordered items + their categories, and runs them
+    through services.sustainability.compute. Defaults to 30 days so
+    "this month" reads naturally on the diner Profile.
+    """
+    since = datetime.now(UTC) - timedelta(days=days)
+    rows = await db.execute(
+        select(
+            StaffValidation.final_score,
+            MealSessionItem.quantity,
+            MenuItem.category,
+        )
+        .join(MealSession, MealSession.id == StaffValidation.meal_session_id)
+        .join(MealSessionItem, MealSessionItem.meal_session_id == MealSession.id)
+        .join(MenuItem, MenuItem.id == MealSessionItem.menu_item_id)
+        .where(
+            MealSession.diner_user_id == user.id,
+            StaffValidation.decided_at >= since,
+            StaffValidation.decision.in_(("approved", "adjusted")),
+        )
+    )
+    # Group items by validation (one row per item).
+    by_session: dict[Decimal, list[tuple[str | None, int]]] = {}
+    for final_score, quantity, category in rows.all():
+        key = Decimal(str(final_score))
+        by_session.setdefault(key, []).append((category, int(quantity)))
+    sessions = [
+        sustainability_svc.SessionInput(final_score=score, item_categories=items)
+        for score, items in by_session.items()
+    ]
+    report = sustainability_svc.compute(sessions, period_days=days)
+    return {
+        "period_days": report.period_days,
+        "sessions_counted": report.sessions_counted,
+        "kg_food_saved": report.kg_food_saved,
+        "kg_co2e_saved": report.kg_co2e_saved,
+        "trees_day_equivalent": report.trees_day_equivalent,
+    }
