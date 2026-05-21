@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .ts,.tsx",
-    "lint:copy": "echo 'dashboard copy is internal; skipping'",
+    "lint:copy": "tsx scripts/lint-copy.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@plate-clean/eslint-config": "workspace:*",
+    "@types/node": "^22.7.0",
     "@types/react": "^18.3.7",
     "@types/react-dom": "^18.3.0",
     "@typescript-eslint/eslint-plugin": "^8.7.0",
@@ -37,6 +38,7 @@
     "eslint-plugin-react-refresh": "^0.4.12",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
+    "tsx": "^4.19.0",
     "typescript": "^5.6.2",
     "vite": "^5.4.7",
     "vitest": "^2.1.1"

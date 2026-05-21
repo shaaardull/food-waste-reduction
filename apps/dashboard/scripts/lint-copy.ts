@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { COPY_DENY_LIST } from '../src/lib/copy-lint';
 
 const SRC = fileURLToPath(new URL('../src', import.meta.url));
-const EXTS = new Set(['.tsx']); // .tsx only — that's where user-facing copy lives
-// Only scan directories that hold user-facing screens / components.
-const INCLUDE_DIRS = ['screens', 'components'];
-const SKIP_FILES = new Set(['copy-lint.ts']);
+const EXTS = new Set(['.tsx']);
+// Staff-facing screens + the chrome live here. AdminOnboard, ValidationDetail,
+// etc. are all inside `screens/`; the header copy is in App.tsx.
+const INCLUDE_DIRS = ['screens'];
 
 async function walk(dir: string): Promise<string[]> {
   const entries = await readdir(dir);
@@ -19,40 +19,35 @@ async function walk(dir: string): Promise<string[]> {
     const st = await stat(full);
     if (st.isDirectory()) {
       out.push(...(await walk(full)));
-    } else if (EXTS.has(extname(e)) && !SKIP_FILES.has(e)) {
+    } else if (EXTS.has(extname(e))) {
       out.push(full);
     }
   }
   return out;
 }
 
-const roots = await Promise.all(INCLUDE_DIRS.map((d) => walk(join(SRC, d))));
-// Also lint App.tsx at the src root (chrome / nav copy).
-const appFile = join(SRC, 'App.tsx');
-
-// Locale JSON files are the authoritative home for user-facing copy
-// (CLAUDE.md §0 + the i18n setup). Scan them as full JSON so translators
-// can't introduce deny-list terms either.
 const LOCALES_DIR = join(SRC, 'locales');
 async function localeFiles(): Promise<string[]> {
   try {
     const entries = await readdir(LOCALES_DIR);
-    return entries
-      .filter((e) => extname(e) === '.json')
-      .map((e) => join(LOCALES_DIR, e));
+    return entries.filter((e) => extname(e) === '.json').map((e) => join(LOCALES_DIR, e));
   } catch {
     return [];
   }
 }
 
+const roots = await Promise.all(INCLUDE_DIRS.map((d) => walk(join(SRC, d))));
+const appFile = join(SRC, 'App.tsx');
 const sourceFiles = [...roots.flat(), appFile];
 const localeJsonFiles = await localeFiles();
+
 const offences: { file: string; line: number; word: string; text: string }[] = [];
 
 // All user-facing copy now lives in src/locales/*.json (the JSON walker
 // below catches that). The source-file scan is a backstop: it should only
-// flag a deny word that escaped i18n into raw JSX text, not an identifier
-// or a `t('key')` argument. Match `>some text with WORD<` on one line.
+// flag a deny word that escaped i18n into raw JSX text content, not an
+// identifier or a t('key') argument. Match `>some text with WORD<` on one
+// line — that's JSX text.
 function shouldFlag(line: string, word: string): boolean {
   return new RegExp(`>[^<>]*\\b${word}\\b[^<>]*<`, 'i').test(line);
 }
@@ -69,9 +64,6 @@ for (const file of sourceFiles) {
   });
 }
 
-// Locale JSON: only flag inside string values, never inside keys (which are
-// stable identifiers like 'body_image' — though the deny list shouldn't be
-// matching those anyway). Cheapest correct version: walk the parsed tree.
 function walkJsonStrings(node: unknown, file: string, path: string[]) {
   if (typeof node === 'string') {
     for (const word of COPY_DENY_LIST) {
@@ -96,7 +88,7 @@ for (const file of localeJsonFiles) {
 }
 
 if (offences.length > 0) {
-  console.error('copy-lint failed: deny-list terms found in user-facing strings:');
+  console.error('copy-lint failed: deny-list terms found in staff-facing strings:');
   for (const o of offences) {
     console.error(`  ${o.file}:${o.line}  "${o.word}"  ${o.text}`);
   }
