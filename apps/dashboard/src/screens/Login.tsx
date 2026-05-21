@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import type { Restaurant } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
 export function Login() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { setAuth, setRestaurantId, setActiveRestaurant } = useAuthStore();
   const [email, setEmail] = useState('');
@@ -29,12 +31,12 @@ export function Login() {
     setBusy(true);
     setError(null);
     try {
-      const res = await api.post<{ user: { id: string; email: string; role: string; display_name: string | null }; token: string }>(
-        '/auth/login',
-        { email, password },
-      );
+      const res = await api.post<{
+        user: { id: string; email: string; role: string; display_name: string | null };
+        token: string;
+      }>('/auth/login', { email, password });
       if (!['staff', 'admin'].includes(res.user.role)) {
-        setError('This dashboard is for restaurant staff and admins.');
+        setError(t('login.non_staff_error'));
         setBusy(false);
         return;
       }
@@ -47,7 +49,7 @@ export function Login() {
       navigate('/validations');
     } catch (err) {
       if (err instanceof ApiException) setError(err.message);
-      else setError('Sign in failed.');
+      else setError(t('login.generic_error'));
     } finally {
       setBusy(false);
     }
@@ -55,10 +57,10 @@ export function Login() {
 
   return (
     <section className="max-w-md mx-auto space-y-4">
-      <h1 className="text-xl font-semibold">Staff sign in</h1>
+      <h1 className="text-xl font-semibold">{t('login.title')}</h1>
       <form onSubmit={submit} className="space-y-3">
         <label className="block">
-          <span className="text-sm text-slate-600">Email</span>
+          <span className="text-sm text-slate-600">{t('login.email')}</span>
           <input
             required
             type="email"
@@ -68,7 +70,7 @@ export function Login() {
           />
         </label>
         <label className="block">
-          <span className="text-sm text-slate-600">Password</span>
+          <span className="text-sm text-slate-600">{t('login.password')}</span>
           <input
             required
             type="password"
@@ -78,7 +80,7 @@ export function Login() {
           />
         </label>
         <label className="block">
-          <span className="text-sm text-slate-600">Restaurant</span>
+          <span className="text-sm text-slate-600">{t('login.restaurant')}</span>
           <select
             value={chosen}
             onChange={(e) => setChosen(e.target.value)}
@@ -97,7 +99,7 @@ export function Login() {
           disabled={busy}
           className="w-full rounded-md bg-brand-600 hover:bg-brand-700 text-white py-2 font-medium disabled:opacity-50"
         >
-          {busy ? 'Working…' : 'Sign in'}
+          {busy ? t('login.working') : t('login.submit')}
         </button>
       </form>
     </section>

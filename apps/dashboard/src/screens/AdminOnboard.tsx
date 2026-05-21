@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import type { Restaurant } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
@@ -43,6 +44,7 @@ const DEFAULT_MENU: MenuItemForm[] = [
 ];
 
 export function AdminOnboard() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { token, user } = useAuthStore();
 
@@ -82,8 +84,8 @@ export function AdminOnboard() {
   if (!user || user.role !== 'admin') {
     return (
       <section className="max-w-md mx-auto space-y-3">
-        <h1 className="text-xl font-semibold">Admin-only</h1>
-        <p className="text-sm text-slate-600">Only platform admins can onboard a new restaurant.</p>
+        <h1 className="text-xl font-semibold">{t('admin.admin_only_title')}</h1>
+        <p className="text-sm text-slate-600">{t('admin.admin_only_blurb')}</p>
       </section>
     );
   }
@@ -206,17 +208,17 @@ export function AdminOnboard() {
   return (
     <section className="max-w-xl mx-auto space-y-5">
       <header className="space-y-1">
-        <h1 className="text-xl font-semibold">Onboard a restaurant</h1>
+        <h1 className="text-xl font-semibold">{t('admin.title')}</h1>
         <ol className="text-xs text-slate-600 flex gap-2 flex-wrap">
-          <li className={step === 'restaurant' ? 'text-brand-700 font-medium' : ''}>1. Details</li>
+          <li className={step === 'restaurant' ? 'text-brand-700 font-medium' : ''}>{t('admin.step.details')}</li>
           <li>›</li>
-          <li className={step === 'menu' ? 'text-brand-700 font-medium' : ''}>2. Menu</li>
+          <li className={step === 'menu' ? 'text-brand-700 font-medium' : ''}>{t('admin.step.menu')}</li>
           <li>›</li>
-          <li className={step === 'reward' ? 'text-brand-700 font-medium' : ''}>3. Reward rule</li>
+          <li className={step === 'reward' ? 'text-brand-700 font-medium' : ''}>{t('admin.step.reward')}</li>
           <li>›</li>
-          <li className={step === 'staff' ? 'text-brand-700 font-medium' : ''}>4. Invite staff</li>
+          <li className={step === 'staff' ? 'text-brand-700 font-medium' : ''}>{t('admin.step.staff')}</li>
           <li>›</li>
-          <li className={step === 'done' ? 'text-brand-700 font-medium' : ''}>5. Done</li>
+          <li className={step === 'done' ? 'text-brand-700 font-medium' : ''}>{t('admin.step.done')}</li>
         </ol>
       </header>
       {error && (
@@ -227,7 +229,7 @@ export function AdminOnboard() {
 
       {step === 'restaurant' && (
         <form onSubmit={createRestaurant} className="space-y-3 bg-white border border-slate-200 rounded-lg p-4">
-          <Field label="Name">
+          <Field label={t('admin.details.name_label')}>
             <input
               required
               value={name}
@@ -235,10 +237,7 @@ export function AdminOnboard() {
               className="w-full rounded-md border border-slate-300 px-3 py-2"
             />
           </Field>
-          <Field
-            label="Slug"
-            hint="lowercase letters, numbers, hyphens. Used in the URL: plate-clean.app/{slug}."
-          >
+          <Field label={t('admin.details.slug_label')} hint={t('admin.details.slug_hint')}>
             <input
               required
               pattern="[a-z0-9-]+"
@@ -247,7 +246,7 @@ export function AdminOnboard() {
               className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono"
             />
           </Field>
-          <Field label="Address">
+          <Field label={t('admin.details.address_label')}>
             <input
               required
               value={address}
@@ -256,7 +255,7 @@ export function AdminOnboard() {
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Latitude">
+            <Field label={t('admin.details.latitude_label')}>
               <input
                 required
                 type="number"
@@ -266,7 +265,7 @@ export function AdminOnboard() {
                 className="w-full rounded-md border border-slate-300 px-3 py-2"
               />
             </Field>
-            <Field label="Longitude">
+            <Field label={t('admin.details.longitude_label')}>
               <input
                 required
                 type="number"
@@ -277,7 +276,7 @@ export function AdminOnboard() {
               />
             </Field>
           </div>
-          <Field label="Theme color">
+          <Field label={t('admin.details.theme_color_label')}>
             <div className="flex items-center gap-3">
               <input
                 type="color"
@@ -292,7 +291,7 @@ export function AdminOnboard() {
               />
             </div>
           </Field>
-          <Field label="Logo URL (optional)">
+          <Field label={t('admin.details.logo_url_label')}>
             <input
               type="url"
               value={logoUrl}
@@ -301,7 +300,7 @@ export function AdminOnboard() {
               placeholder="https://…"
             />
           </Field>
-          <Field label="Tagline (optional)">
+          <Field label={t('admin.details.tagline_label')}>
             <input
               value={tagline}
               onChange={(e) => setTagline(e.target.value)}
@@ -314,17 +313,14 @@ export function AdminOnboard() {
             disabled={busy}
             className="w-full rounded-md bg-brand-600 hover:bg-brand-700 text-white py-2 disabled:opacity-50"
           >
-            {busy ? 'Creating…' : 'Create restaurant'}
+            {busy ? t('admin.details.creating') : t('admin.details.create')}
           </button>
         </form>
       )}
 
       {step === 'menu' && (
         <div className="space-y-3 bg-white border border-slate-200 rounded-lg p-4">
-          <p className="text-sm text-slate-600">
-            We pre-filled a starter menu. Adjust the names, prices (in minor units, e.g. paise), and
-            categories, then add the whole list.
-          </p>
+          <p className="text-sm text-slate-600">{t('admin.menu.blurb')}</p>
           <div className="space-y-2">
             {items.map((it, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 items-center">
@@ -353,10 +349,10 @@ export function AdminOnboard() {
                   }
                   className="col-span-2 rounded-md border border-slate-300 px-2 py-1 text-sm"
                 >
-                  <option value="main">main</option>
-                  <option value="side">side</option>
-                  <option value="drink">drink</option>
-                  <option value="dessert">dessert</option>
+                  <option value="main">{t('admin.menu.category.main')}</option>
+                  <option value="side">{t('admin.menu.category.side')}</option>
+                  <option value="drink">{t('admin.menu.category.drink')}</option>
+                  <option value="dessert">{t('admin.menu.category.dessert')}</option>
                 </select>
                 <label className="col-span-2 text-xs flex items-center gap-1">
                   <input
@@ -366,7 +362,7 @@ export function AdminOnboard() {
                       updateItem(items, idx, { is_reward_eligible: e.target.checked }, setItems)
                     }
                   />
-                  reward
+                  {t('admin.menu.reward_label')}
                 </label>
               </div>
             ))}
@@ -381,14 +377,14 @@ export function AdminOnboard() {
               }
               className="rounded-md border border-slate-300 px-3 py-1 text-sm"
             >
-              + add row
+              {t('admin.menu.add_row')}
             </button>
             <button
               onClick={bulkAddItems}
               disabled={busy || items.some((i) => !i.name)}
               className="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-1 text-sm disabled:opacity-50"
             >
-              {busy ? 'Saving…' : `Save ${items.length} items`}
+              {busy ? t('admin.menu.saving') : t('admin.menu.save_n', { count: items.length })}
             </button>
           </div>
         </div>
@@ -396,10 +392,8 @@ export function AdminOnboard() {
 
       {step === 'reward' && (
         <div className="space-y-3 bg-white border border-slate-200 rounded-lg p-4">
-          <p className="text-sm text-slate-600">
-            Pick which dish counts as the "free" reward. The bill-discount option uses the same value.
-          </p>
-          <Field label="Threshold (% consumed to qualify)">
+          <p className="text-sm text-slate-600">{t('admin.reward.blurb')}</p>
+          <Field label={t('admin.reward.threshold_label')}>
             <input
               type="number"
               min={50}
@@ -408,9 +402,9 @@ export function AdminOnboard() {
               onChange={(e) => setThresholdPct(Number(e.target.value))}
               className="w-full rounded-md border border-slate-300 px-3 py-2"
             />
-            <p className="text-xs text-slate-500 mt-1">Allowed range: 50–95 (CLAUDE.md ethics rule 1).</p>
+            <p className="text-xs text-slate-500 mt-1">{t('admin.reward.threshold_hint')}</p>
           </Field>
-          <Field label="Reward dish">
+          <Field label={t('admin.reward.dish_label')}>
             <select
               value={rewardMenuItemId}
               onChange={(e) => setRewardMenuItemId(e.target.value)}
@@ -428,7 +422,7 @@ export function AdminOnboard() {
             disabled={busy || !rewardMenuItemId}
             className="w-full rounded-md bg-brand-600 hover:bg-brand-700 text-white py-2 disabled:opacity-50"
           >
-            {busy ? 'Saving…' : 'Create reward rule'}
+            {busy ? t('admin.reward.creating') : t('admin.reward.create')}
           </button>
         </div>
       )}
@@ -437,14 +431,11 @@ export function AdminOnboard() {
         <div className="space-y-4">
           <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
             <p className="text-sm text-slate-600">
-              Invite the people who'll run the restaurant. Start with one{' '}
-              <strong>owner</strong> (they can edit the restaurant + invite more staff later), then
-              optionally add managers / servers now. Each invite creates a staff account with the
-              password you set &mdash; hand the credentials over out of band.
+              <Trans i18nKey="admin.staff.blurb" components={{ strong: <strong /> }} />
             </p>
             <form onSubmit={inviteStaff} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Email">
+                <Field label={t('admin.staff.email_label')}>
                   <input
                     required
                     type="email"
@@ -453,7 +444,7 @@ export function AdminOnboard() {
                     className="w-full rounded-md border border-slate-300 px-3 py-2"
                   />
                 </Field>
-                <Field label="Display name (optional)">
+                <Field label={t('admin.staff.display_name_label')}>
                   <input
                     value={staffName}
                     onChange={(e) => setStaffName(e.target.value)}
@@ -462,20 +453,20 @@ export function AdminOnboard() {
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Role">
+                <Field label={t('admin.staff.role_label')}>
                   <select
                     value={staffRole}
                     onChange={(e) => setStaffRole(e.target.value as StaffRole)}
                     className="w-full rounded-md border border-slate-300 px-3 py-2"
                   >
-                    <option value="owner">Owner</option>
-                    <option value="manager">Manager</option>
-                    <option value="server">Server</option>
+                    <option value="owner">{t('admin.staff.role_owner')}</option>
+                    <option value="manager">{t('admin.staff.role_manager')}</option>
+                    <option value="server">{t('admin.staff.role_server')}</option>
                   </select>
                 </Field>
                 <Field
-                  label="Temporary password"
-                  hint="At least 8 characters. They can change it after signing in."
+                  label={t('admin.staff.password_label')}
+                  hint={t('admin.staff.password_hint')}
                 >
                   <input
                     required
@@ -494,7 +485,7 @@ export function AdminOnboard() {
                   disabled={busy || !staffEmail || staffPassword.length < 8}
                   className="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 text-sm disabled:opacity-50"
                 >
-                  {busy ? 'Sending…' : 'Send invite'}
+                  {busy ? t('admin.staff.sending') : t('admin.staff.send_invite')}
                 </button>
                 <button
                   type="button"
@@ -502,7 +493,9 @@ export function AdminOnboard() {
                   disabled={invitedStaff.length === 0 && busy}
                   className="rounded-md border border-slate-300 px-4 py-2 text-sm"
                 >
-                  {invitedStaff.length === 0 ? 'Skip & finish' : 'Finish'}
+                  {invitedStaff.length === 0
+                    ? t('admin.staff.skip_and_finish')
+                    : t('admin.staff.finish')}
                 </button>
               </div>
             </form>
@@ -510,7 +503,7 @@ export function AdminOnboard() {
 
           {invitedStaff.length > 0 && (
             <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-2">
-              <p className="text-sm font-medium">Invited so far ({invitedStaff.length}):</p>
+              <p className="text-sm font-medium">{t('admin.staff.invited_so_far', { count: invitedStaff.length })}</p>
               <ul className="text-sm space-y-1">
                 {invitedStaff.map((s) => (
                   <li key={s.user_id} className="font-mono text-xs">
@@ -518,10 +511,7 @@ export function AdminOnboard() {
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-slate-500">
-                Copy each credential to share securely. They aren't persisted in the UI after you leave
-                this screen.
-              </p>
+              <p className="text-xs text-slate-500">{t('admin.staff.credentials_warning')}</p>
             </div>
           )}
         </div>
@@ -529,29 +519,35 @@ export function AdminOnboard() {
 
       {step === 'done' && restaurant && rewardRule && (
         <div className="space-y-3 bg-brand-50 border border-brand-600/40 rounded-lg p-4">
-          <p className="font-medium text-brand-700">All set.</p>
+          <p className="font-medium text-brand-700">{t('admin.done.all_set')}</p>
           <ul className="text-sm space-y-1">
             <li>
-              <strong>{restaurant.name}</strong> created at slug{' '}
-              <code className="text-xs">{restaurant.slug}</code>.
+              <Trans
+                i18nKey="admin.done.summary_created"
+                values={{ name: restaurant.name, slug: restaurant.slug }}
+                components={{ strong: <strong />, code: <code className="text-xs" /> }}
+              />
             </li>
+            <li>{t('admin.done.summary_menu', { count: createdMenu.length })}</li>
             <li>
-              {createdMenu.length} menu items added.
-            </li>
-            <li>
-              Reward rule: <strong>{rewardRule.name}</strong> at {thresholdPct}% consumption.
+              <Trans
+                i18nKey="admin.done.summary_reward"
+                values={{ name: rewardRule.name, threshold: thresholdPct }}
+                components={{ strong: <strong /> }}
+              />
             </li>
             <li>
               {invitedStaff.length > 0
-                ? `${invitedStaff.length} staff invited (${invitedStaff
-                    .map((s) => s.role)
-                    .join(', ')}).`
-                : 'No staff invited yet — invite from the restaurant settings later.'}
+                ? t('admin.done.summary_staff_with_roles', {
+                    count: invitedStaff.length,
+                    roles: invitedStaff.map((s) => s.role).join(', '),
+                  })
+                : t('admin.done.summary_no_staff')}
             </li>
           </ul>
           {invitedStaff.length > 0 && (
             <div className="rounded-md bg-white border border-slate-200 p-3 text-xs space-y-1">
-              <p className="font-medium text-slate-700">Credentials (copy out of band):</p>
+              <p className="font-medium text-slate-700">{t('admin.done.credentials_title')}</p>
               <ul className="space-y-0.5 font-mono">
                 {invitedStaff.map((s) => (
                   <li key={s.user_id}>
@@ -562,13 +558,16 @@ export function AdminOnboard() {
             </div>
           )}
           <p className="text-xs text-slate-600">
-            Owners can sign in at <code>/login</code>, pick the restaurant, and start approving sessions.
+            <Trans
+              i18nKey="admin.done.owner_signin_pointer"
+              components={{ code: <code /> }}
+            />
           </p>
           <button
             onClick={() => navigate('/validations')}
             className="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 text-sm"
           >
-            Done
+            {t('admin.done.done')}
           </button>
         </div>
       )}

@@ -1,0 +1,182 @@
+{
+  "app": {
+    "name": "[mr] Plate-Clean",
+    "name_staff": "[mr] Plate-Clean · Staff",
+    "with_restaurant": "[mr] {{name}} · Staff",
+    "nav": {
+      "validations": "[mr] Validation queue",
+      "redeem": "[mr] Redeem code",
+      "summary": "[mr] Summary",
+      "onboard": "[mr] Onboard restaurant",
+      "sign_in": "[mr] Sign in",
+      "sign_out": "[mr] Sign out"
+    }
+  },
+  "login": {
+    "title": "[mr] Staff sign in",
+    "email": "[mr] Email",
+    "password": "[mr] Password",
+    "restaurant": "[mr] Restaurant",
+    "submit": "[mr] Sign in",
+    "working": "[mr] Working…",
+    "non_staff_error": "[mr] This dashboard is for restaurant staff and admins.",
+    "generic_error": "[mr] Sign in failed."
+  },
+  "summary": {
+    "title": "[mr] Last 7 days",
+    "pick_restaurant": "[mr] Sign in and pick a restaurant first.",
+    "stat": {
+      "sessions": "[mr] Sessions",
+      "rewarded": "[mr] Rewarded",
+      "rejected": "[mr] Rejected",
+      "avg_score": "[mr] Avg score"
+    },
+    "pending_review_cta": "[mr] {{count}} session(s) need your review →"
+  },
+  "queue": {
+    "title": "[mr] Validation queue ({{count}})",
+    "pick_restaurant": "[mr] Pick a restaurant on the sign-in screen first.",
+    "loading": "[mr] Loading queue…",
+    "empty_title": "[mr] Validation queue",
+    "empty": "[mr] All clear — no plates waiting on a decision.",
+    "table": "[mr] Table {{code}}",
+    "score": "[mr] score {{percent}}%",
+    "possible_tampering": "[mr] possible tampering",
+    "low_confidence": "[mr] low confidence",
+    "fraud_signals_count": "[mr] {{count}} fraud signal(s)",
+    "review_button": "[mr] Review",
+    "age": {
+      "seconds": "[mr] {{count}}s ago",
+      "minutes": "[mr] {{count}}m ago"
+    }
+  },
+  "detail": {
+    "loading": "[mr] Loading…",
+    "model_score": "[mr] model score {{percent}}%",
+    "possible_tampering": "[mr] possible tampering",
+    "low_confidence": "[mr] low confidence",
+    "before": "[mr] Before",
+    "after": "[mr] After",
+    "ordered_items": "[mr] Ordered items",
+    "portion_fallback": "[mr] regular",
+    "model_notes": "[mr] Model notes: {{notes}}",
+    "fraud_signals": "[mr] Fraud signals",
+    "reason_label": "[mr] Reason (for adjust / reject)",
+    "adjusted_score_label": "[mr] Adjusted score (only if adjusting)",
+    "adjusted_score_placeholder": "[mr] 0.0–1.0",
+    "notes_label": "[mr] Notes (optional)",
+    "approve": "[mr] Approve",
+    "adjust": "[mr] Adjust",
+    "reject": "[mr] Reject",
+    "escalate": "[mr] Escalate",
+    "escalate_default_note": "[mr] unsure",
+    "adjust_requires_score": "[mr] Pick a score before submitting an adjustment."
+  },
+  "reason_code": {
+    "plate_not_clean_enough": "[mr] plate not clean enough",
+    "wrong_plate_photographed": "[mr] wrong plate photographed",
+    "food_hidden_or_discarded": "[mr] food hidden or discarded",
+    "image_quality_issue": "[mr] image quality issue",
+    "model_overestimated": "[mr] model overestimated",
+    "model_underestimated": "[mr] model underestimated",
+    "dispute_with_diner": "[mr] dispute with diner",
+    "other": "[mr] other"
+  },
+  "redeem": {
+    "title": "[mr] Redeem a reward code",
+    "code_placeholder": "[mr] PLATE-XXXX",
+    "lookup": "[mr] Look up",
+    "table": "[mr] Table {{code}}",
+    "type": {
+      "menu_item": "[mr] Free dish",
+      "bill_discount": "[mr] Bill discount"
+    },
+    "instruction": {
+      "menu_item": "[mr] Send the dish from the reward rule. Don't ring up payment for it.",
+      "bill_discount": "[mr] Apply the discount amount to this customer's current bill (or note for their next visit)."
+    },
+    "pay_out_label": "[mr] Pay out",
+    "half_value": "[mr] half value",
+    "issued_expires": "[mr] Issued {{issued}} · expires {{expires}}",
+    "final_score": "[mr] Final score: {{percent}}%",
+    "already_redeemed": "[mr] Already redeemed at {{when}}.",
+    "already_redeemed_amount": "[mr] Already redeemed at {{when}} for {{amount}}.",
+    "voided": "[mr] Voided.",
+    "expired": "[mr] Expired.",
+    "mark_redeemed": "[mr] Mark redeemed ({{amount}})"
+  },
+  "admin": {
+    "title": "[mr] Onboard a restaurant",
+    "step": {
+      "details": "[mr] 1. Details",
+      "menu": "[mr] 2. Menu",
+      "reward": "[mr] 3. Reward rule",
+      "staff": "[mr] 4. Invite staff",
+      "done": "[mr] 5. Done"
+    },
+    "admin_only_title": "[mr] Admin-only",
+    "admin_only_blurb": "[mr] Only platform admins can onboard a new restaurant.",
+    "details": {
+      "name_label": "[mr] Name",
+      "slug_label": "[mr] Slug",
+      "slug_hint": "[mr] lowercase letters, numbers, hyphens. Used in the URL: plate-clean.app/{slug}.",
+      "address_label": "[mr] Address",
+      "latitude_label": "[mr] Latitude",
+      "longitude_label": "[mr] Longitude",
+      "theme_color_label": "[mr] Theme color",
+      "logo_url_label": "[mr] Logo URL (optional)",
+      "tagline_label": "[mr] Tagline (optional)",
+      "create": "[mr] Create restaurant",
+      "creating": "[mr] Creating…"
+    },
+    "menu": {
+      "blurb": "[mr] We pre-filled a starter menu. Adjust the names, prices (in minor units, e.g. paise), and categories, then add the whole list.",
+      "add_row": "[mr] + add row",
+      "save_n": "[mr] Save {{count}} items",
+      "saving": "[mr] Saving…",
+      "reward_label": "[mr] reward",
+      "category": {
+        "main": "[mr] main",
+        "side": "[mr] side",
+        "drink": "[mr] drink",
+        "dessert": "[mr] dessert"
+      }
+    },
+    "reward": {
+      "blurb": "[mr] Pick which dish counts as the \"free\" reward. The bill-discount option uses the same value.",
+      "threshold_label": "[mr] Threshold (% consumed to qualify)",
+      "threshold_hint": "[mr] Allowed range: 50–95 (CLAUDE.md ethics rule 1).",
+      "dish_label": "[mr] Reward dish",
+      "create": "[mr] Create reward rule",
+      "creating": "[mr] Saving…"
+    },
+    "staff": {
+      "blurb": "[mr] Invite the people who'll run the restaurant. Start with one <strong>owner</strong> (they can edit the restaurant + invite more staff later), then optionally add managers / servers now. Each invite creates a staff account with the password you set — hand the credentials over out of band.",
+      "email_label": "[mr] Email",
+      "display_name_label": "[mr] Display name (optional)",
+      "role_label": "[mr] Role",
+      "role_owner": "[mr] Owner",
+      "role_manager": "[mr] Manager",
+      "role_server": "[mr] Server",
+      "password_label": "[mr] Temporary password",
+      "password_hint": "[mr] At least 8 characters. They can change it after signing in.",
+      "send_invite": "[mr] Send invite",
+      "sending": "[mr] Sending…",
+      "skip_and_finish": "[mr] Skip & finish",
+      "finish": "[mr] Finish",
+      "invited_so_far": "[mr] Invited so far ({{count}}):",
+      "credentials_warning": "[mr] Copy each credential to share securely. They aren't persisted in the UI after you leave this screen."
+    },
+    "done": {
+      "all_set": "[mr] All set.",
+      "summary_created": "[mr] <strong>{{name}}</strong> created at slug <code>{{slug}}</code>.",
+      "summary_menu": "[mr] {{count}} menu items added.",
+      "summary_reward": "[mr] Reward rule: <strong>{{name}}</strong> at {{threshold}}% consumption.",
+      "summary_staff_with_roles": "[mr] {{count}} staff invited ({{roles}}).",
+      "summary_no_staff": "[mr] No staff invited yet — invite from the restaurant settings later.",
+      "credentials_title": "[mr] Credentials (copy out of band):",
+      "owner_signin_pointer": "[mr] Owners can sign in at <code>/login</code>, pick the restaurant, and start approving sessions.",
+      "done": "[mr] Done"
+    }
+  }
+}

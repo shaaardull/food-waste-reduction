@@ -1,8 +1,11 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from './lib/auth';
 import { useApplyTheme } from './lib/theme';
+import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES, type Language } from './lib/i18n';
 
 export function App() {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const loc = useLocation();
   const { user, clearAuth, activeRestaurant } = useAuthStore();
@@ -22,46 +25,62 @@ export function App() {
                 />
               )}
               <span>
-                {activeRestaurant ? `${activeRestaurant.name} · Staff` : 'Plate-Clean · Staff'}
+                {activeRestaurant
+                  ? t('app.with_restaurant', { name: activeRestaurant.name })
+                  : t('app.name_staff')}
               </span>
             </Link>
             {user && (
               <nav className="flex gap-4 text-sm">
                 <Link to="/validations" className="hover:underline">
-                  Validation queue
+                  {t('app.nav.validations')}
                 </Link>
                 <Link to="/redeem" className="hover:underline">
-                  Redeem code
+                  {t('app.nav.redeem')}
                 </Link>
                 <Link to="/" className="hover:underline">
-                  Summary
+                  {t('app.nav.summary')}
                 </Link>
                 {user.role === 'admin' && (
                   <Link to="/admin/restaurants/new" className="hover:underline">
-                    Onboard restaurant
+                    {t('app.nav.onboard')}
                   </Link>
                 )}
               </nav>
             )}
           </div>
-          {user ? (
-            <div className="flex items-center gap-3 text-sm text-slate-600">
-              <span>{user.display_name ?? user.email}</span>
-              <button
-                onClick={() => {
-                  clearAuth();
-                  navigate('/login');
-                }}
-                className="text-slate-500 hover:underline"
-              >
-                Sign out
-              </button>
-            </div>
-          ) : loc.pathname !== '/login' ? (
-            <Link to="/login" className="text-sm text-brand-700 hover:underline">
-              Sign in
-            </Link>
-          ) : null}
+          <div className="flex items-center gap-3 text-sm text-slate-600">
+            <select
+              value={(i18n.resolvedLanguage ?? 'en') as Language}
+              onChange={(e) => void i18n.changeLanguage(e.target.value)}
+              className="border border-slate-200 rounded px-2 py-1 text-xs"
+              aria-label="language"
+            >
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <option key={lang} value={lang}>
+                  {LANGUAGE_LABELS[lang]}
+                </option>
+              ))}
+            </select>
+            {user ? (
+              <>
+                <span>{user.display_name ?? user.email}</span>
+                <button
+                  onClick={() => {
+                    clearAuth();
+                    navigate('/login');
+                  }}
+                  className="text-slate-500 hover:underline"
+                >
+                  {t('app.nav.sign_out')}
+                </button>
+              </>
+            ) : loc.pathname !== '/login' ? (
+              <Link to="/login" className="text-brand-700 hover:underline">
+                {t('app.nav.sign_in')}
+              </Link>
+            ) : null}
+          </div>
         </div>
       </header>
       <main className="flex-1 max-w-screen-xl w-full mx-auto px-4 py-5">

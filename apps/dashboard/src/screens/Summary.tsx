@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
@@ -14,6 +15,7 @@ interface SummaryData {
 }
 
 export function Summary() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { token, restaurantId } = useAuthStore();
 
@@ -30,23 +32,26 @@ export function Summary() {
   });
 
   if (!restaurantId)
-    return <p className="text-slate-600">Sign in and pick a restaurant first.</p>;
+    return <p className="text-slate-600">{t('summary.pick_restaurant')}</p>;
 
   return (
     <section className="space-y-4">
-      <h1 className="text-xl font-semibold">Last 7 days</h1>
+      <h1 className="text-xl font-semibold">{t('summary.title')}</h1>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Sessions" value={data?.sessions ?? '…'} />
-        <Stat label="Rewarded" value={data?.rewarded ?? '…'} />
-        <Stat label="Rejected" value={data?.rejected ?? '…'} />
-        <Stat label="Avg score" value={data?.avg_final_score ? `${Math.round(data.avg_final_score * 100)}%` : '—'} />
+        <Stat label={t('summary.stat.sessions')} value={data?.sessions ?? '…'} />
+        <Stat label={t('summary.stat.rewarded')} value={data?.rewarded ?? '…'} />
+        <Stat label={t('summary.stat.rejected')} value={data?.rejected ?? '…'} />
+        <Stat
+          label={t('summary.stat.avg_score')}
+          value={data?.avg_final_score ? `${Math.round(data.avg_final_score * 100)}%` : '—'}
+        />
       </div>
       {data && data.pending_validation > 0 && (
         <Link
           to="/validations"
           className="block rounded-lg bg-brand-50 border border-brand-600 text-brand-700 p-3 hover:bg-brand-50/80"
         >
-          {data.pending_validation} session(s) need your review &rarr;
+          {t('summary.pending_review_cta', { count: data.pending_validation })}
         </Link>
       )}
     </section>

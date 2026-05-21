@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
@@ -29,6 +30,7 @@ const REASON_CODES = [
 ] as const;
 
 export function ValidationDetail() {
+  const { t } = useTranslation();
   const { sessionId = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -45,8 +47,12 @@ export function ValidationDetail() {
   });
 
   const mutate = useMutation({
-    mutationFn: (body: { decision: string; final_score?: number; reason_code?: string; notes?: string }) =>
-      api.post(`/sessions/${sessionId}/validate`, body, token),
+    mutationFn: (body: {
+      decision: string;
+      final_score?: number;
+      reason_code?: string;
+      notes?: string;
+    }) => api.post(`/sessions/${sessionId}/validate`, body, token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending'] });
       navigate('/validations');
@@ -54,12 +60,12 @@ export function ValidationDetail() {
     onError: (err: ApiException) => setError(err.message),
   });
 
-  if (isLoading || !bundle) return <p className="text-slate-600">Loading…</p>;
+  if (isLoading || !bundle) return <p className="text-slate-600">{t('detail.loading')}</p>;
 
   function decide(kind: 'approved' | 'adjusted' | 'rejected') {
     setError(null);
     if (kind === 'adjusted' && adjustedScore === null) {
-      setError('Pick a score before submitting an adjustment.');
+      setError(t('detail.adjust_requires_score'));
       return;
     }
     mutate.mutate({
@@ -73,18 +79,18 @@ export function ValidationDetail() {
   return (
     <section className="space-y-4">
       <div className="flex items-center gap-3">
-        <h1 className="text-xl font-semibold">Table {bundle.table_code}</h1>
+        <h1 className="text-xl font-semibold">{t('queue.table', { code: bundle.table_code })}</h1>
         <span className="text-sm bg-slate-100 px-2 py-0.5 rounded">
-          model score {Math.round(bundle.score * 100)}%
+          {t('detail.model_score', { percent: Math.round(bundle.score * 100) })}
         </span>
         {bundle.suspicious && (
           <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded">
-            possible tampering
+            {t('detail.possible_tampering')}
           </span>
         )}
         {bundle.model_confidence !== null && bundle.model_confidence < 0.75 && (
           <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
-            low confidence
+            {t('detail.low_confidence')}
           </span>
         )}
       </div>
@@ -92,33 +98,35 @@ export function ValidationDetail() {
       <div className="grid grid-cols-2 gap-3">
         <figure className="space-y-1">
           <img src={bundle.before_image_url} alt="before" className="w-full rounded-lg" />
-          <figcaption className="text-xs text-slate-500">Before</figcaption>
+          <figcaption className="text-xs text-slate-500">{t('detail.before')}</figcaption>
         </figure>
         <figure className="space-y-1">
           <img src={bundle.after_image_url} alt="after" className="w-full rounded-lg" />
-          <figcaption className="text-xs text-slate-500">After</figcaption>
+          <figcaption className="text-xs text-slate-500">{t('detail.after')}</figcaption>
         </figure>
       </div>
 
       <section className="rounded-lg bg-white border border-slate-200 p-3 space-y-2">
-        <p className="text-sm font-medium">Ordered items</p>
+        <p className="text-sm font-medium">{t('detail.ordered_items')}</p>
         <ul className="text-sm text-slate-600 list-disc pl-5">
           {bundle.ordered_items.map((i, idx) => (
             <li key={idx}>
               {i.quantity}× {i.name}{' '}
               <span className="text-xs text-slate-500">
-                ({i.portion_size ?? 'regular'})
+                ({i.portion_size ?? t('detail.portion_fallback')})
               </span>
               {i.notes ? ` — ${i.notes}` : ''}
             </li>
           ))}
         </ul>
         {bundle.model_notes && (
-          <p className="text-xs text-slate-500">Model notes: {bundle.model_notes}</p>
+          <p className="text-xs text-slate-500">
+            {t('detail.model_notes', { notes: bundle.model_notes })}
+          </p>
         )}
         {bundle.fraud_signals.length > 0 && (
           <div className="text-xs text-amber-700 space-y-1">
-            <p className="font-medium">Fraud signals</p>
+            <p className="font-medium">{t('detail.fraud_signals')}</p>
             <ul className="list-disc pl-5">
               {bundle.fraud_signals.map((f, idx) => (
                 <li key={idx}>
@@ -132,7 +140,7 @@ export function ValidationDetail() {
 
       <section className="rounded-lg bg-white border border-slate-200 p-3 space-y-3">
         <label className="block text-sm">
-          <span className="text-slate-600">Reason (for adjust / reject)</span>
+          <span className="text-slate-600">{t('detail.reason_label')}</span>
           <select
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -140,13 +148,13 @@ export function ValidationDetail() {
           >
             {REASON_CODES.map((c) => (
               <option key={c} value={c}>
-                {c.replace(/_/g, ' ')}
+                {t(`reason_code.${c}`)}
               </option>
             ))}
           </select>
         </label>
         <label className="block text-sm">
-          <span className="text-slate-600">Adjusted score (only if adjusting)</span>
+          <span className="text-slate-600">{t('detail.adjusted_score_label')}</span>
           <input
             type="number"
             min={0}
@@ -155,11 +163,11 @@ export function ValidationDetail() {
             value={adjustedScore ?? ''}
             onChange={(e) => setAdjustedScore(e.target.value ? Number(e.target.value) : null)}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-            placeholder="0.0–1.0"
+            placeholder={t('detail.adjusted_score_placeholder')}
           />
         </label>
         <label className="block text-sm">
-          <span className="text-slate-600">Notes (optional)</span>
+          <span className="text-slate-600">{t('detail.notes_label')}</span>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -174,33 +182,37 @@ export function ValidationDetail() {
             disabled={mutate.isPending}
             className="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-2"
           >
-            Approve
+            {t('detail.approve')}
           </button>
           <button
             onClick={() => decide('adjusted')}
             disabled={mutate.isPending}
             className="rounded-md border border-slate-300 px-4 py-2"
           >
-            Adjust
+            {t('detail.adjust')}
           </button>
           <button
             onClick={() => decide('rejected')}
             disabled={mutate.isPending}
             className="rounded-md border border-red-300 text-red-700 px-4 py-2"
           >
-            Reject
+            {t('detail.reject')}
           </button>
           <button
             onClick={() =>
               api
-                .post(`/sessions/${sessionId}/validate/escalate`, { notes: notes || 'unsure' }, token)
+                .post(
+                  `/sessions/${sessionId}/validate/escalate`,
+                  { notes: notes || t('detail.escalate_default_note') },
+                  token,
+                )
                 .then(() => navigate('/validations'))
                 .catch((err: ApiException) => setError(err.message))
             }
             disabled={mutate.isPending}
             className="rounded-md border border-amber-300 text-amber-800 px-4 py-2"
           >
-            Escalate
+            {t('detail.escalate')}
           </button>
         </div>
       </section>
