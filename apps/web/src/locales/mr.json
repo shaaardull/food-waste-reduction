@@ -107,7 +107,13 @@
     "voided": "[mr] Voided",
     "expired": "[mr] Expired",
     "available": "[mr] Available",
-    "half_value_suffix": "[mr] (half value)"
+    "full_value": "[mr] Full value",
+    "half_value": "[mr] Half value",
+    "half_value_suffix": "[mr] (half value)",
+    "days_left": "[mr] {{count}} day left",
+    "days_left_plural": "[mr] {{count}} days left",
+    "expires_today": "[mr] expires today",
+    "full_window_until": "[mr] full value until {{date}}"
   },
   "profile": {
     "title": "[mr] Profile",
