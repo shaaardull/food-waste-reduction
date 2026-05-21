@@ -51,6 +51,8 @@ export interface User {
   email_verified_at?: string | null;
   last_login_at?: string | null;
   created_at: string;
+  /** Ethics rule 6: 7 default, configurable up to 90. */
+  image_retention_days: number;
 }
 
 export interface Restaurant {

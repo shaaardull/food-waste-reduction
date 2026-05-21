@@ -118,6 +118,14 @@
     "delete_confirm": "Delete your account and all associated data? This cannot be undone.",
     "delete_blurb": "Deletion happens within 7 days. Photos from your sessions are removed too.",
     "language_label": "Language",
-    "sign_in_first": "Sign in first."
+    "sign_in_first": "Sign in first.",
+    "retention_label": "Photo retention",
+    "retention_blurb": "How long should we keep the before / after photos from your meals? The default is one week. Opt in to 90 days to help us improve the model with your plates — you can change this any time.",
+    "retention_7_label": "7 days (default)",
+    "retention_7_caption": "Photos are removed after one week.",
+    "retention_90_label": "90 days (opt in)",
+    "retention_90_caption": "Helps train the model on real plates.",
+    "retention_saved": "Saved.",
+    "retention_error": "Couldn't update retention. Try again."
   }
 }
