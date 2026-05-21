@@ -1,10 +1,19 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { User } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES, type Language } from '../lib/i18n';
+
+interface SustainabilityReport {
+  period_days: number;
+  sessions_counted: number;
+  kg_food_saved: number;
+  kg_co2e_saved: number;
+  trees_day_equivalent: number;
+}
 
 export function Profile() {
   const { t, i18n } = useTranslation();
@@ -78,6 +87,8 @@ export function Profile() {
           <span className="text-slate-500">{t('profile.role_label')}:</span> {user.role}
         </p>
       </div>
+
+      <SustainabilityCard token={token} />
 
       <div className="rounded-lg border border-slate-200 p-3 space-y-2">
         <p className="text-sm text-slate-600">{t('profile.language_label')}</p>
@@ -165,5 +176,74 @@ function RetentionOption({ label, caption, active, disabled, onClick }: Retentio
       </div>
       <div className="text-xs text-slate-500">{caption}</div>
     </button>
+  );
+}
+
+function SustainabilityCard({ token }: { token: string | null }) {
+  const { t } = useTranslation();
+  const { data, isLoading } = useQuery({
+    queryKey: ['sustainability'],
+    queryFn: () =>
+      api.get<SustainabilityReport>('/auth/me/sustainability?days=30', token),
+    enabled: Boolean(token),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="rounded-lg border border-slate-200 p-3 space-y-2">
+        <p className="text-sm font-medium">{t('profile.sustainability_heading')}</p>
+        <p className="text-xs text-slate-500">{t('profile.sustainability_loading')}</p>
+      </div>
+    );
+  }
+  if (!data) return null;
+
+  const empty = data.sessions_counted === 0 || data.kg_food_saved === 0;
+  if (empty) {
+    return (
+      <div className="rounded-lg border border-slate-200 p-3 space-y-2">
+        <p className="text-sm font-medium">{t('profile.sustainability_heading')}</p>
+        <p className="text-xs text-slate-500">{t('profile.sustainability_empty')}</p>
+      </div>
+    );
+  }
+
+  const sessionsText =
+    data.sessions_counted === 1
+      ? t('profile.sustainability_sessions_counted', { count: 1 })
+      : t('profile.sustainability_sessions_counted_plural', { count: data.sessions_counted });
+
+  return (
+    <div className="rounded-lg border-2 border-brand-600/40 bg-brand-50 p-4 space-y-3">
+      <p className="text-sm font-medium text-brand-700">
+        {t('profile.sustainability_heading')}
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <Stat
+          value={data.kg_food_saved.toFixed(2)}
+          label={t('profile.sustainability_food_saved')}
+        />
+        <Stat
+          value={data.kg_co2e_saved.toFixed(2)}
+          label={t('profile.sustainability_co2e_saved')}
+        />
+      </div>
+      <p className="text-xs text-slate-600">
+        {t('profile.sustainability_trees_day', {
+          value: data.trees_day_equivalent.toFixed(1),
+        })}{' '}
+        &middot; {sessionsText}
+      </p>
+      <p className="text-xs text-slate-500">{t('profile.sustainability_blurb')}</p>
+    </div>
+  );
+}
+
+function Stat({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="rounded-md bg-white border border-slate-200 p-3">
+      <div className="text-2xl font-semibold text-brand-700">{value}</div>
+      <div className="text-xs text-slate-600 mt-1">{label}</div>
+    </div>
   );
 }

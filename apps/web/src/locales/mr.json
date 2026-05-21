@@ -132,6 +132,15 @@
     "retention_90_label": "[mr] 90 days (opt in)",
     "retention_90_caption": "[mr] Helps train the model on real plates.",
     "retention_saved": "[mr] Saved.",
-    "retention_error": "[mr] Couldn't update retention. Try again."
+    "retention_error": "[mr] Couldn't update retention. Try again.",
+    "sustainability_heading": "[mr] Your impact this month",
+    "sustainability_empty": "[mr] Finish your next meal to see your impact start to build up.",
+    "sustainability_loading": "[mr] Crunching the numbers…",
+    "sustainability_food_saved": "[mr] kg of food kept out of the bin",
+    "sustainability_co2e_saved": "[mr] kg CO₂e avoided",
+    "sustainability_trees_day": "[mr] ≈ {{value}} tree-days of carbon",
+    "sustainability_sessions_counted": "[mr] across {{count}} meal",
+    "sustainability_sessions_counted_plural": "[mr] across {{count}} meals",
+    "sustainability_blurb": "[mr] We compare how much you ate to a typical restaurant baseline — anything above is food that didn't get thrown out."
   }
 }
