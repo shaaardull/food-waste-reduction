@@ -11,9 +11,11 @@ from app.errors import NotRestaurantStaff
 from app.models.dispute import Dispute
 from app.models.meal_session import MealSession
 from app.models.restaurant import RestaurantStaff
+from app.models.staff_metrics import StaffMetricsSnapshot
 from app.models.staff_validation import StaffValidation
 from app.models.user import User
 from app.security import get_current_user
+from app.tasks.staff_metrics import ALERT_MULTIPLIER, MIN_VALIDATIONS_FOR_ALERT
 
 router = APIRouter()
 
@@ -135,3 +137,77 @@ async def list_disputes(
         }
         for d in result.scalars().all()
     ]
+
+
+@router.get("/restaurants/{restaurant_id}/dashboard/staff-metrics")
+async def staff_metrics(
+    restaurant_id: UUID,
+    weeks: int = Query(default=4, ge=1, le=26),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """Per-staff weekly snapshots for ethics-rule-8 oversight.
+
+    Returns one row per staff with their last `weeks` snapshots plus a
+    derived `over_threshold` flag (rejection_rate > 2× restaurant median
+    AND validations_count >= MIN_VALIDATIONS_FOR_ALERT) so the dashboard
+    can colour-code rows the alert job would fire on.
+    """
+    await _ensure_staff(db, user, restaurant_id)
+
+    rows = list(
+        (
+            await db.execute(
+                select(StaffMetricsSnapshot, User.email, User.display_name)
+                .join(User, User.id == StaffMetricsSnapshot.staff_user_id)
+                .where(StaffMetricsSnapshot.restaurant_id == restaurant_id)
+                .order_by(
+                    StaffMetricsSnapshot.staff_user_id.asc(),
+                    StaffMetricsSnapshot.period_start.desc(),
+                )
+            )
+        ).all()
+    )
+
+    # Group snapshots by staff member, keep most-recent `weeks` per staff.
+    by_staff: dict[UUID, dict[str, Any]] = {}
+    for snap, email, display_name in rows:
+        bucket = by_staff.setdefault(
+            snap.staff_user_id,
+            {
+                "staff_user_id": str(snap.staff_user_id),
+                "email": email,
+                "display_name": display_name,
+                "snapshots": [],
+            },
+        )
+        if len(bucket["snapshots"]) >= weeks:
+            continue
+        rejection_rate = float(snap.rejection_rate)
+        median = float(snap.restaurant_median_rejection_rate)
+        over_threshold = (
+            snap.validations_count >= MIN_VALIDATIONS_FOR_ALERT
+            and rejection_rate > float(ALERT_MULTIPLIER) * median
+        )
+        bucket["snapshots"].append(
+            {
+                "period_start": snap.period_start.isoformat(),
+                "period_end": snap.period_end.isoformat(),
+                "validations_count": snap.validations_count,
+                "approvals_count": snap.approvals_count,
+                "rejections_count": snap.rejections_count,
+                "adjustments_count": snap.adjustments_count,
+                "rejection_rate": rejection_rate,
+                "approval_rate": float(snap.approval_rate),
+                "override_rate": float(
+                    (snap.rejections_count + snap.adjustments_count)
+                    / snap.validations_count
+                )
+                if snap.validations_count
+                else 0.0,
+                "restaurant_median_rejection_rate": median,
+                "over_threshold": over_threshold,
+            }
+        )
+
+    return list(by_staff.values())
