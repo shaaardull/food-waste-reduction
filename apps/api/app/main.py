@@ -19,6 +19,27 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     configure_logging()
     log = get_logger("startup")
     log.info("api_starting", version=__version__, env=settings.NODE_ENV)
+    # Dev-time convenience: make sure the S3 bucket exists on boot, so a
+    # fresh MinIO doesn't 404 the first capture upload. Skip in test mode
+    # (tests use the fake_s3 monkeypatch and don't want a real boto3 call).
+    if settings.NODE_ENV != "test":
+        try:
+            # Import here so the module-level import graph stays cheap and
+            # the test-time monkeypatch on services.storage still applies
+            # to anything that imports it later.
+            from app.services import storage
+
+            storage.ensure_bucket()
+            log.info("s3_bucket_ready", bucket=settings.S3_BUCKET)
+        except Exception as exc:  # noqa: BLE001
+            # Not fatal — the API can still serve everything except the
+            # capture endpoints if S3 is down. Log and continue.
+            log.warning(
+                "s3_bucket_ensure_failed",
+                bucket=settings.S3_BUCKET,
+                endpoint=settings.S3_ENDPOINT,
+                error=str(exc),
+            )
     yield
     log.info("api_stopping")
 

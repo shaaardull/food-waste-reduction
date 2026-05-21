@@ -24,69 +24,63 @@ plate-clean/
 └── CLAUDE.md        # Canonical build spec
 ```
 
-## Quick start (Phase 1)
+## Running locally (one command)
 
-### 1. Prerequisites
-
-- Docker & Docker Compose (for Postgres / Redis / MinIO)
-- Node 20+ and pnpm 9+ (`corepack enable && corepack prepare pnpm@9.12.0 --activate`)
-- Python 3.12 (only required for running the API outside Docker)
-- An Anthropic API key (the vision model in Phase 1 is Claude Sonnet)
-
-### 2. Configure environment
+If you have Postgres + Redis already running locally (Homebrew is fine — `brew services start postgresql@15 redis`), the fastest path is:
 
 ```bash
-cp .env.example .env
-# edit .env and set:
-#   JWT_SECRET             (32+ characters)
-#   ANTHROPIC_API_KEY      (from https://console.anthropic.com)
+# First-time setup (do once)
+psql -h localhost -d postgres -c "CREATE USER plate WITH PASSWORD 'plate' CREATEDB; CREATE DATABASE plate_clean OWNER plate;"
+(cd apps/api && python3 -m venv .venv && ./.venv/bin/pip install --ignore-requires-python -e ".[dev]" && ./.venv/bin/alembic upgrade head && ./.venv/bin/python -m app.scripts.seed)
+(cd services/vision && python3 -m venv .venv && ./.venv/bin/pip install --ignore-requires-python -e ".[dev]")
+pnpm install
+
+# Boot everything
+./scripts/dev.sh
 ```
 
-### 3. Bring the stack up
+`scripts/dev.sh` checks prerequisites, downloads MinIO to `~/bin` if missing, then boots all five processes (MinIO, services/vision, apps/api, Celery worker, both Vite frontends) with prefixed log streams. Ctrl-C tears the whole thing down.
 
-```bash
-docker compose -f infra/docker/docker-compose.yml up -d
-```
+URLs once it's up:
 
-This starts Postgres, Redis, MinIO, the API (with Alembic migrations applied), and a Celery worker.
+- **Diner PWA** — http://localhost:5173
+- **Staff dashboard** — http://localhost:5174
+- **API docs** — http://localhost:8000/docs
+- **Vision service docs** — http://localhost:8001/docs
+- **MinIO console** — http://localhost:9001 (login: `minioadmin` / `minioadmin`)
 
-Seed two restaurants, one staff user each, twenty menu items, and one demo diner:
-
-```bash
-docker compose -f infra/docker/docker-compose.yml exec api python -m app.scripts.seed
-```
-
-Seeded credentials (dev only — `plate-clean-demo` password for all):
+Seeded logins (all password `plate-clean-demo`):
 
 | email | role |
 | --- | --- |
 | `diner@example.com` | diner |
-| `staff1@example.com` | staff @ Spice Trail |
-| `staff2@example.com` | staff @ Konkan Kitchen |
+| `staff1@example.com` | staff (manager) @ Spice Trail |
+| `staff2@example.com` | staff (manager) @ Konkan Kitchen |
+| `admin@example.com` | platform admin (sees the Onboard wizard) |
 
-### 4. Run the frontends
+90-second tour after `./scripts/dev.sh`:
 
-```bash
-pnpm install
-pnpm --filter @plate-clean/web dev          # http://localhost:5173
-pnpm --filter @plate-clean/dashboard dev    # http://localhost:5174
-```
-
-Or run everything in parallel with Turbo:
-
-```bash
-pnpm dev
-```
-
-### 5. Walk the flow
-
-1. Diner PWA → sign up or log in as `diner@example.com`.
-2. Pick a restaurant, type a table code, place an order.
+1. Diner PWA → sign in as `diner@example.com`.
+2. Pick a restaurant, type a table code like `T-01`, place an order.
 3. Take the before photo with your device camera.
 4. (Simulate eating.) Tap "Claim", take the after photo.
 5. Switch to the dashboard, sign in as `staff1@example.com`, pick the same restaurant.
 6. The session appears in the **Validation queue** — review the before/after images and Approve.
-7. The diner sees a redemption code. Paste it into the dashboard's **Redeem code** screen to mark redeemed.
+7. Back in the diner PWA → pick how you'd like the reward (free dish vs bill discount) → redemption code appears.
+8. In the dashboard → **Redeem code** → paste the code → Mark redeemed.
+
+## Running via Docker (alternative)
+
+If you'd rather not install Python + Node natively:
+
+```bash
+cp .env.example .env
+# edit .env: set JWT_SECRET (32+ chars) and (optional) ANTHROPIC_API_KEY
+docker compose -f infra/docker/docker-compose.yml up -d
+docker compose -f infra/docker/docker-compose.yml exec api python -m app.scripts.seed
+pnpm install
+pnpm dev    # runs web + dashboard
+```
 
 ## Useful commands
 
