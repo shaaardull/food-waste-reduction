@@ -157,7 +157,12 @@ async def test_add_menu_items_owner(client, db):
         json={
             "items": [
                 {"name": "New Dish A", "price_minor": 25000, "category": "main"},
-                {"name": "New Dish B", "price_minor": 8000, "category": "dessert", "is_reward_eligible": True},
+                {
+                    "name": "New Dish B",
+                    "price_minor": 8000,
+                    "category": "dessert",
+                    "is_reward_eligible": True,
+                },
             ]
         },
         headers={"Authorization": f"Bearer {token}"},

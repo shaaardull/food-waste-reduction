@@ -16,6 +16,7 @@ from app.schemas.auth import (
     OtpVerifyIn,
     RegisterIn,
     UserOut,
+    UserPatchIn,
 )
 from app.security import create_access_token, get_current_user, hash_password, verify_password
 from app.services.otp import request_otp, verify_otp
@@ -102,6 +103,22 @@ async def otp_verify(payload: OtpVerifyIn, db: AsyncSession = Depends(get_db)) -
 
 @router.get("/me", response_model=UserOut)
 async def me(user: User = Depends(get_current_user)) -> UserOut:
+    return UserOut.model_validate(user)
+
+
+@router.patch("/me", response_model=UserOut)
+async def patch_me(
+    payload: UserPatchIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserOut:
+    """Self-service profile edits — display name + image retention window
+    (ethics rule 6's per-user 7..90-day opt-in)."""
+    data = payload.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        setattr(user, key, value)
+    await db.commit()
+    await db.refresh(user)
     return UserOut.model_validate(user)
 
 

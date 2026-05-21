@@ -13,6 +13,7 @@ celery_app = Celery(
         "app.tasks.scoring",
         "app.tasks.anomaly",
         "app.tasks.staff_metrics",
+        "app.tasks.image_retention",
     ],
 )
 
@@ -36,6 +37,12 @@ celery_app.conf.update(
         "staff-metrics-weekly": {
             "task": "metrics.staff_metrics_weekly",
             "schedule": crontab(hour=3, minute=0, day_of_week="mon"),
+        },
+        # Ethics rule 6: nightly 03:30 UTC. Purge S3 capture objects whose
+        # age has exceeded each owning diner's image_retention_days.
+        "image-retention-nightly": {
+            "task": "image_retention.purge_expired_captures",
+            "schedule": crontab(hour=3, minute=30),
         },
     },
 )

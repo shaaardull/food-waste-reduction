@@ -38,8 +38,16 @@ class UserOut(BaseModel):
     email_verified_at: datetime | None = None
     last_login_at: datetime | None = None
     created_at: datetime
+    image_retention_days: int = 7
 
     model_config = {"from_attributes": True}
+
+
+class UserPatchIn(BaseModel):
+    """Self-service knobs the diner can set from Profile (ethics rule 6)."""
+
+    display_name: str | None = Field(default=None, max_length=100)
+    image_retention_days: int | None = Field(default=None, ge=7, le=90)
 
 
 class AuthOut(BaseModel):

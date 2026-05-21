@@ -22,7 +22,9 @@ class PlateCapture(Base, UUIDPKMixin, TimestampMixin):
         nullable=False,
     )
     phase: Mapped[str] = mapped_column(String, nullable=False)
-    image_s3_key: Mapped[str] = mapped_column(String, nullable=False)
+    # Nullable once the daily retention job has purged the S3 object
+    # (ethics rule 6). All other writes set it to a real key.
+    image_s3_key: Mapped[str | None] = mapped_column(String, nullable=True)
     image_sha256: Mapped[str] = mapped_column(String, nullable=False)
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     client_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
