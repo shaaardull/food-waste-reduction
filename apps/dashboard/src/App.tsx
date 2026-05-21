@@ -41,6 +41,9 @@ export function App() {
                 <Link to="/" className="hover:underline">
                   {t('app.nav.summary')}
                 </Link>
+                <Link to="/staff-metrics" className="hover:underline">
+                  {t('app.nav.staff_metrics')}
+                </Link>
                 {user.role === 'admin' && (
                   <Link to="/admin/restaurants/new" className="hover:underline">
                     {t('app.nav.onboard')}

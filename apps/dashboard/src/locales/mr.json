@@ -7,6 +7,7 @@
       "validations": "[mr] Validation queue",
       "redeem": "[mr] Redeem code",
       "summary": "[mr] Summary",
+      "staff_metrics": "[mr] Staff metrics",
       "onboard": "[mr] Onboard restaurant",
       "sign_in": "[mr] Sign in",
       "sign_out": "[mr] Sign out"
@@ -178,5 +179,27 @@
       "owner_signin_pointer": "[mr] Owners can sign in at <code>/login</code>, pick the restaurant, and start approving sessions.",
       "done": "[mr] Done"
     }
+  },
+  "staff_metrics": {
+    "title": "[mr] Staff metrics",
+    "blurb": "[mr] Weekly snapshot of each staff member's validation behaviour. Rows highlighted in red exceeded 2× the restaurant median rejection rate in that week — the alert job will fire if a staff member stays over that threshold for four weeks running (ethics rule 8).",
+    "loading": "[mr] Loading metrics…",
+    "empty": "[mr] No snapshots yet. The first one writes the Monday after the weekly job runs (or after a staff member completes 5+ validations in a week).",
+    "pick_restaurant": "[mr] Sign in and pick a restaurant first.",
+    "column": {
+      "period": "[mr] Week of",
+      "validations": "[mr] Validations",
+      "approved": "[mr] Approved",
+      "rejected": "[mr] Rejected",
+      "adjusted": "[mr] Adjusted",
+      "rejection_rate": "[mr] Reject rate",
+      "override_rate": "[mr] Override rate",
+      "median": "[mr] Restaurant median",
+      "alert": "[mr] Alert"
+    },
+    "staff_label": "[mr] {{name}} ({{email}})",
+    "no_display_name": "[mr] {{email}}",
+    "over_threshold_badge": "[mr] > 2× median",
+    "ok_badge": "[mr] ok"
   }
 }

@@ -11,6 +11,7 @@ import { Login } from './screens/Login';
 import { ValidationQueue } from './screens/ValidationQueue';
 import { ValidationDetail } from './screens/ValidationDetail';
 import { Redeem } from './screens/Redeem';
+import { StaffMetrics } from './screens/StaffMetrics';
 import { Summary } from './screens/Summary';
 
 const queryClient = new QueryClient({
@@ -28,6 +29,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="validations" element={<ValidationQueue />} />
             <Route path="validations/:sessionId" element={<ValidationDetail />} />
             <Route path="redeem" element={<Redeem />} />
+            <Route path="staff-metrics" element={<StaffMetrics />} />
             <Route path="admin/restaurants/new" element={<AdminOnboard />} />
           </Route>
         </Routes>

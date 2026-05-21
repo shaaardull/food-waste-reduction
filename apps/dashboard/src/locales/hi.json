@@ -7,6 +7,7 @@
       "validations": "[hi] Validation queue",
       "redeem": "[hi] Redeem code",
       "summary": "[hi] Summary",
+      "staff_metrics": "[hi] Staff metrics",
       "onboard": "[hi] Onboard restaurant",
       "sign_in": "[hi] Sign in",
       "sign_out": "[hi] Sign out"
@@ -178,5 +179,27 @@
       "owner_signin_pointer": "[hi] Owners can sign in at <code>/login</code>, pick the restaurant, and start approving sessions.",
       "done": "[hi] Done"
     }
+  },
+  "staff_metrics": {
+    "title": "[hi] Staff metrics",
+    "blurb": "[hi] Weekly snapshot of each staff member's validation behaviour. Rows highlighted in red exceeded 2× the restaurant median rejection rate in that week — the alert job will fire if a staff member stays over that threshold for four weeks running (ethics rule 8).",
+    "loading": "[hi] Loading metrics…",
+    "empty": "[hi] No snapshots yet. The first one writes the Monday after the weekly job runs (or after a staff member completes 5+ validations in a week).",
+    "pick_restaurant": "[hi] Sign in and pick a restaurant first.",
+    "column": {
+      "period": "[hi] Week of",
+      "validations": "[hi] Validations",
+      "approved": "[hi] Approved",
+      "rejected": "[hi] Rejected",
+      "adjusted": "[hi] Adjusted",
+      "rejection_rate": "[hi] Reject rate",
+      "override_rate": "[hi] Override rate",
+      "median": "[hi] Restaurant median",
+      "alert": "[hi] Alert"
+    },
+    "staff_label": "[hi] {{name}} ({{email}})",
+    "no_display_name": "[hi] {{email}}",
+    "over_threshold_badge": "[hi] > 2× median",
+    "ok_badge": "[hi] ok"
   }
 }
