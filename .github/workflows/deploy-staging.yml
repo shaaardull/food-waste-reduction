@@ -1,0 +1,130 @@
+name: Deploy to staging
+
+# CLAUDE.md §11 staging-deploy workflow. Fires automatically on every push to
+# `main` so a green CI ⇒ a fresh staging deploy. Configure these repo
+# secrets before the first run:
+#
+#   FLY_API_TOKEN              — `fly auth token` output for the deploy bot
+#   STAGING_DATABASE_URL_SYNC  — psycopg URL to the staging Postgres
+#                                (the `alembic upgrade head` step uses this)
+#   STAGING_BASE_URL           — https://… of the staging diner PWA;
+#                                Playwright runs against it after the deploy
+#
+# Fly apps (created once with `fly launch`):
+#   plate-clean-api-staging
+#   plate-clean-vision-staging
+#   plate-clean-web-staging
+#   plate-clean-dashboard-staging
+#
+# To wire production later: copy this workflow to deploy-prod.yml, swap
+# the env to `production`, gate it on tag pushes (on: push: tags: ['v*'])
+# plus a `manual approval` environment in GitHub.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+env:
+  FLY_REGION: bom
+  FLY_APP_API: plate-clean-api-staging
+  FLY_APP_VISION: plate-clean-vision-staging
+  FLY_APP_WEB: plate-clean-web-staging
+  FLY_APP_DASHBOARD: plate-clean-dashboard-staging
+
+jobs:
+  migrate:
+    name: Run Alembic on staging
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - working-directory: apps/api
+        run: pip install -e ".[dev]"
+      - working-directory: apps/api
+        env:
+          DATABASE_URL_SYNC: ${{ secrets.STAGING_DATABASE_URL_SYNC }}
+        run: alembic upgrade head
+
+  deploy_services:
+    name: Deploy services (api / vision / worker)
+    runs-on: ubuntu-latest
+    needs: [migrate]
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy API
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        working-directory: apps/api
+        run: flyctl deploy --app ${{ env.FLY_APP_API }} --remote-only
+      - name: Deploy vision service
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        working-directory: services/vision
+        run: flyctl deploy --app ${{ env.FLY_APP_VISION }} --remote-only
+
+  deploy_frontends:
+    name: Deploy frontends (web / dashboard)
+    runs-on: ubuntu-latest
+    needs: [deploy_services]
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm --filter @plate-clean/web build
+      - run: pnpm --filter @plate-clean/dashboard build
+      - name: Deploy diner PWA
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        working-directory: apps/web
+        run: flyctl deploy --app ${{ env.FLY_APP_WEB }} --remote-only
+      - name: Deploy staff dashboard
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        working-directory: apps/dashboard
+        run: flyctl deploy --app ${{ env.FLY_APP_DASHBOARD }} --remote-only
+
+  smoke:
+    name: Playwright smoke against staging
+    runs-on: ubuntu-latest
+    needs: [deploy_frontends]
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm --filter @plate-clean/web test:e2e:install
+      - name: Run Playwright against staging
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+        run: pnpm --filter @plate-clean/web test:e2e
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 14

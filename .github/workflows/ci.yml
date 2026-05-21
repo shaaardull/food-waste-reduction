@@ -92,6 +92,34 @@ jobs:
           VISION_BACKEND: stub
         run: pytest
 
+  e2e:
+    name: Playwright e2e smoke
+    runs-on: ubuntu-latest
+    needs: [node]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile=false
+      - name: Install Playwright browsers
+        run: pnpm --filter @plate-clean/web test:e2e:install
+      - name: Build web bundle
+        run: pnpm --filter @plate-clean/web build
+      - name: Run Playwright smoke
+        run: pnpm --filter @plate-clean/web test:e2e
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
   docker-build:
     name: Build images
     runs-on: ubuntu-latest

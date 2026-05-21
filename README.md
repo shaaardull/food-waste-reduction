@@ -101,7 +101,30 @@ pnpm --filter @plate-clean/api test         # pytest
 pnpm lint                                   # ESLint
 pnpm lint:copy                              # ethics deny-list check
 pnpm typecheck                              # tsc -b across the workspace
+
+# Playwright smoke (diner PWA)
+pnpm --filter @plate-clean/web test:e2e:install   # one-time browser download
+pnpm --filter @plate-clean/web build              # build the bundle
+pnpm --filter @plate-clean/web test:e2e           # boots `vite preview` and runs e2e/*.spec.ts
 ```
+
+## Deploying to staging
+
+`/.github/workflows/deploy-staging.yml` deploys to Fly.io on every push to
+`main`. Before the first run, set these repo secrets in GitHub:
+
+| secret | what it is |
+| --- | --- |
+| `FLY_API_TOKEN` | output of `fly auth token` for the deploy bot |
+| `STAGING_DATABASE_URL_SYNC` | psycopg URL to the staging Postgres — the migrate job uses it |
+| `STAGING_BASE_URL` | `https://…` of the staging diner PWA — Playwright runs against it after the deploy |
+
+The workflow expects four Fly apps to exist (create once with `fly launch`):
+
+- `plate-clean-api-staging`
+- `plate-clean-vision-staging`
+- `plate-clean-web-staging`
+- `plate-clean-dashboard-staging`
 
 ## Phase 1 status
 
