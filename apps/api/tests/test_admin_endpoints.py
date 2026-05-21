@@ -207,6 +207,25 @@ async def test_add_reward_rule_happy(client, db):
 
 
 @pytest.mark.asyncio
+async def test_invite_staff_rejects_unloggable_email(client, db):
+    """Regression: the admin can't invite an email with a reserved TLD like
+    `.local`, because login uses EmailStr and would then reject it."""
+    restaurant, _, _ = make_restaurant(db, name="Invite Bad Email")
+    owner = _make_owner(db, restaurant.id)
+    token = await login(client, owner.email)
+    res = await client.post(
+        f"/api/v1/restaurants/{restaurant.id}/staff",
+        json={
+            "email": "owner@my-restaurant.local",
+            "role": "owner",
+            "password": "plate-clean-demo",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_invite_staff(client, db):
     restaurant, _, _ = make_restaurant(db, name="Invite")
     owner = _make_owner(db, restaurant.id)

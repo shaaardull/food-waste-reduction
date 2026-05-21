@@ -156,7 +156,9 @@ export function AdminOnboard() {
       );
       setRewardRule(rule);
       // Pre-fill the staff invite with the slug-based suggested owner email.
-      setStaffEmail(`owner@${restaurant.slug}.local`);
+      // (.example.com so the address passes EmailStr deliverability checks
+      // and is loggable straight away.)
+      setStaffEmail(`owner@${restaurant.slug}.example.com`);
       setStaffRole('owner');
       setStep('staff');
     } catch (err) {

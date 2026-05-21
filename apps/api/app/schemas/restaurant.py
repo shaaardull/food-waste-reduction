@@ -2,7 +2,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, EmailStr, Field, HttpUrl
 
 
 class RestaurantOut(BaseModel):
@@ -104,7 +104,9 @@ class RewardRuleOut(BaseModel):
 
 
 class StaffInviteIn(BaseModel):
-    email: str = Field(min_length=4, max_length=200)
+    # EmailStr so the address is loggable into /auth/login afterwards — the
+    # admin wizard would otherwise be able to create accounts no one can use.
+    email: EmailStr
     display_name: str | None = Field(default=None, max_length=100)
     role: Literal["owner", "manager", "server"] = "manager"
     password: str = Field(min_length=8, max_length=128)
