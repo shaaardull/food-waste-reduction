@@ -8,6 +8,7 @@
       "redeem": "[mr] Redeem code",
       "summary": "[mr] Summary",
       "staff_metrics": "[mr] Staff metrics",
+      "disputes": "[mr] Disputes",
       "onboard": "[mr] Onboard restaurant",
       "sign_in": "[mr] Sign in",
       "sign_out": "[mr] Sign out"
@@ -201,5 +202,48 @@
     "no_display_name": "[mr] {{email}}",
     "over_threshold_badge": "[mr] > 2× median",
     "ok_badge": "[mr] ok"
+  },
+  "disputes": {
+    "list_title": "[mr] Disputes",
+    "blurb": "[mr] Diners who think a rejection or score was wrong end up here. Resolve in their favour to flag the case for the team to learn from; resolve in the restaurant's favour to close it; pick \"closed\" if the issue is unrelated.",
+    "loading": "[mr] Loading…",
+    "empty_open": "[mr] No open disputes — nothing to review.",
+    "empty_all": "[mr] No disputes yet.",
+    "status_filter_open": "[mr] Open",
+    "status_filter_all": "[mr] All",
+    "review_button": "[mr] Review",
+    "row": {
+      "table": "[mr] Table {{code}}",
+      "raised_at": "[mr] Raised {{datetime}}"
+    },
+    "detail": {
+      "title": "[mr] Dispute · table {{code}}",
+      "back_to_list": "[mr] ← Back to disputes",
+      "reason_label": "[mr] Diner's reason",
+      "session_state_label": "[mr] Session state",
+      "captures_label": "[mr] Captures",
+      "score_label": "[mr] Model score",
+      "validation_label": "[mr] Staff decision",
+      "decision_at": "[mr] decided {{datetime}}",
+      "no_validation": "[mr] No staff decision recorded for this session.",
+      "no_score": "[mr] No model score recorded.",
+      "no_captures": "[mr] Capture images have been purged (retention policy).",
+      "resolution_heading": "[mr] Resolution",
+      "resolution_notes_label": "[mr] Notes (optional, shown to the diner)",
+      "resolve_in_favor_diner": "[mr] Resolve in favour of diner",
+      "resolve_in_favor_restaurant": "[mr] Resolve in favour of restaurant",
+      "resolve_closed": "[mr] Close (no decision needed)",
+      "resolving": "[mr] Saving…",
+      "already_resolved": "[mr] Already resolved as <strong>{{status}}</strong> on {{datetime}}.",
+      "resolved_notes_prefix": "[mr] Notes:",
+      "phase_before": "[mr] Before",
+      "phase_after": "[mr] After"
+    },
+    "status": {
+      "open": "[mr] open",
+      "resolved_in_favor_diner": "[mr] resolved in favour of diner",
+      "resolved_in_favor_restaurant": "[mr] resolved in favour of restaurant",
+      "closed": "[mr] closed"
+    }
   }
 }

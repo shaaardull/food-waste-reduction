@@ -7,12 +7,14 @@ import './index.css';
 import './lib/i18n'; // initialises i18next before any screen renders
 import { App } from './App';
 import { AdminOnboard } from './screens/AdminOnboard';
+import { DisputeDetail } from './screens/DisputeDetail';
+import { Disputes } from './screens/Disputes';
 import { Login } from './screens/Login';
-import { ValidationQueue } from './screens/ValidationQueue';
-import { ValidationDetail } from './screens/ValidationDetail';
 import { Redeem } from './screens/Redeem';
 import { StaffMetrics } from './screens/StaffMetrics';
 import { Summary } from './screens/Summary';
+import { ValidationDetail } from './screens/ValidationDetail';
+import { ValidationQueue } from './screens/ValidationQueue';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 2_000, refetchOnWindowFocus: false } },
@@ -30,6 +32,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="validations/:sessionId" element={<ValidationDetail />} />
             <Route path="redeem" element={<Redeem />} />
             <Route path="staff-metrics" element={<StaffMetrics />} />
+            <Route path="disputes" element={<Disputes />} />
+            <Route path="disputes/:id" element={<DisputeDetail />} />
             <Route path="admin/restaurants/new" element={<AdminOnboard />} />
           </Route>
         </Routes>

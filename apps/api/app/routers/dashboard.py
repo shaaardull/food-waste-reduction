@@ -1,21 +1,33 @@
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.errors import NotRestaurantStaff
+from app.models.consumption_score import ConsumptionScore
 from app.models.dispute import Dispute
 from app.models.meal_session import MealSession
+from app.models.plate_capture import PlateCapture
 from app.models.restaurant import RestaurantStaff
 from app.models.staff_metrics import StaffMetricsSnapshot
 from app.models.staff_validation import StaffValidation
 from app.models.user import User
 from app.security import get_current_user
+from app.services import storage
 from app.tasks.staff_metrics import ALERT_MULTIPLIER, MIN_VALIDATIONS_FOR_ALERT
+
+
+class DisputeResolveIn(BaseModel):
+    status: Literal[
+        "resolved_in_favor_diner", "resolved_in_favor_restaurant", "closed"
+    ]
+    resolution_notes: str | None = Field(default=None, max_length=2000)
+
 
 router = APIRouter()
 
@@ -33,6 +45,31 @@ async def _ensure_staff(db: AsyncSession, user: User, restaurant_id: UUID) -> No
     )
     if res.scalar_one_or_none() is None:
         raise NotRestaurantStaff()
+
+
+async def _ensure_owner(
+    db: AsyncSession, user: User, restaurant_id: UUID
+) -> None:
+    """Owner of the restaurant or platform admin only. Resolving a dispute
+    is not a server-level action — ethics rule 9 routes disputes to the
+    restaurant owner first, platform admin only if unresolved 48h later.
+    """
+    if user.role == "admin":
+        return
+    if user.role != "staff":
+        raise NotRestaurantStaff()
+    res = await db.execute(
+        select(RestaurantStaff).where(
+            RestaurantStaff.user_id == user.id,
+            RestaurantStaff.restaurant_id == restaurant_id,
+            RestaurantStaff.role == "owner",
+        )
+    )
+    if res.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Owner role required to resolve disputes",
+        )
 
 
 @router.get("/restaurants/{restaurant_id}/dashboard/summary")
@@ -211,3 +248,166 @@ async def staff_metrics(
         )
 
     return list(by_staff.values())
+
+
+@router.get("/restaurants/{restaurant_id}/dashboard/disputes/{dispute_id}")
+async def dispute_detail(
+    restaurant_id: UUID,
+    dispute_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Full review payload for one dispute. Owner/admin only via the same
+    _ensure_staff guard as the list endpoint (resolving is owner-only — see
+    POST /resolve below)."""
+    await _ensure_staff(db, user, restaurant_id)
+    dispute = await db.get(Dispute, dispute_id)
+    if dispute is None:
+        raise HTTPException(status_code=404, detail="Dispute not found")
+
+    session = await db.get(MealSession, dispute.meal_session_id)
+    if session is None or session.restaurant_id != restaurant_id:
+        # Dispute exists but for a different restaurant — refuse to leak it.
+        raise HTTPException(status_code=404, detail="Dispute not found")
+
+    diner = await db.get(User, dispute.raised_by_user_id)
+    resolved_by = (
+        await db.get(User, dispute.resolved_by_user_id)
+        if dispute.resolved_by_user_id
+        else None
+    )
+
+    score_row = (
+        await db.execute(
+            select(ConsumptionScore).where(
+                ConsumptionScore.meal_session_id == session.id
+            )
+        )
+    ).scalar_one_or_none()
+
+    validation = (
+        await db.execute(
+            select(StaffValidation).where(
+                StaffValidation.meal_session_id == session.id
+            )
+        )
+    ).scalar_one_or_none()
+
+    captures = list(
+        (
+            await db.execute(
+                select(PlateCapture).where(PlateCapture.meal_session_id == session.id)
+            )
+        ).scalars()
+    )
+    capture_urls: dict[str, str] = {}
+    for c in captures:
+        if c.image_s3_key:
+            capture_urls[c.phase] = storage.signed_url(c.image_s3_key)
+
+    return {
+        "dispute": {
+            "id": str(dispute.id),
+            "status": dispute.status,
+            "reason": dispute.reason,
+            "resolution_notes": dispute.resolution_notes,
+            "created_at": dispute.created_at.isoformat(),
+            "resolved_at": dispute.resolved_at.isoformat()
+            if dispute.resolved_at
+            else None,
+            "resolved_by_user_id": str(dispute.resolved_by_user_id)
+            if dispute.resolved_by_user_id
+            else None,
+        },
+        "session": {
+            "id": str(session.id),
+            "status": session.status,
+            "table_code": session.table_code,
+            "started_at": session.started_at.isoformat(),
+        },
+        "diner": {
+            "id": str(diner.id),
+            "email": diner.email,
+            "display_name": diner.display_name,
+        }
+        if diner
+        else None,
+        "resolver": {
+            "id": str(resolved_by.id),
+            "email": resolved_by.email,
+            "display_name": resolved_by.display_name,
+        }
+        if resolved_by
+        else None,
+        "score": {
+            "overall_score": float(score_row.overall_score),
+            "model_name": score_row.model_name,
+            "notes": score_row.notes,
+            "suspicious": bool(score_row.suspicious),
+        }
+        if score_row
+        else None,
+        "staff_validation": {
+            "decision": validation.decision,
+            "final_score": float(validation.final_score),
+            "reason_code": validation.reason_code,
+            "notes": validation.notes,
+            "decided_at": validation.decided_at.isoformat(),
+        }
+        if validation
+        else None,
+        "captures": capture_urls,
+    }
+
+
+@router.post(
+    "/restaurants/{restaurant_id}/dashboard/disputes/{dispute_id}/resolve",
+    status_code=status.HTTP_200_OK,
+)
+async def resolve_dispute(
+    restaurant_id: UUID,
+    dispute_id: UUID,
+    payload: DisputeResolveIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Owner-only: record a resolution + notes. Idempotent: re-applying the
+    same status keeps the original resolver / resolution_notes; a conflicting
+    status returns 409 so the audit trail stays clean."""
+    await _ensure_owner(db, user, restaurant_id)
+    dispute = await db.get(Dispute, dispute_id)
+    if dispute is None:
+        raise HTTPException(status_code=404, detail="Dispute not found")
+    session = await db.get(MealSession, dispute.meal_session_id)
+    if session is None or session.restaurant_id != restaurant_id:
+        raise HTTPException(status_code=404, detail="Dispute not found")
+
+    if dispute.status != "open":
+        if dispute.status == payload.status:
+            # Same decision again — no-op.
+            return {
+                "id": str(dispute.id),
+                "status": dispute.status,
+                "resolution_notes": dispute.resolution_notes,
+                "resolved_at": dispute.resolved_at.isoformat()
+                if dispute.resolved_at
+                else None,
+            }
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Dispute already resolved as {dispute.status}",
+        )
+
+    dispute.status = payload.status
+    dispute.resolved_by_user_id = user.id
+    dispute.resolved_at = datetime.now(UTC)
+    if payload.resolution_notes is not None:
+        dispute.resolution_notes = payload.resolution_notes
+    await db.commit()
+    await db.refresh(dispute)
+    return {
+        "id": str(dispute.id),
+        "status": dispute.status,
+        "resolution_notes": dispute.resolution_notes,
+        "resolved_at": dispute.resolved_at.isoformat() if dispute.resolved_at else None,
+    }

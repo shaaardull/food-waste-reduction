@@ -8,6 +8,7 @@
       "redeem": "Redeem code",
       "summary": "Summary",
       "staff_metrics": "Staff metrics",
+      "disputes": "Disputes",
       "onboard": "Onboard restaurant",
       "sign_in": "Sign in",
       "sign_out": "Sign out"
@@ -201,5 +202,48 @@
     "no_display_name": "{{email}}",
     "over_threshold_badge": "> 2× median",
     "ok_badge": "ok"
+  },
+  "disputes": {
+    "list_title": "Disputes",
+    "blurb": "Diners who think a rejection or score was wrong end up here. Resolve in their favour to flag the case for the team to learn from; resolve in the restaurant's favour to close it; pick \"closed\" if the issue is unrelated.",
+    "loading": "Loading…",
+    "empty_open": "No open disputes — nothing to review.",
+    "empty_all": "No disputes yet.",
+    "status_filter_open": "Open",
+    "status_filter_all": "All",
+    "review_button": "Review",
+    "row": {
+      "table": "Table {{code}}",
+      "raised_at": "Raised {{datetime}}"
+    },
+    "detail": {
+      "title": "Dispute · table {{code}}",
+      "back_to_list": "← Back to disputes",
+      "reason_label": "Diner's reason",
+      "session_state_label": "Session state",
+      "captures_label": "Captures",
+      "score_label": "Model score",
+      "validation_label": "Staff decision",
+      "decision_at": "decided {{datetime}}",
+      "no_validation": "No staff decision recorded for this session.",
+      "no_score": "No model score recorded.",
+      "no_captures": "Capture images have been purged (retention policy).",
+      "resolution_heading": "Resolution",
+      "resolution_notes_label": "Notes (optional, shown to the diner)",
+      "resolve_in_favor_diner": "Resolve in favour of diner",
+      "resolve_in_favor_restaurant": "Resolve in favour of restaurant",
+      "resolve_closed": "Close (no decision needed)",
+      "resolving": "Saving…",
+      "already_resolved": "Already resolved as <strong>{{status}}</strong> on {{datetime}}.",
+      "resolved_notes_prefix": "Notes:",
+      "phase_before": "Before",
+      "phase_after": "After"
+    },
+    "status": {
+      "open": "open",
+      "resolved_in_favor_diner": "resolved in favour of diner",
+      "resolved_in_favor_restaurant": "resolved in favour of restaurant",
+      "closed": "closed"
+    }
   }
 }
