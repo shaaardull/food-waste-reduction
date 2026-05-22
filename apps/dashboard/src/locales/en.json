@@ -7,6 +7,7 @@
       "validations": "Validation queue",
       "redeem": "Redeem code",
       "summary": "Summary",
+      "analytics": "Analytics",
       "staff_metrics": "Staff metrics",
       "disputes": "Disputes",
       "onboard": "Onboard restaurant",
@@ -202,6 +203,62 @@
     "no_display_name": "{{email}}",
     "over_threshold_badge": "> 2× median",
     "ok_badge": "ok"
+  },
+  "analytics": {
+    "title": "Restaurant analytics",
+    "blurb": "How the restaurant has been doing over the chosen window. Numbers are scoped to this restaurant only.",
+    "loading": "Loading analytics…",
+    "pick_restaurant": "Sign in and pick a restaurant first.",
+    "range": {
+      "7d": "7 days",
+      "30d": "30 days",
+      "90d": "90 days"
+    },
+    "stat": {
+      "sessions": "Sessions",
+      "approval_rate": "Approval rate",
+      "rewards_issued": "Rewards issued",
+      "avg_score": "Avg final score",
+      "decided_n": "{{count}} decided",
+      "redemption_rate": "{{rate}} redeemed",
+      "pending_n": "{{count}} pending"
+    },
+    "decision_time": {
+      "heading": "Decision time",
+      "p50": "Median (p50)",
+      "p95": "Slow tail (p95)",
+      "n": "Sample size"
+    },
+    "decision_mix": {
+      "heading": "Decision mix",
+      "approved": "Approved",
+      "adjusted": "Adjusted",
+      "rejected": "Rejected"
+    },
+    "sustainability": {
+      "heading": "Sustainability",
+      "blurb": "Aggregate impact from staff-approved meals in this window. We compare consumption to a typical restaurant baseline — anything above counts as food saved.",
+      "kg_food_saved": "kg food kept out of the bin",
+      "kg_co2e_saved": "kg CO₂e avoided",
+      "trees_day": "tree-days equivalent"
+    },
+    "top_dishes": {
+      "heading": "Top dishes (by avg consumption, approved meals only)",
+      "empty": "No approved sessions in this window yet.",
+      "dish": "Dish",
+      "category": "Category",
+      "orders": "Orders",
+      "avg_score": "Avg score"
+    },
+    "fraud": {
+      "heading": "Fraud signals",
+      "empty": "No fraud signals in this window.",
+      "severity": {
+        "info": "{{count}} info",
+        "warning": "{{count}} warning",
+        "block": "{{count}} blocked"
+      }
+    }
   },
   "disputes": {
     "list_title": "Disputes",

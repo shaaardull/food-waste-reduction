@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
@@ -11,14 +12,18 @@ from app.db.session import get_db
 from app.errors import NotRestaurantStaff
 from app.models.consumption_score import ConsumptionScore
 from app.models.dispute import Dispute
-from app.models.meal_session import MealSession
+from app.models.fraud_signal import FraudSignal
+from app.models.meal_session import MealSession, MealSessionItem
+from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
 from app.models.restaurant import RestaurantStaff
+from app.models.reward import Reward
 from app.models.staff_metrics import StaffMetricsSnapshot
 from app.models.staff_validation import StaffValidation
 from app.models.user import User
 from app.security import get_current_user
 from app.services import storage
+from app.services import sustainability as sustainability_svc
 from app.tasks.staff_metrics import ALERT_MULTIPLIER, MIN_VALIDATIONS_FOR_ALERT
 
 
@@ -121,6 +126,235 @@ async def summary(
         "rejected": rejected_count or 0,
         "pending_validation": pending_count or 0,
         "avg_final_score": float(avg_score) if avg_score is not None else None,
+    }
+
+
+def _percentile(values: list[int], pct: float) -> int | None:
+    """Linear-interpolation percentile. Returns ms (int) or None for empty list.
+
+    Used for the decision-latency p50/p95 on the analytics page. We don't
+    push this to Postgres because (a) we want it to work the same across
+    sqlite/postgres in tests, and (b) the input set is small — bounded by
+    sessions in the window.
+    """
+    if not values:
+        return None
+    s = sorted(values)
+    if len(s) == 1:
+        return s[0]
+    k = (len(s) - 1) * pct
+    lo, hi = int(k), min(int(k) + 1, len(s) - 1)
+    frac = k - lo
+    return int(s[lo] + (s[hi] - s[lo]) * frac)
+
+
+@router.get("/restaurants/{restaurant_id}/dashboard/analytics")
+async def analytics(
+    restaurant_id: UUID,
+    range: str = Query(default="7d", pattern="^(7d|30d|90d)$"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Restaurant analytics blob: counts, rates, decision latency, top
+    dishes by consumption, fraud-signal histogram, and aggregate
+    sustainability impact for the period.
+
+    All numbers are scoped to `restaurant_id`. Staff of the restaurant
+    (any role) or platform admin can read it. Nothing exposes diner PII.
+    """
+    await _ensure_staff(db, user, restaurant_id)
+    days = {"7d": 7, "30d": 30, "90d": 90}[range]
+    since = datetime.now(UTC) - timedelta(days=days)
+
+    # ── Session counts by status ───────────────────────────────────────
+    sessions_count = await db.scalar(
+        select(func.count(MealSession.id)).where(
+            MealSession.restaurant_id == restaurant_id,
+            MealSession.started_at >= since,
+        )
+    ) or 0
+    pending_count = await db.scalar(
+        select(func.count(MealSession.id)).where(
+            MealSession.restaurant_id == restaurant_id,
+            MealSession.status == "pending_staff_validation",
+        )
+    ) or 0
+
+    # ── Validation decisions in the window ────────────────────────────
+    decision_rows = await db.execute(
+        select(StaffValidation.decision, func.count(StaffValidation.id)).where(
+            StaffValidation.restaurant_id == restaurant_id,
+            StaffValidation.decided_at >= since,
+        ).group_by(StaffValidation.decision)
+    )
+    by_decision: dict[str, int] = {d: int(c) for d, c in decision_rows.all()}
+    approved = by_decision.get("approved", 0)
+    adjusted = by_decision.get("adjusted", 0)
+    rejected = by_decision.get("rejected", 0)
+    decided = approved + adjusted + rejected
+    approval_rate = (
+        round((approved + adjusted) / decided, 3) if decided else None
+    )
+
+    # ── Rewards issued + redeemed in the window ───────────────────────
+    rewards_issued = await db.scalar(
+        select(func.count(Reward.id))
+        .join(MealSession, MealSession.id == Reward.meal_session_id)
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            Reward.issued_at >= since,
+        )
+    ) or 0
+    rewards_redeemed = await db.scalar(
+        select(func.count(Reward.id))
+        .join(MealSession, MealSession.id == Reward.meal_session_id)
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            Reward.issued_at >= since,
+            Reward.redeemed_at.is_not(None),
+        )
+    ) or 0
+    redemption_rate = (
+        round(rewards_redeemed / rewards_issued, 3) if rewards_issued else None
+    )
+
+    # ── Avg final score in the window ─────────────────────────────────
+    avg_score = await db.scalar(
+        select(func.avg(StaffValidation.final_score)).where(
+            StaffValidation.restaurant_id == restaurant_id,
+            StaffValidation.decided_at >= since,
+        )
+    )
+
+    # ── Decision latency (in-Python percentile — set is bounded) ─────
+    latency_rows = await db.execute(
+        select(StaffValidation.decision_latency_ms).where(
+            StaffValidation.restaurant_id == restaurant_id,
+            StaffValidation.decided_at >= since,
+        )
+    )
+    latencies = [int(row[0]) for row in latency_rows.all() if row[0] is not None]
+
+    # ── Top 5 dishes by avg final_score (approved/adjusted sessions) ──
+    top_dish_rows = await db.execute(
+        select(
+            MenuItem.id,
+            MenuItem.name,
+            MenuItem.category,
+            func.count(MealSessionItem.id).label("orders"),
+            func.avg(StaffValidation.final_score).label("avg_score"),
+        )
+        .join(MealSessionItem, MealSessionItem.menu_item_id == MenuItem.id)
+        .join(MealSession, MealSession.id == MealSessionItem.meal_session_id)
+        .join(StaffValidation, StaffValidation.meal_session_id == MealSession.id)
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            StaffValidation.decided_at >= since,
+            StaffValidation.decision.in_(("approved", "adjusted")),
+        )
+        .group_by(MenuItem.id, MenuItem.name, MenuItem.category)
+        .order_by(func.avg(StaffValidation.final_score).desc(), func.count(MealSessionItem.id).desc())
+        .limit(5)
+    )
+    top_dishes = [
+        {
+            "menu_item_id": str(row.id),
+            "name": row.name,
+            "category": row.category,
+            "orders": int(row.orders),
+            "avg_final_score": round(float(row.avg_score), 3),
+        }
+        for row in top_dish_rows.all()
+    ]
+
+    # ── Fraud signals grouped by type + severity ──────────────────────
+    fraud_rows = await db.execute(
+        select(
+            FraudSignal.signal_type,
+            FraudSignal.severity,
+            func.count(FraudSignal.id),
+        )
+        .join(MealSession, MealSession.id == FraudSignal.meal_session_id)
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            FraudSignal.created_at >= since,
+        )
+        .group_by(FraudSignal.signal_type, FraudSignal.severity)
+    )
+    by_signal: dict[str, dict[str, int]] = {}
+    for signal_type, severity, count in fraud_rows.all():
+        by_signal.setdefault(signal_type, {"info": 0, "warning": 0, "block": 0})
+        by_signal[signal_type][severity] = int(count)
+    fraud_signals = [
+        {
+            "signal_type": t,
+            "severity_counts": counts,
+            "total": sum(counts.values()),
+        }
+        for t, counts in sorted(by_signal.items(), key=lambda kv: -sum(kv[1].values()))
+    ]
+
+    # ── Aggregate sustainability for the restaurant ───────────────────
+    sustainability_rows = await db.execute(
+        select(
+            StaffValidation.meal_session_id,
+            StaffValidation.final_score,
+            MealSessionItem.quantity,
+            MenuItem.category,
+        )
+        .join(MealSession, MealSession.id == StaffValidation.meal_session_id)
+        .join(MealSessionItem, MealSessionItem.meal_session_id == MealSession.id)
+        .join(MenuItem, MenuItem.id == MealSessionItem.menu_item_id)
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            StaffValidation.decided_at >= since,
+            StaffValidation.decision.in_(("approved", "adjusted")),
+        )
+    )
+    # Group by session_id so each session contributes once with its full item list.
+    by_session: dict[UUID, tuple[Decimal, list[tuple[str | None, int]]]] = {}
+    for session_id, final_score, quantity, category in sustainability_rows.all():
+        score = Decimal(str(final_score))
+        if session_id not in by_session:
+            by_session[session_id] = (score, [])
+        by_session[session_id][1].append((category, int(quantity)))
+    sustain_input = [
+        sustainability_svc.SessionInput(final_score=score, item_categories=items)
+        for score, items in by_session.values()
+    ]
+    sustain_report = sustainability_svc.compute(sustain_input, period_days=days)
+
+    return {
+        "range": range,
+        "period_days": days,
+        "totals": {
+            "sessions": sessions_count,
+            "approved": approved,
+            "adjusted": adjusted,
+            "rejected": rejected,
+            "decided": decided,
+            "pending_validation": pending_count,
+            "rewards_issued": rewards_issued,
+            "rewards_redeemed": rewards_redeemed,
+        },
+        "rates": {
+            "approval_rate": approval_rate,
+            "redemption_rate": redemption_rate,
+        },
+        "avg_final_score": float(avg_score) if avg_score is not None else None,
+        "decision_latency_ms": {
+            "p50": _percentile(latencies, 0.50),
+            "p95": _percentile(latencies, 0.95),
+            "count": len(latencies),
+        },
+        "top_dishes": top_dishes,
+        "fraud_signals": fraud_signals,
+        "sustainability": {
+            "kg_food_saved": sustain_report.kg_food_saved,
+            "kg_co2e_saved": sustain_report.kg_co2e_saved,
+            "trees_day_equivalent": sustain_report.trees_day_equivalent,
+            "sessions_counted": sustain_report.sessions_counted,
+        },
     }
 
 

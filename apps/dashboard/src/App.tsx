@@ -41,6 +41,9 @@ export function App() {
                 <Link to="/" className="hover:underline">
                   {t('app.nav.summary')}
                 </Link>
+                <Link to="/analytics" className="hover:underline">
+                  {t('app.nav.analytics')}
+                </Link>
                 <Link to="/staff-metrics" className="hover:underline">
                   {t('app.nav.staff_metrics')}
                 </Link>
