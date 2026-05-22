@@ -23,11 +23,15 @@ dev = [
     "ruff>=0.6.0",
     "mypy>=1.11.0",
 ]
-# Phase 2 production extras — install separately on the GPU node when the
-# YOLO backend is ready. Kept out of the base set so dev installs are cheap.
+# Phase 2 YOLO backend extras. Kept separate so the base install (~80 MB)
+# stays cheap; [yolo] pulls torch (~300 MB) + ultralytics + numpy.
+# Install with:  pip install -e ".[yolo]"
+# Then set VISION_BACKEND=yolo and restart. The pretrained yolov8n-seg
+# weights (~7 MB) auto-download from the Ultralytics CDN on first inference.
 yolo = [
     "torch>=2.4.0",
     "ultralytics>=8.3.0",
+    "numpy>=1.26.0",
     "onnxruntime>=1.19.0",
 ]
 

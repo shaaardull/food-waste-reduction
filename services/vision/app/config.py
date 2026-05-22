@@ -29,7 +29,10 @@ class Settings(BaseSettings):
     IMAGE_FETCH_TIMEOUT_SECONDS: int = 10
     MAX_IMAGE_BYTES: int = 5 * 1024 * 1024
 
-    # Yolo backend config (filled in when the model is trained)
+    # Yolo backend config. Empty string ⇒ "yolov8n-seg.pt" (the default
+    # COCO-pretrained nano segmentation model, ~7 MB, auto-downloaded by
+    # ultralytics on first inference). Override with an absolute path to
+    # a locally-trained model once we have fine-tuned weights.
     YOLO_MODEL_PATH: str = ""
 
 
