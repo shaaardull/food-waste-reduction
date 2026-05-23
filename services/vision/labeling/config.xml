@@ -1,0 +1,65 @@
+<!--
+  Label Studio labelling-task interface for Plate-Clean Rewards.
+
+  Paste the entire <View>...</View> block into Label Studio's
+  "Labeling Interface" editor (Project → Settings → Labeling
+  Interface → Code) once, when you create the project.
+
+  Variables in $... are matched against keys inside `data` in the
+  task JSON emitted by app.scripts.export_to_label_studio. If you
+  change the export shape, update both sides together.
+
+  Classes are the nine cuisine-relevant food categories for the
+  pilot (North Indian + coastal Konkan). Add classes here when you
+  want richer per-dish breakdowns; the import script reads the same
+  values into the YOLO data.yaml automatically.
+-->
+<View>
+  <Header value="Plate-Clean labelling task"/>
+  <Text name="restaurant" value="Restaurant: $restaurant ($restaurant_slug) · table $table_code"/>
+  <Text name="dishes" value="Dishes: $dishes_summary"/>
+  <Text name="staff_score" value="Staff final score: $staff_final_score"/>
+
+  <Header value="Before photo — segment every visible food region"/>
+  <Image name="image_before" value="$image_before" zoom="true"/>
+
+  <Header value="After photo — segment what food remains (skip non-edible residue: bones, peels, sauce smears)"/>
+  <Image name="image_after" value="$image_after" zoom="true"/>
+
+  <PolygonLabels name="labels_before" toName="image_before" strokeWidth="2" fillOpacity="0.3">
+    <Label value="rice" background="#facc15"/>
+    <Label value="dal" background="#fb923c"/>
+    <Label value="curry" background="#ef4444"/>
+    <Label value="bread" background="#a16207"/>
+    <Label value="vegetable" background="#16a34a"/>
+    <Label value="meat" background="#9333ea"/>
+    <Label value="seafood" background="#0891b2"/>
+    <Label value="dessert" background="#ec4899"/>
+    <Label value="drink" background="#3b82f6"/>
+    <Label value="other_food" background="#64748b"/>
+  </PolygonLabels>
+
+  <PolygonLabels name="labels_after" toName="image_after" strokeWidth="2" fillOpacity="0.3">
+    <Label value="rice" background="#facc15"/>
+    <Label value="dal" background="#fb923c"/>
+    <Label value="curry" background="#ef4444"/>
+    <Label value="bread" background="#a16207"/>
+    <Label value="vegetable" background="#16a34a"/>
+    <Label value="meat" background="#9333ea"/>
+    <Label value="seafood" background="#0891b2"/>
+    <Label value="dessert" background="#ec4899"/>
+    <Label value="drink" background="#3b82f6"/>
+    <Label value="other_food" background="#64748b"/>
+  </PolygonLabels>
+
+  <Header value="Image quality flags (optional)"/>
+  <Choices name="flags" toName="image_before" choice="multiple" showInLine="true">
+    <Choice value="blurry"/>
+    <Choice value="poor_lighting"/>
+    <Choice value="wrong_subject"/>
+    <Choice value="suspected_tampering"/>
+  </Choices>
+
+  <Header value="Labeller notes (optional)"/>
+  <TextArea name="notes" toName="image_before" rows="2" maxSubmissions="1"/>
+</View>

@@ -1,6 +1,7 @@
 from app.models.consumption_score import ConsumptionScore
 from app.models.dispute import Dispute
 from app.models.fraud_signal import FraudSignal
+from app.models.labeled_session import LabeledSession
 from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
@@ -25,4 +26,5 @@ __all__ = [
     "Reward",
     "FraudSignal",
     "Dispute",
+    "LabeledSession",
 ]

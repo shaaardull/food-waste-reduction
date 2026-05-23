@@ -54,3 +54,13 @@ dump.rdb
 playwright-report/
 test-results/
 coverage/
+
+# YOLO training datasets produced by app.scripts.import_labels_from_ls
+# (data + image bytes — too big + too privacy-sensitive to commit). Run
+# the import script to regenerate from a Label Studio JSON export — see
+# services/vision/labeling/README.md.
+datasets/
+
+# Label Studio task/export JSON drops — ad-hoc files, no reason to commit.
+ls-tasks*.json
+ls-export*.json
