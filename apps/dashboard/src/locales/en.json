@@ -283,6 +283,12 @@
         "warning": "{{count}} warning",
         "block": "{{count}} blocked"
       }
+    },
+    "pdf": {
+      "download": "Download PDF",
+      "downloading": "Preparing…",
+      "download_hint": "One-page sustainability summary for the current range",
+      "download_error": "Couldn't download the PDF"
     }
   },
   "disputes": {

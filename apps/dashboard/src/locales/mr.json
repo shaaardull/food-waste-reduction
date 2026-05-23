@@ -283,6 +283,12 @@
         "warning": "{{count}} इशारा",
         "block": "{{count}} ब्लॉक"
       }
+    },
+    "pdf": {
+      "download": "PDF डाउनलोड करा",
+      "downloading": "तयार करत आहे…",
+      "download_hint": "सध्याच्या कालावधीचा एका-पानाचा टिकाऊपणा सारांश",
+      "download_error": "PDF डाउनलोड होऊ शकलं नाही"
     }
   },
   "disputes": {

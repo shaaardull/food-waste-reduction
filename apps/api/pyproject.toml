@@ -30,6 +30,11 @@ dependencies = [
     "structlog>=24.4.0",
     "email-validator>=2.2.0",
     "PyYAML>=6.0.2",
+    # Pure-Python PDF generator. Used by the sustainability-report
+    # endpoint to render a downloadable per-restaurant artifact (kg food
+    # saved, kg CO₂e avoided, tree-day equivalent, top dishes). Phase 3
+    # bullet from CLAUDE.md §9.
+    "reportlab>=4.2.0",
 ]
 
 [project.optional-dependencies]

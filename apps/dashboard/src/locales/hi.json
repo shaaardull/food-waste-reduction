@@ -283,6 +283,12 @@
         "warning": "{{count}} चेतावनी",
         "block": "{{count}} ब्लॉक"
       }
+    },
+    "pdf": {
+      "download": "PDF डाउनलोड करें",
+      "downloading": "तैयार हो रहा है…",
+      "download_hint": "मौजूदा समयावधि का एक-पन्ने का टिकाऊपन सारांश",
+      "download_error": "PDF डाउनलोड नहीं हो सका"
     }
   },
   "disputes": {

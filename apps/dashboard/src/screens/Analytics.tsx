@@ -72,6 +72,8 @@ export function Analytics() {
   const navigate = useNavigate();
   const { token, restaurantId } = useAuthStore();
   const [range, setRange] = useState<Range>('7d');
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) navigate('/login');
@@ -88,6 +90,45 @@ export function Analytics() {
     refetchInterval: 60_000,
   });
 
+  /**
+   * Fetch the PDF as a blob and trigger a browser download. Bypasses
+   * api.ts because that helper auto-parses JSON; we need raw bytes
+   * here. Uses a temporary <a download="..."> so the filename comes
+   * from the server's Content-Disposition (or the fallback below).
+   */
+  async function downloadPdf() {
+    if (!restaurantId || !token || downloading) return;
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
+      const res = await fetch(
+        `${base}/restaurants/${restaurantId}/dashboard/sustainability-report.pdf?range=${range}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      // Pull filename from Content-Disposition if present.
+      const cd = res.headers.get('Content-Disposition') ?? '';
+      const match = /filename="([^"]+)"/.exec(cd);
+      const filename = match?.[1] ?? `plate-clean-sustainability-${range}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadError(
+        err instanceof Error ? err.message : t('analytics.pdf.download_error'),
+      );
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   if (!restaurantId)
     return <p className="text-slate-600">{t('analytics.pick_restaurant')}</p>;
   if (isLoading || !data)
@@ -99,22 +140,37 @@ export function Analytics() {
     <section className="space-y-4">
       <header className="flex items-baseline justify-between flex-wrap gap-2">
         <h1 className="text-xl font-semibold">{t('analytics.title')}</h1>
-        <div className="flex gap-1 text-sm">
-          {RANGES.map((r) => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={`px-3 py-1 rounded-md border ${
-                r === range
-                  ? 'bg-brand-600 text-white border-brand-600'
-                  : 'border-slate-300 hover:border-brand-400'
-              }`}
-            >
-              {t(`analytics.range.${r}`)}
-            </button>
-          ))}
+        <div className="flex items-center gap-3 text-sm">
+          <div className="flex gap-1">
+            {RANGES.map((r) => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={`px-3 py-1 rounded-md border ${
+                  r === range
+                    ? 'bg-brand-600 text-white border-brand-600'
+                    : 'border-slate-300 hover:border-brand-400'
+                }`}
+              >
+                {t(`analytics.range.${r}`)}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={downloadPdf}
+            disabled={downloading}
+            className="px-3 py-1 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+            title={t('analytics.pdf.download_hint') ?? undefined}
+          >
+            {downloading ? t('analytics.pdf.downloading') : t('analytics.pdf.download')}
+          </button>
         </div>
       </header>
+      {downloadError && (
+        <p className="text-xs text-red-700">
+          {t('analytics.pdf.download_error')}: {downloadError}
+        </p>
+      )}
 
       <p className="text-xs text-slate-500">{t('analytics.blurb')}</p>
 

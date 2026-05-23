@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,7 @@ from app.models.fraud_signal import FraudSignal
 from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
-from app.models.restaurant import RestaurantStaff
+from app.models.restaurant import Restaurant, RestaurantStaff
 from app.models.reward import Reward
 from app.models.staff_metrics import StaffMetricsSnapshot
 from app.models.staff_validation import StaffValidation
@@ -24,6 +24,7 @@ from app.models.user import User
 from app.security import get_current_user
 from app.services import storage
 from app.services import sustainability as sustainability_svc
+from app.services import sustainability_report as sustainability_report_svc
 from app.tasks.staff_metrics import ALERT_MULTIPLIER, MIN_VALIDATIONS_FOR_ALERT
 
 
@@ -356,6 +357,164 @@ async def analytics(
             "sessions_counted": sustain_report.sessions_counted,
         },
     }
+
+
+@router.get(
+    "/restaurants/{restaurant_id}/dashboard/sustainability-report.pdf",
+    response_class=Response,
+)
+async def sustainability_report_pdf(
+    restaurant_id: UUID,
+    range: str = Query(default="30d", pattern="^(7d|30d|90d)$"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Downloadable PDF sustainability report for a restaurant (Phase 3
+    bullet from CLAUDE.md §9). Reuses the same aggregations as the
+    JSON analytics endpoint but returns rendered PDF bytes with a
+    sensible Content-Disposition so browsers prompt a download."""
+    await _ensure_staff(db, user, restaurant_id)
+    restaurant = await db.get(Restaurant, restaurant_id)
+    if restaurant is None:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    days = {"7d": 7, "30d": 30, "90d": 90}[range]
+    since = datetime.now(UTC) - timedelta(days=days)
+
+    # Session counts (same shape as analytics, but we only keep what the
+    # PDF actually shows — totals + top dishes + sustainability stats).
+    sessions_count = await db.scalar(
+        select(func.count(MealSession.id)).where(
+            MealSession.restaurant_id == restaurant_id,
+            MealSession.started_at >= since,
+        )
+    ) or 0
+
+    decision_rows = await db.execute(
+        select(StaffValidation.decision, func.count(StaffValidation.id))
+        .where(
+            StaffValidation.restaurant_id == restaurant_id,
+            StaffValidation.decided_at >= since,
+        )
+        .group_by(StaffValidation.decision)
+    )
+    by_decision: dict[str, int] = {d: int(c) for d, c in decision_rows.all()}
+    approved = by_decision.get("approved", 0)
+    adjusted = by_decision.get("adjusted", 0)
+    rejected = by_decision.get("rejected", 0)
+
+    rewards_issued = await db.scalar(
+        select(func.count(Reward.id))
+        .join(MealSession, MealSession.id == Reward.meal_session_id)
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            Reward.issued_at >= since,
+        )
+    ) or 0
+    rewards_redeemed = await db.scalar(
+        select(func.count(Reward.id))
+        .join(MealSession, MealSession.id == Reward.meal_session_id)
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            Reward.issued_at >= since,
+            Reward.redeemed_at.is_not(None),
+        )
+    ) or 0
+
+    top_dish_rows = await db.execute(
+        select(
+            MenuItem.name,
+            MenuItem.category,
+            func.count(MealSessionItem.id).label("orders"),
+            func.avg(StaffValidation.final_score).label("avg_score"),
+        )
+        .join(MealSessionItem, MealSessionItem.menu_item_id == MenuItem.id)
+        .join(MealSession, MealSession.id == MealSessionItem.meal_session_id)
+        .join(
+            StaffValidation, StaffValidation.meal_session_id == MealSession.id
+        )
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            StaffValidation.decided_at >= since,
+            StaffValidation.decision.in_(("approved", "adjusted")),
+        )
+        .group_by(MenuItem.name, MenuItem.category)
+        .order_by(
+            func.avg(StaffValidation.final_score).desc(),
+            func.count(MealSessionItem.id).desc(),
+        )
+        .limit(5)
+    )
+    top_dishes = [
+        sustainability_report_svc.TopDish(
+            name=row.name,
+            category=row.category,
+            orders=int(row.orders),
+            avg_consumption=float(row.avg_score),
+        )
+        for row in top_dish_rows.all()
+    ]
+
+    # Sustainability: same compute path as the JSON endpoint.
+    sustainability_rows = await db.execute(
+        select(
+            StaffValidation.meal_session_id,
+            StaffValidation.final_score,
+            MealSessionItem.quantity,
+            MenuItem.category,
+        )
+        .join(MealSession, MealSession.id == StaffValidation.meal_session_id)
+        .join(MealSessionItem, MealSessionItem.meal_session_id == MealSession.id)
+        .join(MenuItem, MenuItem.id == MealSessionItem.menu_item_id)
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            StaffValidation.decided_at >= since,
+            StaffValidation.decision.in_(("approved", "adjusted")),
+        )
+    )
+    by_session: dict[UUID, tuple[Decimal, list[tuple[str | None, int]]]] = {}
+    for session_id, final_score, quantity, category in sustainability_rows.all():
+        score = Decimal(str(final_score))
+        if session_id not in by_session:
+            by_session[session_id] = (score, [])
+        by_session[session_id][1].append((category, int(quantity)))
+    sustain_input = [
+        sustainability_svc.SessionInput(final_score=score, item_categories=items)
+        for score, items in by_session.values()
+    ]
+    sustain = sustainability_svc.compute(sustain_input, period_days=days)
+
+    pdf_bytes = sustainability_report_svc.render_pdf(
+        sustainability_report_svc.ReportInputs(
+            restaurant_name=restaurant.name,
+            restaurant_slug=restaurant.slug,
+            period_days=days,
+            generated_at=datetime.now(UTC),
+            kg_food_saved=sustain.kg_food_saved,
+            kg_co2e_saved=sustain.kg_co2e_saved,
+            trees_day_equivalent=sustain.trees_day_equivalent,
+            sustainability_sessions_counted=sustain.sessions_counted,
+            sessions=int(sessions_count),
+            approved=approved,
+            adjusted=adjusted,
+            rejected=rejected,
+            rewards_issued=int(rewards_issued),
+            rewards_redeemed=int(rewards_redeemed),
+            top_dishes=top_dishes,
+        )
+    )
+    filename = (
+        f"plate-clean-sustainability-{restaurant.slug}-{range}-"
+        f"{datetime.now(UTC).strftime('%Y%m%d')}.pdf"
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, max-age=0, no-cache",
+        },
+    )
 
 
 @router.get("/restaurants/{restaurant_id}/dashboard/sessions")
