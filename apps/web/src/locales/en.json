@@ -13,7 +13,32 @@
     "description": "Snap a photo when you sit down, and another before you ask for the bill. A server reviews it. If you cleared most of what you ordered, the kitchen sends a small treat your way.",
     "scan_qr": "Scan your table QR",
     "sign_in_to_start": "Sign in to start",
-    "tagline_disclaimer": "Less food into the bin means less methane out of it. That's the only scoreboard we keep."
+    "tagline_disclaimer": "Less food into the bin means less methane out of it. That's the only scoreboard we keep.",
+    "see_impact": "See our impact across all restaurants →"
+  },
+  "stats": {
+    "title": "Plate-Clean impact",
+    "subtitle": "Aggregate food kept out of the bin across every restaurant on the platform. No personal data — just the numbers.",
+    "loading": "Loading…",
+    "range": {
+      "30d": "30 days",
+      "90d": "90 days",
+      "all": "All time"
+    },
+    "hero_unit": "kg of food kept out of the bin",
+    "hero_sub": "across {{restaurants}} restaurant(s) · {{sessions}} meal(s) counted",
+    "co2e_label": "kg CO₂e avoided",
+    "trees_label": "tree-days of carbon equivalent",
+    "rewards_issued_label": "Rewards issued",
+    "rewards_redeemed_label": "Rewards redeemed",
+    "methodology_1": "We compare consumption against a 60% typical-meal baseline. Anything finished above that counts as saved food.",
+    "methodology_2": "Carbon factor: 2.5 kg CO₂e per kg of cooked food (lifecycle-inclusive, mixed Indian-meal average). One mature tree absorbs ≈ 0.06 kg CO₂e/day.",
+    "generated_at": "Generated {{datetime}}",
+    "back_to_home": "← Back to home",
+    "empty_title": "Not enough data yet to show aggregate numbers",
+    "empty_blurb": "We only publish numbers once enough restaurants and meals are counted in this window — so a single pilot can't be re-identified. Check back as we grow.",
+    "empty_progress_restaurants": "{{got}}/{{floor}} restaurants active",
+    "empty_progress_sessions": "{{got}}/{{floor}} meals counted"
   },
   "login": {
     "welcome_back": "Welcome back",

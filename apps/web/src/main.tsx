@@ -15,6 +15,7 @@ import { AfterCapture } from './screens/AfterCapture';
 import { SessionStatus } from './screens/SessionStatus';
 import { Rewards } from './screens/Rewards';
 import { Profile } from './screens/Profile';
+import { Stats } from './screens/Stats';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,6 +38,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="sessions/:id" element={<SessionStatus />} />
             <Route path="rewards" element={<Rewards />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="stats" element={<Stats />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -29,6 +29,11 @@ export function Landing() {
         )}
       </div>
       <p className="text-xs text-slate-500">{t('landing.tagline_disclaimer')}</p>
+      <p className="text-xs">
+        <Link to="/stats" className="text-brand-700 hover:underline">
+          {t('landing.see_impact')}
+        </Link>
+      </p>
     </section>
   );
 }
