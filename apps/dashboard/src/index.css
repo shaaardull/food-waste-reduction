@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  /* Standard form input — matches the inline className that every other
+     screen has been duplicating. Used by Onboard.tsx so its 8 fields
+     don't bloat the source. */
+  .input {
+    @apply mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500;
+  }
+}
+
 html,
 body,
 #root {

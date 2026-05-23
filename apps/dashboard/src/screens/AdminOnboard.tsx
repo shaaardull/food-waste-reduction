@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import type { Restaurant } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
@@ -47,8 +47,18 @@ export function AdminOnboard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { token, user } = useAuthStore();
+  // When the URL is /onboard/:restaurantId/setup, the new owner who just
+  // came out of the self-service /onboard form drops in here pre-armed
+  // with a restaurant. Skip step 1 (which is "create the restaurant"),
+  // load the existing row, and start at step 2 (menu).
+  const { restaurantId: setupRestaurantId } = useParams<{
+    restaurantId?: string;
+  }>();
+  const isSelfServiceContinuation = Boolean(setupRestaurantId);
 
-  const [step, setStep] = useState<Step>('restaurant');
+  const [step, setStep] = useState<Step>(
+    isSelfServiceContinuation ? 'menu' : 'restaurant',
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -81,7 +91,37 @@ export function AdminOnboard() {
   const [rewardRule, setRewardRule] = useState<CreatedRewardRule | null>(null);
   const [invitedStaff, setInvitedStaff] = useState<InvitedStaff[]>([]);
 
-  if (!user || user.role !== 'admin') {
+  // Self-service continuation: load the restaurant the new owner just
+  // created via /onboard, so the wizard's menu/reward/staff steps know
+  // which restaurant to write against.
+  useEffect(() => {
+    if (!setupRestaurantId || restaurant) return;
+    let cancelled = false;
+    api
+      .get<Restaurant>(`/restaurants/by-id/${setupRestaurantId}`, token)
+      // `/restaurants/:slug` endpoint takes a slug; we don't have a
+      // /restaurants/by-id route, so fall back to the list endpoint
+      // and find by id. Cheap because the list is short.
+      .catch(async () => api.get<Restaurant[]>('/restaurants'))
+      .then((res) => {
+        if (cancelled) return;
+        const r = Array.isArray(res)
+          ? res.find((x) => x.id === setupRestaurantId)
+          : res;
+        if (r) setRestaurant(r);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [setupRestaurantId, restaurant, token]);
+
+  // Access gate. Admins always pass. Otherwise: only the just-onboarded
+  // owner — i.e. someone who's signed in as staff and is the owner of
+  // the restaurant whose setup they're continuing — gets past.
+  const isOwnerContinuation =
+    isSelfServiceContinuation && user?.role === 'staff';
+  if (!user || (user.role !== 'admin' && !isOwnerContinuation)) {
     return (
       <section className="max-w-md mx-auto space-y-3">
         <h1 className="text-xl font-semibold">{t('admin.admin_only_title')}</h1>

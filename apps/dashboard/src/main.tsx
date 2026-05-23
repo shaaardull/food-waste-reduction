@@ -11,6 +11,7 @@ import { Analytics } from './screens/Analytics';
 import { DisputeDetail } from './screens/DisputeDetail';
 import { Disputes } from './screens/Disputes';
 import { Login } from './screens/Login';
+import { Onboard } from './screens/Onboard';
 import { Redeem } from './screens/Redeem';
 import { StaffMetrics } from './screens/StaffMetrics';
 import { Summary } from './screens/Summary';
@@ -37,6 +38,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="disputes" element={<Disputes />} />
             <Route path="disputes/:id" element={<DisputeDetail />} />
             <Route path="admin/restaurants/new" element={<AdminOnboard />} />
+            <Route path="onboard" element={<Onboard />} />
+            <Route
+              path="onboard/:restaurantId/setup"
+              element={<AdminOnboard />}
+            />
           </Route>
         </Routes>
       </BrowserRouter>

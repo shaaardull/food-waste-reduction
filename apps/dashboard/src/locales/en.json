@@ -23,7 +23,32 @@
     "submit": "Sign in",
     "working": "Working…",
     "non_staff_error": "This dashboard is for restaurant staff and admins.",
-    "generic_error": "Sign in failed."
+    "generic_error": "Sign in failed.",
+    "onboard_link": "Running a restaurant? <l>Onboard your restaurant →</l>"
+  },
+  "onboard": {
+    "title": "Onboard your restaurant",
+    "blurb": "Set up a new restaurant in under a minute. You'll be the owner — once you finish, you can add menu items, set the reward rule, and invite staff.",
+    "owner_section": "About you",
+    "email_label": "Your email",
+    "password_label": "Pick a password",
+    "display_name_label": "Your name (optional)",
+    "age_confirm": "I confirm I am 18 or older.",
+    "restaurant_section": "About the restaurant",
+    "name_label": "Restaurant name",
+    "slug_label": "URL slug",
+    "slug_hint": "Lowercase letters, numbers, and hyphens. Used as plate-clean.app/your-slug.",
+    "address_label": "Address",
+    "latitude_label": "Latitude",
+    "longitude_label": "Longitude",
+    "theme_color_label": "Theme colour",
+    "tagline_label": "Tagline (optional)",
+    "tagline_placeholder": "e.g. Coastal Konkan, since 1998",
+    "error_bad_coords": "Latitude and longitude must be numbers.",
+    "error_generic": "Could not onboard. Try again.",
+    "creating": "Setting things up…",
+    "submit": "Onboard restaurant",
+    "have_account": "Already onboarded? Sign in →"
   },
   "summary": {
     "title": "Last 7 days",

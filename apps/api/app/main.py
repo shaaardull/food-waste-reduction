@@ -8,7 +8,7 @@ from app import __version__
 from app.config import get_settings
 from app.errors import ApiError, envelope
 from app.logging import configure_logging, get_logger
-from app.routers import auth, dashboard, rewards, sessions, validations
+from app.routers import auth, dashboard, onboarding, rewards, sessions, validations
 from app.routers import restaurants as restaurants_router
 
 settings = get_settings()
@@ -79,3 +79,4 @@ app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["sessions"]
 app.include_router(rewards.router, prefix="/api/v1/rewards", tags=["rewards"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(validations.router, prefix="/api/v1", tags=["validations"])
+app.include_router(onboarding.router, prefix="/api/v1/onboard", tags=["onboarding"])

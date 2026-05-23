@@ -140,6 +140,7 @@ What's wired up in this scaffold (see CLAUDE.md §9 for the full deliverable lis
 - ✅ Standalone `services/vision` microservice with pluggable backends — Phase 2 §6.2
 - ✅ Real YOLOv8/v11-seg backend (`VISION_BACKEND=yolo`) — COCO-class food/container segmentation + LAB-space food-pixel coverage. See [`services/vision/README.md`](./services/vision/README.md).
 - ✅ Label Studio data-labelling pipeline — export/import CLIs + labelling config XML + tracking table for fine-tuning the YOLO backend on real restaurant food. See [`services/vision/labeling/README.md`](./services/vision/labeling/README.md).
+- ✅ Self-service restaurant owner onboarding — `POST /api/v1/onboard/restaurant` + `/onboard` dashboard screen. A stranger can sign up as the owner of a brand-new restaurant and finish menu/reward/staff setup without a platform admin.
 - ✅ **72 tests passing** across `apps/api` + `services/vision`; ruff clean
 - ✅ **End-to-end live smoke verified**: diner signup → before/after capture (MinIO) → Celery picks up `vision.score_meal_session` → services/vision fetches signed URLs from MinIO → stub backend returns 0.8 → ConsumptionScore persisted → staff approves → reward `PLATE-XXXX` → staff redeems. Logs confirm every hop.
 

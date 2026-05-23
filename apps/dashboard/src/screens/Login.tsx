@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { Link, useNavigate } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import type { Restaurant } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
@@ -102,6 +102,19 @@ export function Login() {
           {busy ? t('login.working') : t('login.submit')}
         </button>
       </form>
+      <p className="text-sm text-slate-600 text-center pt-2 border-t border-slate-100">
+        <Trans
+          i18nKey="login.onboard_link"
+          components={{
+            l: (
+              <Link
+                to="/onboard"
+                className="text-brand-700 hover:underline font-medium"
+              />
+            ),
+          }}
+        />
+      </p>
     </section>
   );
 }
