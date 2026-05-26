@@ -20,12 +20,20 @@ export function Landing() {
             {t('landing.scan_qr')}
           </Link>
         ) : (
-          <Link
-            to="/login"
-            className="block text-center bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-3 font-medium"
-          >
-            {t('landing.sign_in_to_start')}
-          </Link>
+          <>
+            <Link
+              to="/quick-start"
+              className="block text-center bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-3 font-medium"
+            >
+              {t('landing.quick_start')}
+            </Link>
+            <Link
+              to="/login"
+              className="block text-center text-brand-700 hover:underline text-sm py-1"
+            >
+              {t('landing.sign_in_to_start')}
+            </Link>
+          </>
         )}
       </div>
       <p className="text-xs text-slate-500">{t('landing.tagline_disclaimer')}</p>

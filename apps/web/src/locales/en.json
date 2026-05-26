@@ -14,7 +14,25 @@
     "scan_qr": "Scan your table QR",
     "sign_in_to_start": "Sign in to start",
     "tagline_disclaimer": "Less food into the bin means less methane out of it. That's the only scoreboard we keep.",
-    "see_impact": "See our impact across all restaurants →"
+    "see_impact": "See our impact across all restaurants →",
+    "quick_start": "Just use my phone — no account needed"
+  },
+  "quick_start": {
+    "title": "Use your phone, skip the account",
+    "blurb": "Enter your phone number and we'll text you a one-time code. You'll get the reward both in this app and as an SMS so you don't have to keep this tab open.",
+    "phone_label": "Phone number",
+    "phone_hint": "Include the country code, e.g. +91 for India.",
+    "age_confirm": "I confirm I am 18 or older.",
+    "send_code": "Send me a code",
+    "sending": "Sending…",
+    "code_sent_to": "We sent a 6-digit code to {{phone}}.",
+    "code_label": "One-time code",
+    "code_hint": "Check your SMS. The code expires in 5 minutes.",
+    "verify": "Verify and continue",
+    "verifying": "Verifying…",
+    "back_to_phone": "← Change phone number",
+    "have_account": "Have an account already? Sign in →",
+    "error_generic": "Something went wrong. Try again."
   },
   "stats": {
     "title": "Plate-Clean impact",

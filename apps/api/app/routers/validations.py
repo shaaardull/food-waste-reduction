@@ -21,7 +21,7 @@ from app.models.fraud_signal import FraudSignal
 from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
-from app.models.restaurant import RestaurantStaff
+from app.models.restaurant import Restaurant, RestaurantStaff
 from app.models.reward import Reward, RewardRule
 from app.models.staff_validation import StaffValidation
 from app.models.user import User
@@ -31,7 +31,7 @@ from app.schemas.validation import (
     ValidationIn,
 )
 from app.security import get_current_user, new_redemption_code
-from app.services import rate_limit, storage
+from app.services import rate_limit, sms, storage
 
 router = APIRouter()
 settings = get_settings()
@@ -223,6 +223,30 @@ async def submit_validation(
                     "expires_at": reward.expires_at.isoformat(),
                     "allowed_reward_types": list(rule.allowed_reward_types or []),
                 }
+                # Anonymous-mode SMS delivery (CLAUDE.md §9 Phase 3).
+                # If the diner is a phone-only user, fire the reward SMS
+                # so they get the code even if they've closed the PWA.
+                # Non-blocking: failure to dispatch must not roll back
+                # the reward — staff already approved it.
+                try:
+                    diner = await db.get(User, session.diner_user_id)
+                    restaurant_obj = await db.get(
+                        Restaurant, session.restaurant_id
+                    )
+                    if (
+                        diner is not None
+                        and restaurant_obj is not None
+                        and sms.is_phone_only_user(diner.email, diner.phone)
+                    ):
+                        sms.send_reward_sms(
+                            phone=diner.phone,
+                            code=reward.redemption_code,
+                            restaurant_name=restaurant_obj.name,
+                        )
+                except Exception:  # noqa: BLE001, S110
+                    # Belt and braces — SMS errors must never affect the
+                    # reward grant. The dispatcher already logs.
+                    pass
         else:
             session.status = "staff_approved"
 

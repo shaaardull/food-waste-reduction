@@ -15,6 +15,7 @@ import { AfterCapture } from './screens/AfterCapture';
 import { SessionStatus } from './screens/SessionStatus';
 import { Rewards } from './screens/Rewards';
 import { Profile } from './screens/Profile';
+import { QuickStart } from './screens/QuickStart';
 import { Stats } from './screens/Stats';
 
 const queryClient = new QueryClient({
@@ -31,6 +32,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<App />}>
             <Route index element={<Landing />} />
             <Route path="login" element={<Login />} />
+            <Route path="quick-start" element={<QuickStart />} />
             <Route path="scan" element={<ScanTable />} />
             <Route path="sessions/:id/order" element={<Order />} />
             <Route path="sessions/:id/before" element={<BeforeCapture />} />
