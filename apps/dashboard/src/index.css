@@ -2,15 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer components {
-  /* Standard form input — matches the inline className that every other
-     screen has been duplicating. Used by Onboard.tsx so its 8 fields
-     don't bloat the source. */
-  .input {
-    @apply mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500;
-  }
+/* ============================================================
+   Plate-Clean Rewards — design tokens (Konkan Coast)
+   The token block + the --brand contract live here. Tailwind reads
+   these via tailwind.config.js so any utility (`bg-brand`,
+   `text-saffron`, `shadow-card`) sources from this single place.
+   Per-restaurant theming overrides --brand-h/s/l in theme.ts.
+   ============================================================ */
+:root {
+  /* ── BRAND CONTRACT (override these per-restaurant in theme.ts) ── */
+  --brand-h: 176;
+  --brand-s: 52%;
+  --brand-l: 27%;
+  --brand-press-h: 176;
+  --brand-press-s: 54%;
+  --brand-press-l: 20%;
+  --brand-tint-h: 176;
+  --brand-tint-s: 40%;
+  --brand-tint-l: 38%;
+  --brand-wash-h: 176;
+  --brand-wash-s: 34%;
+  --brand-wash-l: 95%;
+  --brand-line-h: 176;
+  --brand-line-s: 24%;
+  --brand-line-l: 86%;
+
+  /* legacy numeric brand palette — referenced by Tailwind fallbacks while
+     screens migrate from `bg-brand-600` to `bg-brand`. Removed at the end
+     of the design refresh once nothing reads from them. */
+  --brand-50: #f0fdfa;
+  --brand-500: hsl(var(--brand-tint-h) var(--brand-tint-s) var(--brand-tint-l));
+  --brand-600: hsl(var(--brand-h) var(--brand-s) var(--brand-l));
+  --brand-700: hsl(var(--brand-press-h) var(--brand-press-s) var(--brand-press-l));
+  --brand-900: hsl(var(--brand-h) 60% 10%);
+
+  --sh-sm: 0 1px 2px rgba(18, 38, 36, 0.06);
+  --sh-card: 0 1px 2px rgba(18, 38, 36, 0.05), 0 10px 26px -12px rgba(18, 38, 36, 0.16);
+  --sh-pop: 0 18px 54px -18px rgba(18, 38, 36, 0.34);
 }
 
+* {
+  box-sizing: border-box;
+}
 html,
 body,
 #root {
@@ -18,10 +51,138 @@ body,
 }
 
 body {
-  font-family:
-    system-ui,
-    -apple-system,
-    Segoe UI,
-    Roboto,
-    sans-serif;
+  font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: hsl(215 30% 16%);
+  /* Cool slate — dashboard is the staff-side "Counter" surface, not cream. */
+  background: hsl(210 28% 98%);
 }
+
+/* ============================================================
+   COMPONENT LAYER — recurring patterns from the design handoff.
+   Inside @layer components so Tailwind utilities still win.
+   ============================================================ */
+@layer components {
+  .display { font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; line-height: 1.02; letter-spacing: -0.01em; }
+  .eyebrow { font: 600 12px/1 'Hanken Grotesk', system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: hsl(190 7% 42%); }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .dev { font-family: 'Mukta', 'Hanken Grotesk', sans-serif; }
+
+  .btn { @apply inline-flex items-center justify-center gap-2 min-h-[52px] px-[22px] rounded-lg font-semibold text-base cursor-pointer transition border-0; }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: hsl(var(--brand-h) var(--brand-s) var(--brand-l)); color: #fff; box-shadow: var(--sh-sm); }
+  .btn-primary:hover { background: hsl(var(--brand-press-h) var(--brand-press-s) var(--brand-press-l)); }
+  .btn-saffron { background: hsl(31 80% 56%); color: #3a2410; box-shadow: var(--sh-sm); }
+  .btn-saffron:hover { background: hsl(28 72% 44%); color: #fff; }
+  .btn-ghost { @apply min-h-[44px]; background: transparent; color: hsl(var(--brand-h) var(--brand-s) var(--brand-l)); }
+  .btn-ghost:hover { background: hsl(var(--brand-wash-h) var(--brand-wash-s) var(--brand-wash-l)); }
+  .btn-outline { background: hsl(42 42% 99.3%); color: hsl(186 14% 13%); border: 1.5px solid hsl(40 17% 88%); }
+  .btn-outline:hover { border-color: hsl(var(--brand-line-h) var(--brand-line-s) var(--brand-line-l)); background: hsl(var(--brand-wash-h) var(--brand-wash-s) var(--brand-wash-l)); }
+  .btn-lg { @apply min-h-[58px] text-[17px] rounded-xl; }
+  .btn-block { @apply w-full; }
+  .btn-tertiary { @apply min-h-[44px] p-2 font-semibold; background: none; border: 0; color: hsl(190 7% 42%); cursor: pointer; }
+  .btn-tertiary:hover { color: hsl(186 14% 13%); }
+
+  .card { @apply rounded-xl border; background: hsl(42 42% 99.3%); border-color: hsl(40 17% 88%); box-shadow: var(--sh-card); }
+  .card-flat { @apply rounded-lg border; background: hsl(42 42% 99.3%); border-color: hsl(40 17% 88%); }
+
+  .dish { position: relative; border-radius: 12px; overflow: hidden;
+    background:
+      radial-gradient(120% 90% at 30% 18%, hsl(34 60% 86%), transparent 60%),
+      radial-gradient(90% 90% at 78% 86%, hsl(8 48% 80%), transparent 55%),
+      radial-gradient(60% 60% at 60% 50%, hsl(150 24% 72%), transparent 70%),
+      hsl(36 40% 90%); }
+  .dish-plate {
+    background:
+      radial-gradient(closest-side at 50% 50%, hsl(150 26% 70%), hsl(150 22% 64%) 40%, transparent 41%),
+      radial-gradient(closest-side at 50% 50%, #fff 0 58%, transparent 59%),
+      radial-gradient(120% 120% at 50% 30%, hsl(34 44% 90%), hsl(34 30% 84%)); }
+
+  .chip { @apply inline-flex items-center gap-1.5 h-7 px-[11px] rounded-full font-semibold; font-size: 12.5px; line-height: 1; white-space: nowrap; }
+  .chip-brand { background: hsl(var(--brand-wash-h) var(--brand-wash-s) var(--brand-wash-l)); color: hsl(var(--brand-h) var(--brand-s) var(--brand-l)); }
+  .chip-sage { background: hsl(148 34% 95%); color: hsl(150 32% 38%); }
+  .chip-saffron { background: hsl(34 82% 94%); color: hsl(28 72% 44%); }
+  .chip-amber { background: hsl(40 92% 94%); color: hsl(28 80% 36%); }
+  .chip-danger { background: hsl(8 78% 96%); color: hsl(8 70% 50%); }
+  .chip-muted { background: hsl(40 14% 93%); color: hsl(190 7% 42%); }
+  .chip-info { background: hsl(208 70% 95%); color: hsl(208 72% 47%); }
+  .price { font: 700 14px 'Hanken Grotesk', system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+
+  .seg { @apply flex gap-1 p-1 rounded-md; background: hsl(var(--brand-wash-h) var(--brand-wash-s) var(--brand-wash-l)); }
+  .seg-item { @apply flex-1 min-h-[46px] flex flex-col items-center justify-center gap-0.5 rounded-[10px] border-0 cursor-pointer transition; background: transparent; font: 600 14px 'Hanken Grotesk', system-ui, sans-serif; color: hsl(190 7% 42%); }
+  .seg-item.active { background: hsl(42 42% 99.3%); color: hsl(186 14% 13%); box-shadow: var(--sh-sm); }
+  .seg-item.active.small { color: hsl(var(--brand-h) var(--brand-s) var(--brand-l)); }
+  .seg-item .dot { width: 12px; height: 12px; border-radius: 50%; background: currentColor; opacity: 0.35; }
+  .seg-item.small .dot { width: 7px; height: 7px; }
+
+  .tabs { @apply inline-flex gap-0.5 p-[3px] rounded-[10px]; background: hsl(214 22% 91%); }
+  .tab { @apply min-h-[34px] px-3.5 rounded-lg border-0 cursor-pointer; background: transparent; font: 600 13px 'Hanken Grotesk', system-ui, sans-serif; color: hsl(215 14% 44%); }
+  .tab.active { background: #fff; color: hsl(215 30% 16%); box-shadow: var(--sh-sm); }
+
+  .otp { @apply flex gap-2 justify-center; }
+  .otp-box { @apply w-[46px] h-[58px] rounded-md flex items-center justify-center text-center; border: 2px solid hsl(40 17% 88%); font: 600 26px 'JetBrains Mono', ui-monospace, monospace; color: hsl(186 14% 13%); background: hsl(42 42% 99.3%); }
+  .otp-box.filled { border-color: hsl(var(--brand-line-h) var(--brand-line-s) var(--brand-line-l)); }
+  .otp-box.active { border-color: hsl(var(--brand-h) var(--brand-s) var(--brand-l)); box-shadow: 0 0 0 4px hsl(var(--brand-wash-h) var(--brand-wash-s) var(--brand-wash-l)); }
+  .otp-box .caret { width: 2px; height: 26px; background: hsl(var(--brand-h) var(--brand-s) var(--brand-l)); animation: blink 1s steps(2) infinite; }
+
+  .steps { @apply flex gap-1.5 items-center; }
+  .steps .s { @apply h-[5px] rounded-[3px] flex-1 transition; background: hsl(40 17% 88%); }
+  .steps .s.on { background: hsl(var(--brand-h) var(--brand-s) var(--brand-l)); }
+
+  .stat { @apply rounded-md border p-4; background: #fff; border-color: hsl(214 22% 91%); }
+  .stat .k { font: 600 12px 'Hanken Grotesk', system-ui, sans-serif; letter-spacing: 0.03em; color: hsl(215 14% 44%); }
+  .stat .v { @apply mt-2; font: 700 30px/1 'Hanken Grotesk', system-ui, sans-serif; font-variant-numeric: tabular-nums; color: hsl(215 30% 16%); }
+  .stat .d { @apply mt-1.5; font: 600 12px 'Hanken Grotesk', system-ui, sans-serif; }
+  .up { color: hsl(150 32% 38%); }
+  .down { color: hsl(8 70% 50%); }
+
+  .vrow { @apply grid items-center gap-3.5 px-4 py-2.5 cursor-pointer transition; grid-template-columns: 56px 92px 1fr 150px 96px 112px; background: #fff; border-bottom: 1px solid hsl(214 22% 91%); }
+  .vrow:hover { background: hsl(210 30% 99%); }
+  .vrow.sel { background: hsl(var(--brand-wash-h) var(--brand-wash-s) var(--brand-wash-l)); box-shadow: inset 3px 0 0 hsl(var(--brand-h) var(--brand-s) var(--brand-l)); }
+  .vthumb { @apply w-14 h-14 rounded-[10px] overflow-hidden; }
+  .vbar { @apply relative h-2 rounded-[5px]; background: hsl(214 22% 91%); overflow: visible; }
+  .vbar .fill { @apply absolute inset-y-0 left-0 rounded-[5px]; }
+  .vbar .thr { @apply absolute top-[-3px] bottom-[-3px] w-0.5; background: hsl(215 30% 16%); opacity: 0.55; }
+  .kbd { font: 600 11px 'JetBrains Mono', ui-monospace, monospace; background: hsl(214 22% 91%); color: hsl(215 14% 44%); border-radius: 5px; padding: 2px 6px; }
+
+  .panel { @apply flex flex-col; background: #fff; border-left: 1px solid hsl(214 22% 91%); box-shadow: -24px 0 60px -30px rgba(18, 38, 36, 0.3); }
+  .confbanner { @apply flex items-center gap-2.5 px-4 py-3; font: 600 14px 'Hanken Grotesk', system-ui, sans-serif; }
+  .conf-ok { background: hsl(148 34% 95%); color: hsl(150 32% 38%); }
+  .conf-amber { background: hsl(40 92% 94%); color: hsl(28 80% 34%); }
+  .conf-red { background: hsl(8 78% 96%); color: hsl(8 70% 50%); }
+
+  .ticket { --notch: hsl(40 36% 97%); @apply relative flex rounded-lg overflow-hidden; background: hsl(42 42% 99.3%); box-shadow: var(--sh-card); }
+  .ticket .body { @apply flex-1; padding: 18px 18px 18px 20px; }
+  .ticket .stub { @apply flex flex-col items-center justify-center gap-1.5; width: 104px; border-left: 2px dashed hsl(var(--brand-line-h) var(--brand-line-s) var(--brand-line-l)); padding: 16px 12px; background: linear-gradient(180deg, hsl(var(--brand-wash-h) var(--brand-wash-s) var(--brand-wash-l)), transparent); }
+  .ticket::before, .ticket::after { content: ''; @apply absolute w-[18px] h-[18px] rounded-full; right: 96px; background: var(--notch); }
+  .ticket::before { top: -9px; }
+  .ticket::after { bottom: -9px; }
+  .ticket.full { box-shadow: var(--sh-card), 0 0 0 1px hsl(34 82% 94%), 0 12px 30px -16px hsl(31 80% 56% / 0.5); }
+  .ticket.dim { filter: grayscale(0.85) opacity(0.62); box-shadow: var(--sh-sm); }
+  .ticket.dim .stub { background: hsl(40 10% 92%); border-color: hsl(40 10% 82%); }
+  .stamp { @apply rounded-md uppercase; font: 700 10px 'JetBrains Mono', ui-monospace, monospace; letter-spacing: 0.1em; border: 1.5px solid currentColor; padding: 3px 7px; transform: rotate(-7deg); }
+  .code { font: 600 26px 'JetBrains Mono', ui-monospace, monospace; letter-spacing: 0.14em; color: hsl(186 14% 13%); font-variant-numeric: tabular-nums; }
+
+  .empty { @apply flex flex-col items-center justify-center text-center px-7 py-14; color: hsl(190 7% 42%); }
+  .empty .art { @apply w-24 h-24 rounded-2xl flex items-center justify-center mb-4; background: hsl(var(--brand-wash-h) var(--brand-wash-s) var(--brand-wash-l)); color: hsl(var(--brand-h) var(--brand-s) var(--brand-l)); }
+
+  .d-screen { @apply min-h-full; background: hsl(40 36% 97%); }
+  .s-app { @apply min-h-full; background: hsl(210 28% 98%); }
+  .row { @apply flex items-center; }
+  .spread { @apply flex items-center justify-between; }
+  .stack { @apply flex flex-col; }
+  .sticky-bar { @apply sticky bottom-0; padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(180deg, transparent, hsl(40 36% 97%) 22%); }
+
+  /* legacy form input — kept so Onboard.tsx & friends keep rendering until
+     they're migrated to the new buttons / inputs. */
+  .input { @apply mt-1 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1; border-color: hsl(40 17% 88%); }
+  .input:focus { border-color: hsl(var(--brand-h) var(--brand-s) var(--brand-l)); --tw-ring-color: hsl(var(--brand-h) var(--brand-s) var(--brand-l)); }
+}
+
+@keyframes pop-in { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes heartbeat { 0%, 100% { transform: scale(1); opacity: 0.7; } 50% { transform: scale(1.18); opacity: 1; } }
+@keyframes blink { 50% { opacity: 0; } }
+.pop-in { animation: pop-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.spark { position: absolute; color: hsl(31 80% 56%); animation: floaty 2.6s ease-in-out infinite; }
