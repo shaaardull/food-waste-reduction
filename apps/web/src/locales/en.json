@@ -9,13 +9,26 @@
     }
   },
   "landing": {
-    "headline": "Finish your plate, unlock a reward.",
-    "description": "Snap a photo when you sit down, and another before you ask for the bill. A server reviews it. If you cleared most of what you ordered, the kitchen sends a small treat your way.",
+    "headline": "Finish your plate.<br/>Unlock a reward.",
+    "badge": "A small thank-you for finishing",
+    "description": "Snap your plate before & after. Eat what you love — when little goes to waste, a free dish or a discount is on us.",
     "scan_qr": "Scan your table QR",
     "sign_in_to_start": "Sign in to start",
+    "have_account": "Have an account? <b>Sign in</b>",
     "tagline_disclaimer": "Less food into the bin means less methane out of it. That's the only scoreboard we keep.",
-    "see_impact": "See our impact across all restaurants →",
-    "quick_start": "Just use my phone — no account needed"
+    "see_impact": "See our impact",
+    "quick_start": "Just use my phone — no account",
+    "proof_kg": "food saved",
+    "proof_co2": "CO₂e avoided",
+    "proof_restaurants": "restaurants",
+    "how_title": "How it works · about 30 seconds",
+    "how_scan_t": "Scan your table",
+    "how_scan_d": "Point at the QR on the table tent.",
+    "how_snap_t": "Snap before & after",
+    "how_snap_d": "Two quick photos of your plate.",
+    "how_approve_t": "Staff approves",
+    "how_approve_d": "Little waste? Your reward unlocks.",
+    "ethics_note": "Rewards are a thank-you for reducing waste — not a judgement. No reward just means a smaller portion next time. Photos kept 7 days."
   },
   "quick_start": {
     "title": "Use your phone, skip the account",

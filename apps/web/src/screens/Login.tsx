@@ -1,12 +1,20 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import type { User } from '@plate-clean/shared-types';
+import { ArrowLeft, Zap } from 'lucide-react';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
-import type { User } from '@plate-clean/shared-types';
+import { LangToggle } from '../components/LangToggle';
 
 type Mode = 'sign-in' | 'sign-up';
 
+/**
+ * Sign-in / sign-up for repeat diners. Front-door screen (no App header)
+ * so it carries its own back link + language toggle. New diners are
+ * pushed toward /quick-start (phone OTP, no account) — this screen
+ * exists for people who already created an email account.
+ */
 export function Login() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -41,73 +49,133 @@ export function Login() {
   }
 
   return (
-    <section className="space-y-5">
-      <h1 className="text-xl font-semibold">
-        {mode === 'sign-in' ? t('login.welcome_back') : t('login.create_account')}
-      </h1>
-      <form onSubmit={submit} className="space-y-3">
-        <label className="block">
-          <span className="text-sm text-slate-600">{t('login.email')}</span>
-          <input
-            required
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-          />
-        </label>
-        {mode === 'sign-up' && (
-          <label className="block">
-            <span className="text-sm text-slate-600">{t('login.display_name')}</span>
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-            />
-          </label>
-        )}
-        <label className="block">
-          <span className="text-sm text-slate-600">{t('login.password')}</span>
-          <input
-            required
-            type="password"
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-          />
-        </label>
-        {mode === 'sign-up' && (
-          <label className="flex items-start gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              required
-              checked={isAdult}
-              onChange={(e) => setIsAdult(e.target.checked)}
-              className="mt-1"
-            />
-            <span>{t('login.age_confirm')}</span>
-          </label>
-        )}
-        {error && <p className="text-sm text-red-700">{error}</p>}
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded-md bg-brand-600 hover:bg-brand-700 text-white py-2 font-medium disabled:opacity-50"
+    <div className="d-screen min-h-full">
+      <div className="px-5 pt-4 spread">
+        <Link
+          to="/"
+          className="btn-tertiary !min-h-0 !p-1 inline-flex items-center gap-1.5"
+          aria-label="Back"
         >
-          {busy
-            ? t('login.working')
-            : mode === 'sign-in'
-              ? t('login.submit_sign_in')
-              : t('login.submit_create')}
-        </button>
-      </form>
-      <button
-        onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}
-        className="text-sm text-brand-700 hover:underline"
-      >
-        {mode === 'sign-in' ? t('login.switch_to_sign_up') : t('login.switch_to_sign_in')}
-      </button>
-    </section>
+          <ArrowLeft size={20} />
+        </Link>
+        <LangToggle />
+      </div>
+
+      <div className="max-w-md mx-auto px-5 pt-6 pb-10 space-y-5">
+        <header className="space-y-1">
+          <div className="eyebrow text-brand">
+            {mode === 'sign-in' ? t('login.welcome_back') : t('login.create_account')}
+          </div>
+          <h1 className="display text-[34px] text-ink leading-tight">
+            {mode === 'sign-in'
+              ? t('login.welcome_back')
+              : t('login.create_account')}
+          </h1>
+        </header>
+
+        <form onSubmit={submit} className="space-y-3.5">
+          <Field label={t('login.email')}>
+            <input
+              required
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="input"
+              autoComplete="email"
+            />
+          </Field>
+
+          {mode === 'sign-up' && (
+            <Field label={t('login.display_name')}>
+              <input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="input"
+                autoComplete="name"
+              />
+            </Field>
+          )}
+
+          <Field label={t('login.password')}>
+            <input
+              required
+              type="password"
+              minLength={8}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="input"
+              autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
+            />
+          </Field>
+
+          {mode === 'sign-up' && (
+            <label className="flex items-start gap-2 text-sm text-muted">
+              <input
+                type="checkbox"
+                required
+                checked={isAdult}
+                onChange={(e) => setIsAdult(e.target.checked)}
+                className="mt-1"
+              />
+              <span>{t('login.age_confirm')}</span>
+            </label>
+          )}
+
+          {error && (
+            <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={busy}
+            className="btn btn-primary btn-lg btn-block disabled:opacity-50"
+          >
+            {busy
+              ? t('login.working')
+              : mode === 'sign-in'
+                ? t('login.submit_sign_in')
+                : t('login.submit_create')}
+          </button>
+        </form>
+
+        <div className="text-center space-y-3 pt-2 border-t border-line">
+          <button
+            onClick={() =>
+              setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')
+            }
+            className="btn-tertiary block w-full"
+          >
+            <span className="text-brand">
+              {mode === 'sign-in'
+                ? t('login.switch_to_sign_up')
+                : t('login.switch_to_sign_in')}
+            </span>
+          </button>
+          <Link
+            to="/quick-start"
+            className="btn-ghost inline-flex items-center gap-2 text-sm"
+          >
+            <Zap size={16} /> {t('landing.quick_start')}
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs text-muted font-medium">{label}</span>
+      {children}
+    </label>
   );
 }
