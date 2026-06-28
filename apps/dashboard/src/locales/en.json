@@ -105,7 +105,11 @@
     "reject": "Reject",
     "escalate": "Escalate",
     "escalate_default_note": "unsure",
-    "adjust_requires_score": "Pick a score before submitting an adjustment."
+    "adjust_requires_score": "Pick a score before submitting an adjustment.",
+    "no_signals": "No fraud signals flagged.",
+    "decision_form": "Decision",
+    "score_low": "less finished",
+    "score_high": "more finished"
   },
   "reason_code": {
     "plate_not_clean_enough": "plate not clean enough",

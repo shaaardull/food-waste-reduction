@@ -105,7 +105,11 @@
     "reject": "अस्वीकार",
     "escalate": "पुढे पाठवा",
     "escalate_default_note": "खात्री नाही",
-    "adjust_requires_score": "बदल पाठवण्यापूर्वी स्कोअर निवडा."
+    "adjust_requires_score": "बदल पाठवण्यापूर्वी स्कोअर निवडा.",
+    "no_signals": "कोणतेही फसवणूक संकेत नाहीत.",
+    "decision_form": "निर्णय",
+    "score_low": "कमी संपवलं",
+    "score_high": "जास्त संपवलं"
   },
   "reason_code": {
     "plate_not_clean_enough": "ताट पुरेसं साफ नाही",

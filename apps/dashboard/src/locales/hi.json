@@ -105,7 +105,11 @@
     "reject": "अस्वीकार",
     "escalate": "आगे बढ़ाएँ",
     "escalate_default_note": "अनिश्चित",
-    "adjust_requires_score": "समायोजन भेजने से पहले एक स्कोर चुनें।"
+    "adjust_requires_score": "समायोजन भेजने से पहले एक स्कोर चुनें।",
+    "no_signals": "कोई धोखाधड़ी संकेत नहीं।",
+    "decision_form": "निर्णय",
+    "score_low": "कम ख़त्म",
+    "score_high": "ज़्यादा ख़त्म"
   },
   "reason_code": {
     "plate_not_clean_enough": "थाली पर्याप्त साफ़ नहीं",

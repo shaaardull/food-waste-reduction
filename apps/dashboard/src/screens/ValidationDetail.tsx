@@ -1,8 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api, ApiException } from '../lib/api';
+import {
+  ArrowLeft,
+  ShieldAlert,
+  HelpCircle,
+  AlertTriangle,
+  Check,
+  Sliders,
+  X,
+  Flag,
+  GripVertical,
+  StickyNote,
+  ClipboardList,
+} from 'lucide-react';
+import { clsx } from 'clsx';
+import { api } from '../lib/api';
+import type { ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
 interface Bundle {
@@ -11,11 +27,20 @@ interface Bundle {
   score: number;
   before_image_url: string;
   after_image_url: string;
-  ordered_items: Array<{ name: string; quantity: number; portion_size: string | null; notes: string | null }>;
+  ordered_items: Array<{
+    name: string;
+    quantity: number;
+    portion_size: string | null;
+    notes: string | null;
+  }>;
   model_notes: string | null;
   model_confidence: number | null;
   suspicious: boolean;
-  fraud_signals: Array<{ signal_type: string; severity: string; details: Record<string, unknown> }>;
+  fraud_signals: Array<{
+    signal_type: string;
+    severity: string;
+    details: Record<string, unknown>;
+  }>;
 }
 
 const REASON_CODES = [
@@ -29,6 +54,21 @@ const REASON_CODES = [
   'other',
 ] as const;
 
+type Decision = 'approved' | 'adjusted' | 'rejected' | 'escalated';
+
+/**
+ * ValidationDetail — the staff "approve/adjust/reject/escalate" screen.
+ *
+ * Layout:
+ *   - top breadcrumb with the table chip and signal chips
+ *   - compare slider (before vs after, dragged horizontally) so staff
+ *     can eyeball waste in one glance instead of A/B'ing two thumbs
+ *   - ordered-items + fraud-signal panel
+ *   - decision form: reason chip picker, score slider (only relevant
+ *     when adjusting), notes textarea
+ *   - sticky decision bar at the bottom: Approve / Adjust / Reject /
+ *     Escalate, each colour-coded to the action it represents
+ */
 export function ValidationDetail() {
   const { t } = useTranslation();
   const { sessionId = '' } = useParams();
@@ -40,6 +80,7 @@ export function ValidationDetail() {
   const [reason, setReason] = useState<string>('plate_not_clean_enough');
   const [notes, setNotes] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<Decision | null>(null);
 
   const { data: bundle, isLoading } = useQuery({
     queryKey: ['bundle', sessionId],
@@ -57,10 +98,18 @@ export function ValidationDetail() {
       queryClient.invalidateQueries({ queryKey: ['pending'] });
       navigate('/validations');
     },
-    onError: (err: ApiException) => setError(err.message),
+    onError: (err: ApiException) => {
+      setError(err.message);
+      setPending(null);
+    },
   });
 
-  if (isLoading || !bundle) return <p className="text-slate-600">{t('detail.loading')}</p>;
+  if (isLoading || !bundle) {
+    return <p className="text-s-muted text-sm">{t('detail.loading')}</p>;
+  }
+
+  const lowConfidence =
+    bundle.model_confidence !== null && bundle.model_confidence < 0.75;
 
   function decide(kind: 'approved' | 'adjusted' | 'rejected') {
     setError(null);
@@ -68,6 +117,7 @@ export function ValidationDetail() {
       setError(t('detail.adjust_requires_score'));
       return;
     }
+    setPending(kind);
     mutate.mutate({
       decision: kind,
       final_score: kind === 'adjusted' ? adjustedScore ?? undefined : undefined,
@@ -76,146 +126,393 @@ export function ValidationDetail() {
     });
   }
 
+  function escalate() {
+    setError(null);
+    setPending('escalated');
+    api
+      .post(
+        `/sessions/${sessionId}/validate/escalate`,
+        { notes: notes || t('detail.escalate_default_note') },
+        token,
+      )
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['pending'] });
+        navigate('/validations');
+      })
+      .catch((err: ApiException) => {
+        setError(err.message);
+        setPending(null);
+      });
+  }
+
+  const busy = mutate.isPending || pending !== null;
+
   return (
-    <section className="space-y-4">
-      <div className="flex items-center gap-3">
-        <h1 className="text-xl font-semibold">{t('queue.table', { code: bundle.table_code })}</h1>
-        <span className="text-sm bg-slate-100 px-2 py-0.5 rounded">
-          {t('detail.model_score', { percent: Math.round(bundle.score * 100) })}
-        </span>
-        {bundle.suspicious && (
-          <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded">
-            {t('detail.possible_tampering')}
+    <section className="flex flex-col gap-5 pb-32">
+      {/* top breadcrumb / context strip */}
+      <header className="flex flex-col gap-3">
+        <Link
+          to="/validations"
+          className="row gap-1.5 items-center text-[13px] font-semibold text-s-muted hover:text-s-ink w-fit"
+        >
+          <ArrowLeft size={14} />
+          <span>{t('app.nav.validations')}</span>
+        </Link>
+        <div className="row gap-3 items-center flex-wrap">
+          <h1 className="display text-[28px] text-s-ink leading-tight">
+            {t('queue.table', { code: bundle.table_code })}
+          </h1>
+          <span className="chip chip-info">
+            {t('detail.model_score', { percent: Math.round(bundle.score * 100) })}
           </span>
-        )}
-        {bundle.model_confidence !== null && bundle.model_confidence < 0.75 && (
-          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
-            {t('detail.low_confidence')}
-          </span>
-        )}
-      </div>
+          {bundle.suspicious && (
+            <span className="chip chip-danger">
+              <ShieldAlert size={11} />
+              {t('detail.possible_tampering')}
+            </span>
+          )}
+          {lowConfidence && (
+            <span className="chip chip-amber">
+              <HelpCircle size={11} />
+              {t('detail.low_confidence')}
+            </span>
+          )}
+        </div>
+      </header>
 
-      <div className="grid grid-cols-2 gap-3">
-        <figure className="space-y-1">
-          <img src={bundle.before_image_url} alt="before" className="w-full rounded-lg" />
-          <figcaption className="text-xs text-slate-500">{t('detail.before')}</figcaption>
-        </figure>
-        <figure className="space-y-1">
-          <img src={bundle.after_image_url} alt="after" className="w-full rounded-lg" />
-          <figcaption className="text-xs text-slate-500">{t('detail.after')}</figcaption>
-        </figure>
-      </div>
+      {/* compare slider */}
+      <CompareSlider
+        beforeUrl={bundle.before_image_url}
+        afterUrl={bundle.after_image_url}
+        beforeLabel={t('detail.before')}
+        afterLabel={t('detail.after')}
+      />
 
-      <section className="rounded-lg bg-white border border-slate-200 p-3 space-y-2">
-        <p className="text-sm font-medium">{t('detail.ordered_items')}</p>
-        <ul className="text-sm text-slate-600 list-disc pl-5">
-          {bundle.ordered_items.map((i, idx) => (
-            <li key={idx}>
-              {i.quantity}× {i.name}{' '}
-              <span className="text-xs text-slate-500">
-                ({i.portion_size ?? t('detail.portion_fallback')})
-              </span>
-              {i.notes ? ` — ${i.notes}` : ''}
-            </li>
-          ))}
-        </ul>
-        {bundle.model_notes && (
-          <p className="text-xs text-slate-500">
-            {t('detail.model_notes', { notes: bundle.model_notes })}
-          </p>
-        )}
-        {bundle.fraud_signals.length > 0 && (
-          <div className="text-xs text-amber-700 space-y-1">
-            <p className="font-medium">{t('detail.fraud_signals')}</p>
-            <ul className="list-disc pl-5">
+      {/* meta panel: items + signals */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <section className="rounded-lg bg-s-paper border border-s-line p-4 flex flex-col gap-2">
+          <div className="row gap-2 items-center">
+            <ClipboardList size={14} className="text-s-muted" />
+            <span className="font-semibold text-[12px] text-s-muted dev uppercase tracking-wide">
+              {t('detail.ordered_items')}
+            </span>
+          </div>
+          <ul className="flex flex-col gap-1.5">
+            {bundle.ordered_items.map((i, idx) => (
+              <li
+                key={idx}
+                className="row gap-2 items-baseline text-[14px] text-s-ink"
+              >
+                <span className="tnum font-bold w-6 text-right">{i.quantity}×</span>
+                <span className="flex-1">{i.name}</span>
+                <span className="chip chip-muted">
+                  {i.portion_size ?? t('detail.portion_fallback')}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {bundle.model_notes && (
+            <p className="text-[12px] text-s-muted leading-snug mt-1">
+              {t('detail.model_notes', { notes: bundle.model_notes })}
+            </p>
+          )}
+        </section>
+
+        <section className="rounded-lg bg-s-paper border border-s-line p-4 flex flex-col gap-2">
+          <div className="row gap-2 items-center">
+            <AlertTriangle
+              size={14}
+              className={
+                bundle.fraud_signals.length > 0 ? 'text-amber-deep' : 'text-s-muted'
+              }
+            />
+            <span className="font-semibold text-[12px] text-s-muted dev uppercase tracking-wide">
+              {t('detail.fraud_signals')}
+            </span>
+          </div>
+          {bundle.fraud_signals.length === 0 ? (
+            <p className="text-[13px] text-s-muted">{t('detail.no_signals')}</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
               {bundle.fraud_signals.map((f, idx) => (
-                <li key={idx}>
-                  {f.signal_type} ({f.severity})
+                <li
+                  key={idx}
+                  className="row gap-2 items-baseline text-[13px]"
+                >
+                  <span className="flex-1 text-s-ink">{f.signal_type}</span>
+                  <span
+                    className={clsx(
+                      'chip',
+                      f.severity === 'high'
+                        ? 'chip-danger'
+                        : f.severity === 'medium'
+                          ? 'chip-amber'
+                          : 'chip-muted',
+                    )}
+                  >
+                    {f.severity}
+                  </span>
                 </li>
               ))}
             </ul>
-          </div>
-        )}
-      </section>
+          )}
+        </section>
+      </div>
 
-      <section className="rounded-lg bg-white border border-slate-200 p-3 space-y-3">
-        <label className="block text-sm">
-          <span className="text-slate-600">{t('detail.reason_label')}</span>
-          <select
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-          >
-            {REASON_CODES.map((c) => (
-              <option key={c} value={c}>
-                {t(`reason_code.${c}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm">
-          <span className="text-slate-600">{t('detail.adjusted_score_label')}</span>
+      {/* decision form */}
+      <section className="rounded-lg bg-s-paper border border-s-line p-4 flex flex-col gap-4">
+        <div className="row gap-2 items-center">
+          <StickyNote size={14} className="text-s-muted" />
+          <span className="font-semibold text-[12px] text-s-muted dev uppercase tracking-wide">
+            {t('detail.decision_form')}
+          </span>
+        </div>
+
+        {/* reason picker */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[12.5px] font-semibold text-s-ink">
+            {t('detail.reason_label')}
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {REASON_CODES.map((c) => {
+              const active = reason === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setReason(c)}
+                  className={clsx(
+                    'chip transition cursor-pointer',
+                    active
+                      ? 'bg-brand text-white'
+                      : 'bg-s-bg border border-s-line text-s-muted hover:text-s-ink',
+                  )}
+                  aria-pressed={active}
+                >
+                  {t(`reason_code.${c}`)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* adjusted score slider */}
+        <div className="flex flex-col gap-1.5">
+          <div className="row spread items-baseline">
+            <label className="row gap-1.5 items-center text-[12.5px] font-semibold text-s-ink">
+              <Sliders size={12} />
+              {t('detail.adjusted_score_label')}
+            </label>
+            <span
+              className={clsx(
+                'tnum font-bold text-[18px]',
+                adjustedScore === null ? 'text-s-muted/60' : 'text-s-ink',
+              )}
+            >
+              {adjustedScore === null
+                ? '—'
+                : `${Math.round(adjustedScore * 100)}%`}
+            </span>
+          </div>
           <input
-            type="number"
+            type="range"
             min={0}
-            max={1}
-            step={0.05}
-            value={adjustedScore ?? ''}
-            onChange={(e) => setAdjustedScore(e.target.value ? Number(e.target.value) : null)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-            placeholder={t('detail.adjusted_score_placeholder')}
+            max={100}
+            step={5}
+            value={adjustedScore === null ? Math.round(bundle.score * 100) : Math.round(adjustedScore * 100)}
+            onChange={(e) => setAdjustedScore(Number(e.target.value) / 100)}
+            className="w-full accent-brand"
+            aria-label={t('detail.adjusted_score_label')}
           />
-        </label>
-        <label className="block text-sm">
-          <span className="text-slate-600">{t('detail.notes_label')}</span>
+          <div className="row spread text-[11px] text-s-muted">
+            <span>{t('detail.score_low')}</span>
+            <span className="dev">
+              {t('detail.model_score', { percent: Math.round(bundle.score * 100) })}
+            </span>
+            <span>{t('detail.score_high')}</span>
+          </div>
+        </div>
+
+        {/* notes */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[12.5px] font-semibold text-s-ink">
+            {t('detail.notes_label')}
+          </label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="rounded-md border border-s-line bg-s-bg/50 px-3 py-2 text-[14px] text-s-ink focus:bg-white focus:border-brand focus:outline-none transition"
           />
-        </label>
-        {error && <p className="text-sm text-red-700">{error}</p>}
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => decide('approved')}
-            disabled={mutate.isPending}
-            className="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-2"
-          >
-            {t('detail.approve')}
-          </button>
-          <button
-            onClick={() => decide('adjusted')}
-            disabled={mutate.isPending}
-            className="rounded-md border border-slate-300 px-4 py-2"
-          >
-            {t('detail.adjust')}
-          </button>
-          <button
-            onClick={() => decide('rejected')}
-            disabled={mutate.isPending}
-            className="rounded-md border border-red-300 text-red-700 px-4 py-2"
-          >
-            {t('detail.reject')}
-          </button>
-          <button
-            onClick={() =>
-              api
-                .post(
-                  `/sessions/${sessionId}/validate/escalate`,
-                  { notes: notes || t('detail.escalate_default_note') },
-                  token,
-                )
-                .then(() => navigate('/validations'))
-                .catch((err: ApiException) => setError(err.message))
-            }
-            disabled={mutate.isPending}
-            className="rounded-md border border-amber-300 text-amber-800 px-4 py-2"
-          >
-            {t('detail.escalate')}
-          </button>
         </div>
+
+        {error && (
+          <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
+            {error}
+          </p>
+        )}
       </section>
+
+      {/* sticky action bar */}
+      <div className="fixed bottom-0 left-[228px] right-0 z-30 px-6 py-3 bg-s-paper/95 backdrop-blur border-t border-s-line">
+        <div className="max-w-screen-xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-2">
+          <DecisionButton
+            tone="brand"
+            icon={<Check size={16} />}
+            label={t('detail.approve')}
+            loading={pending === 'approved'}
+            disabled={busy}
+            onClick={() => decide('approved')}
+          />
+          <DecisionButton
+            tone="saffron"
+            icon={<Sliders size={16} />}
+            label={t('detail.adjust')}
+            loading={pending === 'adjusted'}
+            disabled={busy}
+            onClick={() => decide('adjusted')}
+          />
+          <DecisionButton
+            tone="danger"
+            icon={<X size={16} />}
+            label={t('detail.reject')}
+            loading={pending === 'rejected'}
+            disabled={busy}
+            onClick={() => decide('rejected')}
+          />
+          <DecisionButton
+            tone="amber"
+            icon={<Flag size={16} />}
+            label={t('detail.escalate')}
+            loading={pending === 'escalated'}
+            disabled={busy}
+            onClick={escalate}
+          />
+        </div>
+      </div>
     </section>
+  );
+}
+
+/* ----- compare slider ---------------------------------------------- */
+
+interface CompareSliderProps {
+  beforeUrl: string;
+  afterUrl: string;
+  beforeLabel: string;
+  afterLabel: string;
+}
+
+function CompareSlider({
+  beforeUrl,
+  afterUrl,
+  beforeLabel,
+  afterLabel,
+}: CompareSliderProps) {
+  const [pct, setPct] = useState(50);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  function dragTo(clientX: number) {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const next = ((clientX - rect.left) / rect.width) * 100;
+    setPct(Math.max(0, Math.min(100, next)));
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    dragTo(e.clientX);
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.buttons === 1) dragTo(e.clientX);
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative rounded-lg overflow-hidden bg-black select-none touch-none"
+      style={{ aspectRatio: '16 / 9' }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+    >
+      {/* base layer — before */}
+      <img
+        src={beforeUrl}
+        alt="before"
+        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+      />
+      {/* reveal layer — after, clipped from the left */}
+      <img
+        src={afterUrl}
+        alt="after"
+        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+        style={{ clipPath: `inset(0 0 0 ${pct}%)` }}
+      />
+      {/* labels */}
+      <span className="absolute top-2.5 left-2.5 chip bg-black/55 text-white border border-white/15 backdrop-blur">
+        {beforeLabel}
+      </span>
+      <span className="absolute top-2.5 right-2.5 chip bg-black/55 text-white border border-white/15 backdrop-blur">
+        {afterLabel}
+      </span>
+      {/* divider line */}
+      <div
+        className="absolute top-0 bottom-0 w-[3px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.18)] pointer-events-none"
+        style={{ left: `calc(${pct}% - 1.5px)` }}
+      />
+      {/* drag handle */}
+      <div
+        className="absolute w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center pointer-events-none"
+        style={{
+          left: `calc(${pct}% - 20px)`,
+          top: 'calc(50% - 20px)',
+        }}
+      >
+        <GripVertical size={18} className="text-s-ink" />
+      </div>
+    </div>
+  );
+}
+
+/* ----- decision button -------------------------------------------- */
+
+interface DecisionButtonProps {
+  tone: 'brand' | 'saffron' | 'danger' | 'amber';
+  icon: ReactNode;
+  label: string;
+  loading: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}
+
+function DecisionButton({
+  tone,
+  icon,
+  label,
+  loading,
+  disabled,
+  onClick,
+}: DecisionButtonProps) {
+  const cls =
+    tone === 'brand'
+      ? 'bg-brand text-white hover:bg-brand-press'
+      : tone === 'saffron'
+        ? 'bg-saffron text-[#3a2410] hover:bg-saffron-deep hover:text-white'
+        : tone === 'danger'
+          ? 'bg-danger-wash text-danger border border-danger/30 hover:bg-danger hover:text-white'
+          : 'bg-amber-wash text-amber-deep border border-amber/30 hover:bg-amber hover:text-white';
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={clsx(
+        'btn btn-block min-h-[48px] text-[15px] font-semibold transition disabled:opacity-50',
+        cls,
+      )}
+    >
+      {icon}
+      {loading ? '…' : label}
+    </button>
   );
 }
