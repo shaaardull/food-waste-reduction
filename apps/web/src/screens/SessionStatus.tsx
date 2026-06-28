@@ -2,24 +2,49 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import {
+  Camera,
+  Utensils,
+  Hourglass,
+  Sparkles,
+  HeartHandshake,
+  AlertCircle,
+  QrCode,
+  Clock,
+  Check,
+} from 'lucide-react';
 import type { Reward } from '@plate-clean/shared-types';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import { ChooseRewardType, formatValue } from '../components/ChooseRewardType';
+import { LangToggle } from '../components/LangToggle';
 
 interface SessionDetail {
-  session: { id: string; status: string };
+  session: { id: string; status: string; table_code?: string };
   items: Array<{ menu_item_id: string; quantity: number }>;
   captures: Array<{ phase: string; captured_at: string }>;
   score?: { overall_score: number; suspicious: boolean } | null;
   reward?: Reward | null;
 }
 
+/**
+ * SessionStatus — diner's view of where their meal is in the flow.
+ *
+ * Six visually distinct states the screen reflects:
+ *   open                          → take the BEFORE photo
+ *   before_captured               → eat, then claim with AFTER photo
+ *   after_submitted / pending     → server reviewing
+ *   staff_approved (no reward)    → approved but under threshold
+ *   rewarded                      → big reward ticket with redemption code
+ *   staff_rejected                → no reward + dispute path
+ *
+ * Polls every 2-3s while in transient states (CLAUDE.md §3 — async
+ * staff validation). Stops polling on terminal states.
+ */
 export function SessionStatus() {
   const { t } = useTranslation();
   const { id = '' } = useParams();
   const token = useAuthStore((s) => s.token);
-
   const [typeChosen, setTypeChosen] = useState(false);
 
   const { data, isLoading } = useQuery({
@@ -33,71 +58,183 @@ export function SessionStatus() {
     },
   });
 
-  if (isLoading || !data) return <p className="text-slate-600">{t('session_status.loading')}</p>;
+  if (isLoading || !data) {
+    return (
+      <div className="d-screen min-h-full px-5 py-12">
+        <p className="text-muted text-sm text-center">{t('session_status.loading')}</p>
+      </div>
+    );
+  }
 
   const status = data.session.status;
-  const hasBefore = data.captures.some((c) => c.phase === 'before');
+  const tableCode = data.session.table_code;
 
   return (
-    <section className="space-y-5">
-      <h1 className="text-xl font-semibold">{t('session_status.title')}</h1>
-      <p className="text-sm text-slate-600">
-        {t('session_status.status_label')}: <span className="font-medium">{prettyStatus(status)}</span>
-      </p>
-
-      {status === 'open' && (
-        <Link
-          to={`/sessions/${id}/before`}
-          className="block text-center bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-3 font-medium"
-        >
-          {t('session_status.take_before')}
-        </Link>
-      )}
-
-      {status === 'before_captured' && (
-        <div className="space-y-3">
-          <p className="text-slate-600">{t('session_status.between_meals_hint')}</p>
-          <Link
-            to={`/sessions/${id}/after`}
-            className="block text-center bg-brand-600 hover:bg-brand-700 text-white rounded-lg py-3 font-medium"
-          >
-            {t('session_status.claim_after')}
-          </Link>
+    <div className="d-screen flex flex-col min-h-full">
+      {/* header */}
+      <div className="px-5 pt-4 pb-2">
+        <div className="spread">
+          {tableCode ? (
+            <span className="chip chip-brand">
+              <QrCode size={14} />
+              {t('order.table_fallback')} · {tableCode}
+            </span>
+          ) : (
+            <span />
+          )}
+          <LangToggle />
         </div>
-      )}
+        <h1 className="display text-[26px] mt-3.5">{t('session_status.title')}</h1>
+      </div>
 
-      {(status === 'after_submitted' || status === 'pending_staff_validation') && (
-        <div className="rounded-lg border border-slate-200 p-4 space-y-2">
-          <p className="font-medium">{t('session_status.review_heading')}</p>
-          <p className="text-sm text-slate-600">{t('session_status.review_blurb')}</p>
-        </div>
-      )}
+      <div className="px-4 pb-6 flex-1 flex flex-col gap-4">
+        {status === 'open' && (
+          <StateCard
+            tone="brand"
+            icon={<Camera size={22} />}
+            heading={t('session_status.take_before')}
+            blurb={t('session_status.between_meals_hint')}
+            ctaHref={`/sessions/${id}/before`}
+            ctaLabel={t('session_status.take_before')}
+          />
+        )}
 
-      {status === 'staff_approved' && (
-        <div className="rounded-lg border border-slate-200 p-4 space-y-2">
-          <p className="font-medium">{t('session_status.approved_heading')}</p>
-          <p className="text-sm text-slate-600">{t('session_status.approved_blurb')}</p>
-        </div>
-      )}
+        {status === 'before_captured' && (
+          <StateCard
+            tone="sage"
+            icon={<Utensils size={22} />}
+            heading={t('session_status.between_meals_hint')}
+            ctaHref={`/sessions/${id}/after`}
+            ctaLabel={t('session_status.claim_after')}
+          />
+        )}
 
-      {status === 'rewarded' && data.reward && (
-        <RewardPanel reward={data.reward} typeChosen={typeChosen} onChosen={() => setTypeChosen(true)} />
-      )}
+        {(status === 'after_submitted' || status === 'pending_staff_validation') && (
+          <ReviewWaitingCard t={t} />
+        )}
 
-      {status === 'staff_rejected' && (
-        <div className="rounded-lg border border-slate-200 p-4 space-y-2">
-          <p className="font-medium">{t('session_status.rejected_heading')}</p>
-          <p className="text-sm text-slate-600">{t('session_status.rejected_blurb')}</p>
-        </div>
-      )}
+        {status === 'staff_approved' && (
+          <OutcomeCard
+            tone="sage"
+            icon={<Check size={22} />}
+            heading={t('session_status.approved_heading')}
+            blurb={t('session_status.approved_blurb')}
+          />
+        )}
 
-      {hasBefore && (
-        <details className="text-xs text-slate-500">
-          <summary className="cursor-pointer">{t('session_status.session_details')}</summary>
-          <pre className="mt-2 overflow-auto">{JSON.stringify(data, null, 2)}</pre>
+        {status === 'rewarded' && data.reward && (
+          <RewardPanel
+            reward={data.reward}
+            typeChosen={typeChosen}
+            onChosen={() => setTypeChosen(true)}
+            t={t}
+          />
+        )}
+
+        {status === 'staff_rejected' && (
+          <OutcomeCard
+            tone="muted"
+            icon={<AlertCircle size={22} />}
+            heading={t('session_status.rejected_heading')}
+            blurb={t('session_status.rejected_blurb')}
+          />
+        )}
+
+        {/* dev affordance — collapsed by default */}
+        <details className="text-xs text-muted mt-auto">
+          <summary className="cursor-pointer dev">{t('session_status.session_details')}</summary>
+          <pre className="dev mt-2 overflow-auto bg-paper border border-line rounded-md p-2">
+            {JSON.stringify(data, null, 2)}
+          </pre>
         </details>
-      )}
-    </section>
+      </div>
+    </div>
+  );
+}
+
+/* ----- pieces ----------------------------------------------------- */
+
+interface StateCardProps {
+  tone: 'brand' | 'sage';
+  icon: React.ReactNode;
+  heading: string;
+  blurb?: string;
+  ctaHref: string;
+  ctaLabel: string;
+}
+
+function StateCard({ tone, icon, heading, blurb, ctaHref, ctaLabel }: StateCardProps) {
+  const accent =
+    tone === 'sage' ? 'bg-sage-wash text-sage' : 'bg-brand-wash text-brand';
+  return (
+    <div className="card p-5 flex flex-col gap-4">
+      <div className={`w-12 h-12 rounded-md flex items-center justify-center ${accent}`}>
+        {icon}
+      </div>
+      <div>
+        <h2 className="display text-[22px] leading-tight">{heading}</h2>
+        {blurb && (
+          <p className="text-sm text-muted mt-1.5 leading-snug">{blurb}</p>
+        )}
+      </div>
+      <Link
+        to={ctaHref}
+        className="btn btn-primary btn-block min-h-[52px]"
+      >
+        {ctaLabel}
+      </Link>
+    </div>
+  );
+}
+
+function ReviewWaitingCard({ t }: { t: ReturnType<typeof useTranslation>['t'] }) {
+  return (
+    <div className="card p-5 flex flex-col gap-4">
+      <div className="row gap-3 items-center">
+        <div className="w-12 h-12 rounded-md bg-amber-wash text-amber-deep flex items-center justify-center">
+          <Hourglass size={22} className="animate-pulse" />
+        </div>
+        <div className="row gap-1.5 items-center text-amber-deep">
+          <Clock size={14} />
+          <span className="font-semibold text-[12.5px]">&lt; 1 min</span>
+        </div>
+      </div>
+      <div>
+        <h2 className="display text-[22px] leading-tight">
+          {t('session_status.review_heading')}
+        </h2>
+        <p className="text-sm text-muted mt-1.5 leading-snug">
+          {t('session_status.review_blurb')}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+interface OutcomeCardProps {
+  tone: 'sage' | 'muted' | 'danger';
+  icon: React.ReactNode;
+  heading: string;
+  blurb: string;
+}
+
+function OutcomeCard({ tone, icon, heading, blurb }: OutcomeCardProps) {
+  const accent =
+    tone === 'sage'
+      ? 'bg-sage-wash text-sage'
+      : tone === 'danger'
+        ? 'bg-danger-wash text-danger'
+        : 'bg-paper text-muted';
+  return (
+    <div className="card p-5 flex flex-col gap-4">
+      <div className={`w-12 h-12 rounded-md flex items-center justify-center ${accent}`}>
+        {icon}
+      </div>
+      <div>
+        <h2 className="display text-[22px] leading-tight">{heading}</h2>
+        <p className="text-sm text-muted mt-1.5 leading-snug">{blurb}</p>
+      </div>
+    </div>
   );
 }
 
@@ -105,10 +242,10 @@ interface RewardPanelProps {
   reward: Reward;
   typeChosen: boolean;
   onChosen: () => void;
+  t: ReturnType<typeof useTranslation>['t'];
 }
 
-function RewardPanel({ reward, typeChosen, onChosen }: RewardPanelProps) {
-  const { t } = useTranslation();
+function RewardPanel({ reward, typeChosen, onChosen, t }: RewardPanelProps) {
   const allowed = reward.allowed_reward_types ?? ['menu_item', 'bill_discount'];
   const hasChoice = allowed.length > 1;
   const showCode = !hasChoice || typeChosen || Boolean(reward.redeemed_at);
@@ -128,35 +265,60 @@ function RewardPanel({ reward, typeChosen, onChosen }: RewardPanelProps) {
       : t('choose_reward.type.bill_discount_label');
 
   return (
-    <div className="rounded-lg border-2 border-brand-600 bg-brand-50 p-4 space-y-2">
-      <p className="text-sm text-slate-600">{t('reward_panel.show_to_server')}</p>
-      <p className="text-3xl font-bold text-brand-700 tracking-wide">{reward.redemption_code}</p>
-      <p className="text-sm text-slate-600">
-        {t('reward_panel.type_label')}: <span className="font-medium">{typeLabel}</span>
-      </p>
-      <p className="text-sm">
-        {t('reward_panel.current_value_label')}:{' '}
-        <span className="font-medium">{formatValue(value)}</span>
-        {inHalfWindow && (
-          <span className="ml-2 text-amber-700 text-xs">
-            {t('reward_panel.half_value_until', { date: expires.toLocaleDateString() })}
-          </span>
-        )}
-        {!inHalfWindow && now < halfAt && (
-          <span className="ml-2 text-xs text-slate-500">
-            {t('reward_panel.full_until', { date: halfAt.toLocaleDateString() })}
-          </span>
-        )}
-      </p>
-      {reward.redeemed_at && (
-        <p className="text-xs text-slate-500">
-          {t('reward_panel.redeemed_at', { datetime: new Date(reward.redeemed_at).toLocaleString() })}
-        </p>
-      )}
+    <div className="flex flex-col gap-3">
+      {/* hero confirmation banner */}
+      <div className="confbanner rounded-md bg-saffron-wash text-saffron-deep">
+        <Sparkles size={18} />
+        <span>{t('session_status.approved_heading')}</span>
+      </div>
+
+      {/* the ticket */}
+      <div className="ticket full">
+        <div className="body flex flex-col gap-2">
+          <div className="row gap-1.5 items-center">
+            <HeartHandshake size={14} className="text-saffron-deep" />
+            <span className="font-semibold text-[12.5px] text-saffron-deep">
+              {typeLabel}
+            </span>
+          </div>
+          <div className="tnum font-bold text-[28px] leading-none">
+            {formatValue(value)}
+          </div>
+          <div className="text-xs text-muted">
+            {t('reward_panel.show_to_server')}
+          </div>
+          <div className="text-xs mt-1">
+            {inHalfWindow ? (
+              <span className="text-amber-deep">
+                {t('reward_panel.half_value_until', {
+                  date: expires.toLocaleDateString(),
+                })}
+              </span>
+            ) : now < halfAt ? (
+              <span className="text-muted">
+                {t('reward_panel.full_until', {
+                  date: halfAt.toLocaleDateString(),
+                })}
+              </span>
+            ) : null}
+          </div>
+          {reward.redeemed_at && (
+            <div className="text-xs text-muted">
+              {t('reward_panel.redeemed_at', {
+                datetime: new Date(reward.redeemed_at).toLocaleString(),
+              })}
+            </div>
+          )}
+        </div>
+        <div className="stub">
+          <div className="code text-[22px]">{reward.redemption_code}</div>
+          <div className="chip chip-saffron">
+            {inHalfWindow
+              ? t('rewards.half_value')
+              : t('rewards.full_value')}
+          </div>
+        </div>
+      </div>
     </div>
   );
-}
-
-function prettyStatus(s: string): string {
-  return s.replace(/_/g, ' ');
 }

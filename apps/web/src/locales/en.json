@@ -181,6 +181,7 @@
     "redeemed_no_amount": "Redeemed {{datetime}}",
     "voided": "Voided",
     "expired": "Expired",
+    "redeemed_badge": "Used",
     "available": "Available",
     "full_value": "Full value",
     "half_value": "Half value",

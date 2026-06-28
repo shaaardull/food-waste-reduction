@@ -181,6 +181,7 @@
     "redeemed_no_amount": "{{datetime}} ला रिडीम केलं",
     "voided": "रद्द",
     "expired": "संपलं",
+    "redeemed_badge": "वापरलं",
     "available": "उपलब्ध",
     "full_value": "पूर्ण किंमत",
     "half_value": "अर्धी किंमत",

@@ -1,9 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
+import { Sparkles, HeartHandshake, Clock, Check } from 'lucide-react';
 import type { Reward } from '@plate-clean/shared-types';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import { formatValue } from '../components/ChooseRewardType';
+import { LangToggle } from '../components/LangToggle';
 
 type Phase = 'full' | 'half' | 'expired' | 'voided' | 'redeemed';
 
@@ -33,6 +35,15 @@ function classify(r: Reward, now: Date): DerivedReward {
   return { ...r, phase, daysLeft };
 }
 
+/**
+ * Rewards inbox — every reward this diner ever earned, sorted by
+ * usefulness: full-value first, then half-value (still spendable),
+ * then historical (redeemed / voided / expired).
+ *
+ * Each row is a perforated `.ticket` card — the design system's stub
+ * holds the redemption code so the diner can flash it without
+ * digging through text.
+ */
 export function Rewards() {
   const { t } = useTranslation();
   const token = useAuthStore((s) => s.token);
@@ -41,18 +52,49 @@ export function Rewards() {
     queryFn: () => api.get<Reward[]>('/rewards', token),
   });
 
-  if (isLoading) return <p className="text-slate-600">{t('rewards.loading')}</p>;
-  if (!data || data.length === 0)
-    return (
-      <section className="space-y-3">
-        <h1 className="text-xl font-semibold">{t('rewards.title')}</h1>
-        <p className="text-slate-600">{t('rewards.empty')}</p>
-      </section>
-    );
+  return (
+    <div className="d-screen flex flex-col min-h-full">
+      <div className="px-5 pt-4 pb-2">
+        <div className="spread">
+          <span />
+          <LangToggle />
+        </div>
+        <h1 className="display text-[26px] mt-3.5">{t('rewards.title')}</h1>
+      </div>
 
+      <div className="px-4 pb-6 flex-1 flex flex-col gap-3">
+        {isLoading && (
+          <p className="text-muted text-sm text-center py-8">
+            {t('rewards.loading')}
+          </p>
+        )}
+
+        {!isLoading && (!data || data.length === 0) && (
+          <div className="empty">
+            <div className="art">
+              <Sparkles size={32} />
+            </div>
+            <p className="text-sm">{t('rewards.empty')}</p>
+          </div>
+        )}
+
+        {!isLoading && data && data.length > 0 && (
+          <RewardList rewards={data} t={t} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RewardList({
+  rewards,
+  t,
+}: {
+  rewards: Reward[];
+  t: ReturnType<typeof useTranslation>['t'];
+}) {
   const now = new Date();
-  const derived = data.map((r) => classify(r, now));
-  // Sort: full > half > redeemed > voided > expired, then newest issued first.
+  const derived = rewards.map((r) => classify(r, now));
   const phaseRank: Record<Phase, number> = {
     full: 0,
     half: 1,
@@ -67,100 +109,88 @@ export function Rewards() {
   });
 
   return (
-    <section className="space-y-3">
-      <h1 className="text-xl font-semibold">{t('rewards.title')}</h1>
-      <ul className="space-y-2">
-        {derived.map((r) => (
-          <RewardCard key={r.id} reward={r} t={t} />
-        ))}
-      </ul>
-    </section>
+    <ul className="flex flex-col gap-3">
+      {derived.map((r) => (
+        <RewardTicket key={r.id} reward={r} t={t} />
+      ))}
+    </ul>
   );
 }
 
-interface CardProps {
+interface TicketProps {
   reward: DerivedReward;
   t: ReturnType<typeof useTranslation>['t'];
 }
 
-function RewardCard({ reward: r, t }: CardProps) {
+function RewardTicket({ reward: r, t }: TicketProps) {
   const typeLabel =
     r.reward_type === 'menu_item'
       ? t('choose_reward.type.menu_item_label')
       : t('choose_reward.type.bill_discount_label');
   const value = r.current_value_minor ?? r.value_minor;
   const dim = r.phase === 'expired' || r.phase === 'voided';
+  const ticketClass = dim ? 'ticket dim' : r.phase === 'full' ? 'ticket full' : 'ticket';
 
   return (
-    <li
-      className={`rounded-lg border p-3 ${
-        dim ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-slate-200'
-      } ${r.phase === 'full' ? 'border-brand-600/40' : ''}`}
-    >
-      <div className="flex items-baseline justify-between">
-        <div className="font-mono text-lg">{r.redemption_code}</div>
+    <li className={ticketClass}>
+      <div className="body flex flex-col gap-1.5">
+        <div className="row gap-1.5 items-center">
+          <HeartHandshake size={14} className="text-saffron-deep" />
+          <span className="font-semibold text-[12.5px] text-saffron-deep">
+            {typeLabel}
+          </span>
+        </div>
+        <div className="tnum font-bold text-[22px] leading-none">
+          {formatValue(value)}
+          {r.phase === 'half' && (
+            <span className="text-amber-deep text-xs ml-1.5 font-semibold">
+              {t('rewards.half_value_suffix')}
+            </span>
+          )}
+        </div>
+        <WindowLine reward={r} t={t} />
+        <div className="text-xs text-muted mt-0.5">
+          {t('rewards.issued_expires', {
+            issued: new Date(r.issued_at).toLocaleDateString(),
+            expires: new Date(r.expires_at).toLocaleDateString(),
+          })}
+        </div>
+      </div>
+      <div className="stub">
+        <div className="code text-[20px]">{r.redemption_code}</div>
         <StatusBadge phase={r.phase} t={t} />
-      </div>
-      <div className="text-xs text-slate-500 mt-0.5">
-        {typeLabel} &middot; {formatValue(value)}
-        {r.phase === 'half' && ` ${t('rewards.half_value_suffix')}`}
-      </div>
-      <WindowLine reward={r} t={t} />
-      <div className="text-xs text-slate-400 mt-1">
-        {t('rewards.issued_expires', {
-          issued: new Date(r.issued_at).toLocaleDateString(),
-          expires: new Date(r.expires_at).toLocaleDateString(),
-        })}
       </div>
     </li>
   );
 }
 
-function StatusBadge({ phase, t }: { phase: Phase; t: CardProps['t'] }) {
+function StatusBadge({ phase, t }: { phase: Phase; t: TicketProps['t'] }) {
   switch (phase) {
     case 'full':
-      return (
-        <span className="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full">
-          {t('rewards.full_value')}
-        </span>
-      );
+      return <span className="chip chip-saffron">{t('rewards.full_value')}</span>;
     case 'half':
-      return (
-        <span className="text-xs bg-amber-50 text-amber-800 px-2 py-0.5 rounded-full">
-          {t('rewards.half_value')}
-        </span>
-      );
+      return <span className="chip chip-amber">{t('rewards.half_value')}</span>;
     case 'redeemed':
-      return (
-        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-          ✓
-        </span>
-      );
+      return <span className="chip chip-muted"><Check size={12} />{t('rewards.redeemed_badge')}</span>;
     case 'voided':
-      return (
-        <span className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded-full">
-          {t('rewards.voided')}
-        </span>
-      );
+      return <span className="chip chip-danger">{t('rewards.voided')}</span>;
     case 'expired':
-      return (
-        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
-          {t('rewards.expired')}
-        </span>
-      );
+      return <span className="chip chip-muted">{t('rewards.expired')}</span>;
   }
 }
 
-function WindowLine({ reward: r, t }: CardProps) {
+function WindowLine({ reward: r, t }: TicketProps) {
   if (r.phase === 'redeemed' && r.redeemed_at) {
     return (
-      <div className="text-xs text-slate-500 mt-1">
+      <div className="text-xs text-muted">
         {r.redeemed_value_minor != null
           ? t('rewards.redeemed_for', {
               datetime: new Date(r.redeemed_at).toLocaleString(),
               amount: formatValue(r.redeemed_value_minor),
             })
-          : t('rewards.redeemed_no_amount', { datetime: new Date(r.redeemed_at).toLocaleString() })}
+          : t('rewards.redeemed_no_amount', {
+              datetime: new Date(r.redeemed_at).toLocaleString(),
+            })}
       </div>
     );
   }
@@ -173,15 +203,23 @@ function WindowLine({ reward: r, t }: CardProps) {
           : t('rewards.days_left_plural', { count: r.daysLeft });
     if (r.phase === 'full') {
       return (
-        <div className="text-xs text-slate-600 mt-1">
-          {t('rewards.full_window_until', {
-            date: new Date(r.half_value_at).toLocaleDateString(),
-          })}{' '}
-          &middot; {daysText}
+        <div className="row gap-1.5 items-center text-xs text-muted">
+          <Clock size={12} />
+          <span>
+            {t('rewards.full_window_until', {
+              date: new Date(r.half_value_at).toLocaleDateString(),
+            })}{' '}
+            · {daysText}
+          </span>
         </div>
       );
     }
-    return <div className="text-xs text-amber-700 mt-1">{daysText}</div>;
+    return (
+      <div className="row gap-1.5 items-center text-xs text-amber-deep">
+        <Clock size={12} />
+        <span>{daysText}</span>
+      </div>
+    );
   }
   return null;
 }

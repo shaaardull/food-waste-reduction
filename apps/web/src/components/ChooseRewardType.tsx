@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Sparkles, Utensils, Receipt } from 'lucide-react';
 import type { Reward, RewardType } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
@@ -14,6 +15,11 @@ function formatValue(minor: number): string {
   return `₹${(minor / 100).toFixed(0)}`;
 }
 
+/**
+ * Diner picks which form their reward takes — a free dish, or a
+ * discount on next bill. Same money value either way; we just need
+ * a non-default choice for the kitchen.
+ */
 export function ChooseRewardType({ reward, onChosen }: Props) {
   const { t } = useTranslation();
   const token = useAuthStore((s) => s.token);
@@ -39,41 +45,78 @@ export function ChooseRewardType({ reward, onChosen }: Props) {
   const value = reward.current_value_minor ?? reward.value_minor;
 
   return (
-    <section className="rounded-lg border-2 border-brand-600 bg-brand-50 p-4 space-y-3">
-      <header className="space-y-1">
-        <p className="font-medium text-brand-700">{t('choose_reward.heading')}</p>
-        <p className="text-sm text-slate-600">
-          <Trans
-            i18nKey="choose_reward.value_blurb"
-            values={{ amount: formatValue(value) }}
-            components={{ strong: <strong /> }}
-          />
-        </p>
-      </header>
-      <div className="grid gap-2">
+    <section className="card p-5 flex flex-col gap-4">
+      <div className="row gap-3 items-center">
+        <div className="w-12 h-12 rounded-md bg-saffron-wash text-saffron-deep flex items-center justify-center">
+          <Sparkles size={22} />
+        </div>
+        <div className="flex-1">
+          <h2 className="display text-[22px] leading-tight">
+            {t('choose_reward.heading')}
+          </h2>
+          <p className="text-sm text-muted mt-1 leading-snug">
+            <Trans
+              i18nKey="choose_reward.value_blurb"
+              values={{ amount: formatValue(value) }}
+              components={{ strong: <strong className="tnum text-ink" /> }}
+            />
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2.5">
         {allowed.includes('menu_item') && (
-          <button
+          <RewardChoiceButton
+            icon={<Utensils size={20} />}
+            label={t('choose_reward.type.menu_item_label')}
+            blurb={t('choose_reward.type.menu_item_blurb')}
             disabled={mutation.isPending}
             onClick={() => mutation.mutate('menu_item')}
-            className="text-left rounded-lg bg-white border border-slate-200 p-3 hover:border-brand-600 disabled:opacity-50"
-          >
-            <div className="font-medium">{t('choose_reward.type.menu_item_label')}</div>
-            <div className="text-xs text-slate-500">{t('choose_reward.type.menu_item_blurb')}</div>
-          </button>
+          />
         )}
         {allowed.includes('bill_discount') && (
-          <button
+          <RewardChoiceButton
+            icon={<Receipt size={20} />}
+            label={t('choose_reward.type.bill_discount_label')}
+            blurb={t('choose_reward.type.bill_discount_blurb')}
             disabled={mutation.isPending}
             onClick={() => mutation.mutate('bill_discount')}
-            className="text-left rounded-lg bg-white border border-slate-200 p-3 hover:border-brand-600 disabled:opacity-50"
-          >
-            <div className="font-medium">{t('choose_reward.type.bill_discount_label')}</div>
-            <div className="text-xs text-slate-500">{t('choose_reward.type.bill_discount_blurb')}</div>
-          </button>
+          />
         )}
       </div>
-      {error && <p className="text-sm text-red-700">{error}</p>}
+
+      {error && (
+        <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
+          {error}
+        </p>
+      )}
     </section>
+  );
+}
+
+interface ChoiceProps {
+  icon: React.ReactNode;
+  label: string;
+  blurb: string;
+  disabled: boolean;
+  onClick: () => void;
+}
+
+function RewardChoiceButton({ icon, label, blurb, disabled, onClick }: ChoiceProps) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="text-left card-flat p-3.5 row gap-3 items-start hover:border-brand transition disabled:opacity-50"
+    >
+      <div className="w-10 h-10 rounded-md bg-brand-wash text-brand flex items-center justify-center flex-shrink-0">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="font-semibold text-[15px]">{label}</div>
+        <div className="dev text-sm text-muted mt-0.5 leading-snug">{blurb}</div>
+      </div>
+    </button>
   );
 }
 
