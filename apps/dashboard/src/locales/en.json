@@ -3,6 +3,7 @@
     "name": "Plate-Clean",
     "name_staff": "Plate-Clean · Staff",
     "with_restaurant": "{{name}} · Staff",
+    "no_restaurant": "No restaurant selected",
     "nav": {
       "validations": "Validation queue",
       "redeem": "Redeem code",
@@ -73,6 +74,12 @@
     "low_confidence": "low confidence",
     "fraud_signals_count": "{{count}} fraud signal(s)",
     "review_button": "Review",
+    "count_pending": "{{count}} pending",
+    "col_photos": "Photos",
+    "col_table": "Table & order",
+    "col_signals": "Signals",
+    "col_score": "Score",
+    "col_action": "",
     "age": {
       "seconds": "{{count}}s ago",
       "minutes": "{{count}}m ago"

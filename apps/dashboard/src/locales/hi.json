@@ -3,6 +3,7 @@
     "name": "Plate-Clean",
     "name_staff": "Plate-Clean · स्टाफ़",
     "with_restaurant": "{{name}} · स्टाफ़",
+    "no_restaurant": "रेस्टोरेंट चुना नहीं गया",
     "nav": {
       "validations": "सत्यापन सूची",
       "redeem": "कोड रिडीम करें",
@@ -73,6 +74,12 @@
     "low_confidence": "कम भरोसा",
     "fraud_signals_count": "{{count}} धोखाधड़ी संकेत",
     "review_button": "समीक्षा करें",
+    "count_pending": "{{count}} बाक़ी",
+    "col_photos": "फ़ोटो",
+    "col_table": "टेबल और ऑर्डर",
+    "col_signals": "संकेत",
+    "col_score": "स्कोर",
+    "col_action": "",
     "age": {
       "seconds": "{{count}}s पहले",
       "minutes": "{{count}}मि पहले"
