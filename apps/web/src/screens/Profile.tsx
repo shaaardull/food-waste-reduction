@@ -2,6 +2,17 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import {
+  Leaf,
+  Sparkles,
+  Languages,
+  Camera,
+  Check,
+  LogOut,
+  Trash2,
+  Mail,
+  Shield,
+} from 'lucide-react';
 import type { User } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
@@ -15,6 +26,16 @@ interface SustainabilityReport {
   trees_day_equivalent: number;
 }
 
+/**
+ * Profile screen — diner's settings home.
+ *
+ * Order of sections mirrors what matters most to the diner:
+ *   1. their impact (sustainability card — sage, hero)
+ *   2. account chip (email + role at a glance)
+ *   3. language (.chip-style picker)
+ *   4. photo retention (ethics rule 6 — 7-day default, 90-day opt-in)
+ *   5. account exits (sign out, delete)
+ */
 export function Profile() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -59,7 +80,6 @@ export function Profile() {
         { image_retention_days: days },
         token,
       );
-      // Keep the auth store user in sync so other screens see the change.
       setAuth(updated, token);
       setSavedNotice(true);
       setTimeout(() => setSavedNotice(false), 2_000);
@@ -71,85 +91,153 @@ export function Profile() {
     }
   }
 
-  if (!user) return <p className="text-slate-600">{t('profile.sign_in_first')}</p>;
+  if (!user) {
+    return (
+      <div className="d-screen min-h-full px-5 py-12">
+        <p className="text-muted text-sm">{t('profile.sign_in_first')}</p>
+      </div>
+    );
+  }
 
   const currentLang = (i18n.resolvedLanguage ?? 'en') as Language;
   const retentionDays = user.image_retention_days ?? 7;
 
   return (
-    <section className="space-y-5">
-      <h1 className="text-xl font-semibold">{t('profile.title')}</h1>
-      <div className="rounded-lg border border-slate-200 p-3 text-sm">
-        <p>
-          <span className="text-slate-500">{t('profile.email_label')}:</span> {user.email}
-        </p>
-        <p>
-          <span className="text-slate-500">{t('profile.role_label')}:</span> {user.role}
-        </p>
+    <div className="d-screen flex flex-col min-h-full">
+      <div className="px-5 pt-4 pb-2">
+        <h1 className="display text-[26px]">{t('profile.title')}</h1>
       </div>
 
-      <SustainabilityCard token={token} />
+      <div className="px-4 pb-8 flex flex-col gap-4">
+        <SustainabilityCard token={token} />
 
-      <div className="rounded-lg border border-slate-200 p-3 space-y-2">
-        <p className="text-sm text-slate-600">{t('profile.language_label')}</p>
-        <div className="flex gap-2 flex-wrap">
-          {SUPPORTED_LANGUAGES.map((lang) => (
-            <button
-              key={lang}
-              onClick={() => void i18n.changeLanguage(lang)}
-              className={`rounded-full px-3 py-1 text-sm border ${
-                currentLang === lang
-                  ? 'bg-brand-700 text-white border-brand-700'
-                  : 'border-slate-300 text-slate-700'
-              }`}
-            >
-              {LANGUAGE_LABELS[lang]}
-            </button>
-          ))}
+        {/* Account chip */}
+        <div className="card p-4 flex flex-col gap-2.5">
+          <div className="row gap-2.5 items-center">
+            <div className="w-9 h-9 rounded-md bg-brand-wash text-brand flex items-center justify-center">
+              <Mail size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[12.5px] text-muted dev">
+                {t('profile.email_label')}
+              </div>
+              <div className="font-semibold text-[15px] truncate">
+                {user.email}
+              </div>
+            </div>
+          </div>
+          <div className="row gap-2.5 items-center">
+            <div className="w-9 h-9 rounded-md bg-brand-wash text-brand flex items-center justify-center">
+              <Shield size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[12.5px] text-muted dev">
+                {t('profile.role_label')}
+              </div>
+              <div className="font-semibold text-[15px] capitalize">
+                {user.role}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="rounded-lg border border-slate-200 p-3 space-y-3">
-        <header className="space-y-1">
-          <p className="text-sm font-medium">{t('profile.retention_label')}</p>
-          <p className="text-xs text-slate-600">{t('profile.retention_blurb')}</p>
-        </header>
-        <div className="grid gap-2">
-          <RetentionOption
-            label={t('profile.retention_7_label')}
-            caption={t('profile.retention_7_caption')}
-            active={retentionDays === 7}
-            disabled={retentionBusy}
-            onClick={() => void setRetention(7)}
-          />
-          <RetentionOption
-            label={t('profile.retention_90_label')}
-            caption={t('profile.retention_90_caption')}
-            active={retentionDays === 90}
-            disabled={retentionBusy}
-            onClick={() => void setRetention(90)}
-          />
+        {/* Language picker */}
+        <div className="card p-4 flex flex-col gap-3">
+          <div className="row gap-2 items-center">
+            <Languages size={16} className="text-brand" />
+            <div className="font-semibold text-[15px]">
+              {t('profile.language_label')}
+            </div>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {SUPPORTED_LANGUAGES.map((lang) => {
+              const active = currentLang === lang;
+              return (
+                <button
+                  key={lang}
+                  onClick={() => void i18n.changeLanguage(lang)}
+                  className={`chip transition ${
+                    active
+                      ? 'bg-brand text-white'
+                      : 'bg-paper border border-line text-ink/80 hover:text-ink'
+                  }`}
+                  aria-pressed={active}
+                >
+                  {LANGUAGE_LABELS[lang]}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        {savedNotice && (
-          <p className="text-xs text-brand-700">{t('profile.retention_saved')}</p>
+
+        {/* Retention */}
+        <div className="card p-4 flex flex-col gap-3">
+          <div className="row gap-2 items-center">
+            <Camera size={16} className="text-brand" />
+            <div className="font-semibold text-[15px]">
+              {t('profile.retention_label')}
+            </div>
+          </div>
+          <p className="text-[13px] text-muted leading-snug">
+            {t('profile.retention_blurb')}
+          </p>
+          <div className="flex flex-col gap-2">
+            <RetentionOption
+              label={t('profile.retention_7_label')}
+              caption={t('profile.retention_7_caption')}
+              active={retentionDays === 7}
+              disabled={retentionBusy}
+              onClick={() => void setRetention(7)}
+            />
+            <RetentionOption
+              label={t('profile.retention_90_label')}
+              caption={t('profile.retention_90_caption')}
+              active={retentionDays === 90}
+              disabled={retentionBusy}
+              onClick={() => void setRetention(90)}
+            />
+          </div>
+          {savedNotice && (
+            <div className="row gap-2 items-center text-[12.5px] text-sage font-semibold">
+              <Check size={14} />
+              <span>{t('profile.retention_saved')}</span>
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
+            {error}
+          </p>
         )}
-      </div>
 
-      {error && <p className="text-sm text-red-700">{error}</p>}
-      <button onClick={signOut} className="w-full rounded-md border border-slate-300 py-2">
-        {t('profile.sign_out')}
-      </button>
-      <button
-        onClick={deleteAccount}
-        disabled={busy}
-        className="w-full rounded-md border border-red-300 text-red-700 py-2 disabled:opacity-50"
-      >
-        {t('profile.delete_account')}
-      </button>
-      <p className="text-xs text-slate-500">{t('profile.delete_blurb')}</p>
-    </section>
+        {/* Exits */}
+        <div className="flex flex-col gap-2.5">
+          <button
+            onClick={signOut}
+            className="btn btn-outline btn-block min-h-[48px]"
+          >
+            <LogOut size={16} />
+            {t('profile.sign_out')}
+          </button>
+          <button
+            onClick={deleteAccount}
+            disabled={busy}
+            className="btn btn-block min-h-[48px] bg-paper border border-danger/30 text-danger hover:bg-danger-wash disabled:opacity-50"
+          >
+            <Trash2 size={16} />
+            {t('profile.delete_account')}
+          </button>
+          <p className="text-[12px] text-muted leading-snug text-center mt-1">
+            {t('profile.delete_blurb')}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
+
+/* ----- pieces ----------------------------------------------------- */
 
 interface RetentionOptionProps {
   label: string;
@@ -159,22 +247,32 @@ interface RetentionOptionProps {
   onClick: () => void;
 }
 
-function RetentionOption({ label, caption, active, disabled, onClick }: RetentionOptionProps) {
+function RetentionOption({
+  label,
+  caption,
+  active,
+  disabled,
+  onClick,
+}: RetentionOptionProps) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`text-left rounded-lg border p-3 transition ${
+      className={`text-left card-flat p-3 transition ${
         active
-          ? 'border-brand-600 bg-brand-50'
-          : 'border-slate-200 hover:border-brand-600'
+          ? 'border-brand ring-2 ring-brand/15 bg-brand-wash'
+          : 'hover:border-brand'
       } disabled:opacity-60`}
     >
-      <div className="flex items-center justify-between">
-        <div className="font-medium text-sm">{label}</div>
-        {active && <span className="text-xs text-brand-700">●</span>}
+      <div className="spread">
+        <div className="font-semibold text-[14px]">{label}</div>
+        {active && (
+          <span className="w-4 h-4 rounded-full bg-brand text-white flex items-center justify-center">
+            <Check size={11} />
+          </span>
+        )}
       </div>
-      <div className="text-xs text-slate-500">{caption}</div>
+      <div className="text-[12.5px] text-muted mt-0.5">{caption}</div>
     </button>
   );
 }
@@ -190,9 +288,16 @@ function SustainabilityCard({ token }: { token: string | null }) {
 
   if (isLoading) {
     return (
-      <div className="rounded-lg border border-slate-200 p-3 space-y-2">
-        <p className="text-sm font-medium">{t('profile.sustainability_heading')}</p>
-        <p className="text-xs text-slate-500">{t('profile.sustainability_loading')}</p>
+      <div className="card p-4 flex flex-col gap-1.5">
+        <div className="row gap-2 items-center">
+          <Leaf size={16} className="text-sage" />
+          <div className="font-semibold text-[15px]">
+            {t('profile.sustainability_heading')}
+          </div>
+        </div>
+        <p className="text-[12.5px] text-muted">
+          {t('profile.sustainability_loading')}
+        </p>
       </div>
     );
   }
@@ -201,9 +306,16 @@ function SustainabilityCard({ token }: { token: string | null }) {
   const empty = data.sessions_counted === 0 || data.kg_food_saved === 0;
   if (empty) {
     return (
-      <div className="rounded-lg border border-slate-200 p-3 space-y-2">
-        <p className="text-sm font-medium">{t('profile.sustainability_heading')}</p>
-        <p className="text-xs text-slate-500">{t('profile.sustainability_empty')}</p>
+      <div className="card p-4 flex flex-col gap-1.5">
+        <div className="row gap-2 items-center">
+          <Leaf size={16} className="text-sage" />
+          <div className="font-semibold text-[15px]">
+            {t('profile.sustainability_heading')}
+          </div>
+        </div>
+        <p className="text-[12.5px] text-muted">
+          {t('profile.sustainability_empty')}
+        </p>
       </div>
     );
   }
@@ -211,39 +323,54 @@ function SustainabilityCard({ token }: { token: string | null }) {
   const sessionsText =
     data.sessions_counted === 1
       ? t('profile.sustainability_sessions_counted', { count: 1 })
-      : t('profile.sustainability_sessions_counted_plural', { count: data.sessions_counted });
+      : t('profile.sustainability_sessions_counted_plural', {
+          count: data.sessions_counted,
+        });
 
   return (
-    <div className="rounded-lg border-2 border-brand-600/40 bg-brand-50 p-4 space-y-3">
-      <p className="text-sm font-medium text-brand-700">
-        {t('profile.sustainability_heading')}
-      </p>
-      <div className="grid grid-cols-2 gap-3">
-        <Stat
-          value={data.kg_food_saved.toFixed(2)}
-          label={t('profile.sustainability_food_saved')}
-        />
-        <Stat
-          value={data.kg_co2e_saved.toFixed(2)}
-          label={t('profile.sustainability_co2e_saved')}
-        />
+    <div className="card p-5 flex flex-col gap-4 bg-sage-wash/40 border-sage/20">
+      <div className="row gap-2.5 items-center">
+        <div className="w-10 h-10 rounded-md bg-sage-wash text-sage flex items-center justify-center">
+          <Leaf size={18} />
+        </div>
+        <div className="font-semibold text-[15px] text-sage">
+          {t('profile.sustainability_heading')}
+        </div>
       </div>
-      <p className="text-xs text-slate-600">
-        {t('profile.sustainability_trees_day', {
-          value: data.trees_day_equivalent.toFixed(1),
-        })}{' '}
-        &middot; {sessionsText}
+      {/* hero number */}
+      <div>
+        <div className="tnum font-bold text-[40px] leading-none text-ink">
+          {data.kg_food_saved.toFixed(2)}
+        </div>
+        <div className="text-[13px] text-muted mt-1">
+          {t('profile.sustainability_food_saved')}
+        </div>
+      </div>
+      {/* sub-stats */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="rounded-md bg-paper border border-line p-3">
+          <div className="tnum font-bold text-[20px] text-ink">
+            {data.kg_co2e_saved.toFixed(2)}
+          </div>
+          <div className="text-[11.5px] text-muted dev mt-1 leading-tight">
+            {t('profile.sustainability_co2e_saved')}
+          </div>
+        </div>
+        <div className="rounded-md bg-paper border border-line p-3">
+          <div className="row gap-1.5 items-baseline">
+            <Sparkles size={14} className="text-saffron-deep" />
+            <div className="tnum font-bold text-[20px] text-ink">
+              {data.trees_day_equivalent.toFixed(1)}
+            </div>
+          </div>
+          <div className="text-[11.5px] text-muted dev mt-1 leading-tight">
+            {t('profile.sustainability_trees_caption')}
+          </div>
+        </div>
+      </div>
+      <p className="text-[12px] text-muted leading-snug">
+        {sessionsText} · {t('profile.sustainability_blurb')}
       </p>
-      <p className="text-xs text-slate-500">{t('profile.sustainability_blurb')}</p>
-    </div>
-  );
-}
-
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="rounded-md bg-white border border-slate-200 p-3">
-      <div className="text-2xl font-semibold text-brand-700">{value}</div>
-      <div className="text-xs text-slate-600 mt-1">{label}</div>
     </div>
   );
 }

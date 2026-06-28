@@ -62,6 +62,7 @@
     "trees_label": "tree-days of carbon equivalent",
     "rewards_issued_label": "Rewards issued",
     "rewards_redeemed_label": "Rewards redeemed",
+    "methodology_heading": "How we count",
     "methodology_1": "We compare consumption against a 60% typical-meal baseline. Anything finished above that counts as saved food.",
     "methodology_2": "Carbon factor: 2.5 kg CO₂e per kg of cooked food (lifecycle-inclusive, mixed Indian-meal average). One mature tree absorbs ≈ 0.06 kg CO₂e/day.",
     "generated_at": "Generated {{datetime}}",
@@ -215,6 +216,7 @@
     "sustainability_food_saved": "kg of food kept out of the bin",
     "sustainability_co2e_saved": "kg CO₂e avoided",
     "sustainability_trees_day": "≈ {{value}} tree-days of carbon",
+    "sustainability_trees_caption": "tree-days of carbon",
     "sustainability_sessions_counted": "across {{count}} meal",
     "sustainability_sessions_counted_plural": "across {{count}} meals",
     "sustainability_blurb": "We compare how much you ate to a typical restaurant baseline — anything above is food that didn't get thrown out."

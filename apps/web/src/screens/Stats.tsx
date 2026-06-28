@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { ArrowLeft, Leaf, Sparkles, Ticket, Award, BarChart3 } from 'lucide-react';
 import { api } from '../lib/api';
+import { LangToggle } from '../components/LangToggle';
 
 type Range = '30d' | '90d' | 'all';
 
@@ -39,112 +41,162 @@ export function Stats() {
   const { data, isLoading } = useQuery({
     queryKey: ['public-stats', range],
     queryFn: () => api.get<PublicStats>(`/public/stats?range=${range}`),
-    // Cache for 5 minutes — public scalars don't move fast and we
-    // don't want every page view re-running the SQL aggregate.
     staleTime: 5 * 60_000,
   });
 
   return (
-    <section className="space-y-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-brand-700">
+    <div className="d-screen flex flex-col min-h-full">
+      {/* header */}
+      <div className="px-5 pt-4 pb-2">
+        <div className="spread">
+          <Link
+            to="/"
+            className="row gap-1.5 items-center text-[13px] font-semibold text-muted hover:text-ink"
+          >
+            <ArrowLeft size={14} />
+            <span>{t('stats.back_to_home')}</span>
+          </Link>
+          <LangToggle />
+        </div>
+        <h1 className="display text-[30px] mt-3.5 leading-tight">
           {t('stats.title')}
         </h1>
-        <p className="text-slate-600 text-sm">{t('stats.subtitle')}</p>
-      </header>
-
-      <div className="flex gap-1 text-sm">
-        {RANGES.map((r) => (
-          <button
-            key={r}
-            onClick={() => setRange(r)}
-            className={`px-3 py-1 rounded-md border ${
-              r === range
-                ? 'bg-brand-600 text-white border-brand-600'
-                : 'border-slate-300 hover:border-brand-400'
-            }`}
-          >
-            {t(`stats.range.${r}`)}
-          </button>
-        ))}
+        <p className="text-sm text-muted mt-1.5 leading-snug">
+          {t('stats.subtitle')}
+        </p>
       </div>
 
-      {isLoading || !data ? (
-        <p className="text-slate-600 text-sm">{t('stats.loading')}</p>
-      ) : !data.k_anonymous ? (
-        <EmptyState
-          floor={data.k_anonymity_floor}
-          got={{
-            restaurants: data.restaurants_active,
-            sessions: data.sessions_counted,
-          }}
-          t={t}
-        />
-      ) : (
-        <>
-          <section className="rounded-2xl bg-emerald-50 border border-emerald-200 p-6 text-center space-y-1">
-            <div className="text-5xl font-bold text-emerald-900">
-              {data.kg_food_saved!.toFixed(2)}
+      <div className="px-4 pb-8 flex flex-col gap-4">
+        {/* range picker */}
+        <div className="flex gap-1.5 flex-wrap">
+          {RANGES.map((r) => {
+            const active = r === range;
+            return (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={`chip transition ${
+                  active
+                    ? 'bg-brand text-white'
+                    : 'bg-paper border border-line text-ink/80 hover:text-ink'
+                }`}
+                aria-pressed={active}
+              >
+                {t(`stats.range.${r}`)}
+              </button>
+            );
+          })}
+        </div>
+
+        {isLoading || !data ? (
+          <p className="text-muted text-sm py-8 text-center">{t('stats.loading')}</p>
+        ) : !data.k_anonymous ? (
+          <EmptyState
+            floor={data.k_anonymity_floor}
+            got={{
+              restaurants: data.restaurants_active,
+              sessions: data.sessions_counted,
+            }}
+            t={t}
+          />
+        ) : (
+          <>
+            {/* sage hero */}
+            <section className="card p-6 bg-sage-wash/40 border-sage/20 flex flex-col items-center text-center gap-2">
+              <div className="w-12 h-12 rounded-md bg-sage-wash text-sage flex items-center justify-center">
+                <Leaf size={22} />
+              </div>
+              <div className="tnum font-bold text-[56px] leading-none text-ink mt-1">
+                {data.kg_food_saved!.toFixed(2)}
+              </div>
+              <div className="text-[13px] font-semibold text-sage uppercase tracking-wide dev">
+                {t('stats.hero_unit')}
+              </div>
+              <p className="text-[12.5px] text-muted mt-1.5 max-w-[36ch]">
+                {t('stats.hero_sub', {
+                  restaurants: data.restaurants_active,
+                  sessions: data.sessions_counted,
+                })}
+              </p>
+            </section>
+
+            {/* 2x2 stat grid */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <StatTile
+                icon={<Sparkles size={14} />}
+                value={data.kg_co2e_saved!.toFixed(2)}
+                unit="kg"
+                label={t('stats.co2e_label')}
+              />
+              <StatTile
+                icon={<Leaf size={14} />}
+                value={data.trees_day_equivalent!.toFixed(1)}
+                label={t('stats.trees_label')}
+              />
+              <StatTile
+                icon={<Ticket size={14} />}
+                value={String(data.rewards_issued)}
+                label={t('stats.rewards_issued_label')}
+              />
+              <StatTile
+                icon={<Award size={14} />}
+                value={String(data.rewards_redeemed)}
+                label={t('stats.rewards_redeemed_label')}
+              />
             </div>
-            <div className="text-sm text-emerald-800">
-              {t('stats.hero_unit')}
-            </div>
-            <p className="text-xs text-emerald-800/70 pt-2">
-              {t('stats.hero_sub', {
-                restaurants: data.restaurants_active,
-                sessions: data.sessions_counted,
+
+            {/* methodology footnotes */}
+            <section className="card p-4 flex flex-col gap-2 bg-paper">
+              <div className="row gap-2 items-center text-muted">
+                <BarChart3 size={14} />
+                <span className="font-semibold text-[12px] dev uppercase tracking-wide">
+                  {t('stats.methodology_heading')}
+                </span>
+              </div>
+              <p className="text-[12px] text-muted leading-snug">
+                {t('stats.methodology_1')}
+              </p>
+              <p className="text-[12px] text-muted leading-snug">
+                {t('stats.methodology_2')}
+              </p>
+            </section>
+
+            <p className="text-[11px] text-muted/80 text-center">
+              {t('stats.generated_at', {
+                datetime: new Date(data.generated_at).toLocaleString(
+                  i18n.resolvedLanguage,
+                ),
               })}
             </p>
-          </section>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Stat
-              label={t('stats.co2e_label')}
-              value={`${data.kg_co2e_saved!.toFixed(2)} kg`}
-            />
-            <Stat
-              label={t('stats.trees_label')}
-              value={data.trees_day_equivalent!.toFixed(1)}
-            />
-            <Stat
-              label={t('stats.rewards_issued_label')}
-              value={String(data.rewards_issued)}
-            />
-            <Stat
-              label={t('stats.rewards_redeemed_label')}
-              value={String(data.rewards_redeemed)}
-            />
-          </div>
-
-          <section className="text-xs text-slate-500 space-y-1">
-            <p>{t('stats.methodology_1')}</p>
-            <p>{t('stats.methodology_2')}</p>
-          </section>
-
-          <p className="text-[10px] text-slate-400">
-            {t('stats.generated_at', {
-              datetime: new Date(data.generated_at).toLocaleString(
-                i18n.resolvedLanguage,
-              ),
-            })}
-          </p>
-        </>
-      )}
-
-      <footer className="pt-4 border-t border-slate-100 text-sm text-center">
-        <Link to="/" className="text-brand-700 hover:underline">
-          {t('stats.back_to_home')}
-        </Link>
-      </footer>
-    </section>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+interface StatTileProps {
+  icon: React.ReactNode;
+  value: string;
+  unit?: string;
+  label: string;
+}
+
+function StatTile({ icon, value, unit, label }: StatTileProps) {
   return (
-    <div className="rounded-lg bg-white border border-slate-200 p-3">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="text-xl font-semibold mt-0.5">{value}</div>
+    <div className="card-flat p-3.5 flex flex-col gap-1.5">
+      <div className="row gap-1.5 items-center text-saffron-deep">
+        {icon}
+        <span className="dev text-[11.5px] font-semibold uppercase tracking-wide">
+          {label}
+        </span>
+      </div>
+      <div className="tnum font-bold text-[24px] leading-none text-ink">
+        {value}
+        {unit && (
+          <span className="text-[14px] text-muted font-semibold ml-1">{unit}</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -157,10 +209,15 @@ interface EmptyStateProps {
 
 function EmptyState({ floor, got, t }: EmptyStateProps) {
   return (
-    <section className="rounded-lg bg-slate-50 border border-slate-200 p-4 text-sm text-slate-700 space-y-2">
-      <p className="font-medium">{t('stats.empty_title')}</p>
-      <p className="text-slate-600">{t('stats.empty_blurb')}</p>
-      <ul className="text-xs text-slate-500 list-disc pl-5">
+    <div className="empty">
+      <div className="art">
+        <BarChart3 size={32} />
+      </div>
+      <p className="font-semibold text-ink text-[15px]">{t('stats.empty_title')}</p>
+      <p className="text-[13px] text-muted mt-1.5 max-w-[40ch] leading-snug">
+        {t('stats.empty_blurb')}
+      </p>
+      <ul className="text-[12px] text-muted mt-3 flex flex-col gap-1">
         <li>
           {t('stats.empty_progress_restaurants', {
             got: got.restaurants,
@@ -174,6 +231,6 @@ function EmptyState({ floor, got, t }: EmptyStateProps) {
           })}
         </li>
       </ul>
-    </section>
+    </div>
   );
 }

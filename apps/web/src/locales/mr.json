@@ -62,6 +62,7 @@
     "trees_label": "झाड-दिवसांच्या इतका कार्बन",
     "rewards_issued_label": "रिवॉर्ड दिले",
     "rewards_redeemed_label": "रिवॉर्ड रिडीम",
+    "methodology_heading": "आम्ही कसं मोजतो",
     "methodology_1": "आम्ही खपताची तुलना सामान्य जेवणाच्या 60% सरासरीशी करतो. त्याच्या वर जे आहे ते वाचलेलं अन्न.",
     "methodology_2": "कार्बन फॅक्टर: 2.5 kg CO₂e प्रति kg शिजवलेलं अन्न (जीवनचक्र-सहित, मिश्र भारतीय जेवण सरासरी). एक प्रौढ झाड ≈ 0.06 kg CO₂e/दिवस शोषतं.",
     "generated_at": "तयार केलं {{datetime}}",
@@ -215,6 +216,7 @@
     "sustainability_food_saved": "kg अन्न कचऱ्यापासून वाचलं",
     "sustainability_co2e_saved": "kg CO₂e वाचवला",
     "sustainability_trees_day": "≈ {{value}} झाड-दिवसांच्या इतका कार्बन",
+    "sustainability_trees_caption": "झाड-दिवसांच्या इतका कार्बन",
     "sustainability_sessions_counted": "{{count}} जेवणात",
     "sustainability_sessions_counted_plural": "{{count}} जेवणांत",
     "sustainability_blurb": "तुम्ही किती खाल्लं ते सर्वसामान्य रेस्टॉरंट सरासरीशी तुलना करतो — त्याच्या वर जे आहे ते अन्न कचऱ्यात गेलं नाही."

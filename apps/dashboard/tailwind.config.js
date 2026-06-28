@@ -47,6 +47,7 @@ export default {
         's-rail': 'hsl(213 30% 13%)',
         amber: {
           DEFAULT: 'hsl(38 92% 47%)',
+          deep: 'hsl(28 80% 36%)',
           wash: 'hsl(40 92% 94%)',
         },
         danger: {

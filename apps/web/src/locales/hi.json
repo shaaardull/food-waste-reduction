@@ -62,6 +62,7 @@
     "trees_label": "पेड़-दिनों के बराबर कार्बन",
     "rewards_issued_label": "रिवॉर्ड जारी",
     "rewards_redeemed_label": "रिवॉर्ड रिडीम",
+    "methodology_heading": "हम कैसे गिनते हैं",
     "methodology_1": "हम खपत की तुलना सामान्य भोजन के 60% औसत से करते हैं। उसके ऊपर जो भी है, वह बचाया गया खाना है।",
     "methodology_2": "कार्बन फ़ैक्टर: 2.5 kg CO₂e प्रति kg पका हुआ खाना (जीवनचक्र-सहित, मिश्रित भारतीय भोजन औसत)। एक परिपक्व पेड़ ≈ 0.06 kg CO₂e/दिन सोखता है।",
     "generated_at": "तैयार किया गया {{datetime}}",
@@ -215,6 +216,7 @@
     "sustainability_food_saved": "kg खाना कूड़े से बचा",
     "sustainability_co2e_saved": "kg CO₂e बचा",
     "sustainability_trees_day": "≈ {{value}} पेड़-दिनों के बराबर कार्बन",
+    "sustainability_trees_caption": "पेड़-दिनों के बराबर कार्बन",
     "sustainability_sessions_counted": "{{count}} भोजन में",
     "sustainability_sessions_counted_plural": "{{count}} भोजनों में",
     "sustainability_blurb": "हम तुलना करते हैं कि आपने कितना खाया बनाम एक सामान्य रेस्टोरेंट औसत — उसके ऊपर जो भी है, वही खाना कूड़े से बच गया।"
