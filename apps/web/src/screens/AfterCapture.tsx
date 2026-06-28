@@ -9,6 +9,7 @@ export function AfterCapture() {
     <Capture
       sessionId={id}
       phase="after"
+      step={2}
       title={t('capture.after_title')}
       blurb={t('capture.after_blurb')}
       nextPath={`/sessions/${id}`}

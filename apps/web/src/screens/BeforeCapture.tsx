@@ -9,6 +9,7 @@ export function BeforeCapture() {
     <Capture
       sessionId={id}
       phase="before"
+      step={1}
       title={t('capture.before_title')}
       blurb={t('capture.before_blurb')}
       nextPath={`/sessions/${id}`}
