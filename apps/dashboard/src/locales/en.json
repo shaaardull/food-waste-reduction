@@ -109,7 +109,9 @@
     "no_signals": "No fraud signals flagged.",
     "decision_form": "Decision",
     "score_low": "less finished",
-    "score_high": "more finished"
+    "score_high": "more finished",
+    "grant_reward": "Grant reward",
+    "grant_reward_note": "Staff manual grant — overrides vision score."
   },
   "reason_code": {
     "plate_not_clean_enough": "plate not clean enough",

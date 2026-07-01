@@ -14,7 +14,10 @@ const FRONT_DOOR_ROUTES = new Set(['/', '/login', '/quick-start', '/stats']);
 export function App() {
   const { t } = useTranslation();
   const loc = useLocation();
-  const user = useAuthStore((s) => s.user);
+  // We key the nav off `token` (not `user`) so anonymous quick-start
+  // diners — who have a JWT but no full user row — still see Rewards
+  // and Profile on every screen they can reach post-scan.
+  const token = useAuthStore((s) => s.token);
   const activeRestaurant = useAuthStore((s) => s.activeRestaurant);
   useApplyTheme(activeRestaurant);
 
@@ -39,7 +42,7 @@ export function App() {
               <span>{activeRestaurant?.name ?? t('app.name')}</span>
             </Link>
             <nav className="flex gap-3 text-sm">
-              {user ? (
+              {token ? (
                 <>
                   <Link to="/rewards" className="hover:underline">
                     {t('app.nav.rewards')}

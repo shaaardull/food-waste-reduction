@@ -12,6 +12,7 @@ import {
   Sliders,
   X,
   Flag,
+  Gift,
   GripVertical,
   StickyNote,
   ClipboardList,
@@ -20,6 +21,7 @@ import { clsx } from 'clsx';
 import { api } from '../lib/api';
 import type { ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
+import { useValidationDrafts } from '../lib/validationDrafts';
 
 interface Bundle {
   session_id: string;
@@ -54,7 +56,7 @@ const REASON_CODES = [
   'other',
 ] as const;
 
-type Decision = 'approved' | 'adjusted' | 'rejected' | 'escalated';
+type Decision = 'approved' | 'adjusted' | 'rejected' | 'escalated' | 'grant';
 
 /**
  * ValidationDetail — the staff "approve/adjust/reject/escalate" screen.
@@ -76,11 +78,35 @@ export function ValidationDetail() {
   const queryClient = useQueryClient();
   const token = useAuthStore((s) => s.token);
 
-  const [adjustedScore, setAdjustedScore] = useState<number | null>(null);
-  const [reason, setReason] = useState<string>('plate_not_clean_enough');
-  const [notes, setNotes] = useState<string>('');
+  // Draft store: keeps this session's form fields alive across route
+  // changes so a half-filled review isn't lost if the staff member
+  // hops away to Redeem or Analytics and back.
+  const drafts = useValidationDrafts();
+  const initialDraft = drafts.getDraft(sessionId);
+  const [adjustedScore, setAdjustedScoreState] = useState<number | null>(
+    initialDraft?.adjustedScore ?? null,
+  );
+  const [reason, setReasonState] = useState<string>(
+    initialDraft?.reason ?? 'plate_not_clean_enough',
+  );
+  const [notes, setNotesState] = useState<string>(initialDraft?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Decision | null>(null);
+
+  // Wrap setters so every change funnels into the draft store, keyed
+  // by sessionId. No debounce needed — the store is in-process.
+  function setAdjustedScore(next: number | null) {
+    setAdjustedScoreState(next);
+    drafts.setDraft(sessionId, { adjustedScore: next });
+  }
+  function setReason(next: string) {
+    setReasonState(next);
+    drafts.setDraft(sessionId, { reason: next });
+  }
+  function setNotes(next: string) {
+    setNotesState(next);
+    drafts.setDraft(sessionId, { notes: next });
+  }
 
   const { data: bundle, isLoading } = useQuery({
     queryKey: ['bundle', sessionId],
@@ -95,6 +121,8 @@ export function ValidationDetail() {
       notes?: string;
     }) => api.post(`/sessions/${sessionId}/validate`, body, token),
     onSuccess: () => {
+      // Decision recorded — draft is no longer needed.
+      drafts.clearDraft(sessionId);
       queryClient.invalidateQueries({ queryKey: ['pending'] });
       navigate('/validations');
     },
@@ -136,6 +164,7 @@ export function ValidationDetail() {
         token,
       )
       .then(() => {
+        drafts.clearDraft(sessionId);
         queryClient.invalidateQueries({ queryKey: ['pending'] });
         navigate('/validations');
       })
@@ -143,6 +172,28 @@ export function ValidationDetail() {
         setError(err.message);
         setPending(null);
       });
+  }
+
+  /**
+   * Staff override — grant the reward regardless of what the vision
+   * model saw. Implemented on top of the existing "adjusted" decision
+   * with `final_score = 1.0`, which clears any reasonable reward-rule
+   * threshold (§8 rule 1 caps it at 0.95). Reason falls back to
+   * `other` since the reason-code set doesn't include a bespoke
+   * "manual grant" entry; the staff note carries the intent.
+   */
+  function grantReward() {
+    setError(null);
+    setPending('grant');
+    const grantNotes = notes
+      ? `${t('detail.grant_reward_note')} · ${notes}`
+      : t('detail.grant_reward_note');
+    mutate.mutate({
+      decision: 'adjusted',
+      final_score: 1.0,
+      reason_code: 'other',
+      notes: grantNotes,
+    });
   }
 
   const busy = mutate.isPending || pending !== null;
@@ -355,7 +406,7 @@ export function ValidationDetail() {
 
       {/* sticky action bar */}
       <div className="fixed bottom-0 left-[228px] right-0 z-30 px-6 py-3 bg-s-paper/95 backdrop-blur border-t border-s-line">
-        <div className="max-w-screen-xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <div className="max-w-screen-xl mx-auto grid grid-cols-2 lg:grid-cols-5 gap-2">
           <DecisionButton
             tone="brand"
             icon={<Check size={16} />}
@@ -363,6 +414,15 @@ export function ValidationDetail() {
             loading={pending === 'approved'}
             disabled={busy}
             onClick={() => decide('approved')}
+          />
+          {/* Manual override — grants a reward regardless of vision score. */}
+          <DecisionButton
+            tone="sage"
+            icon={<Gift size={16} />}
+            label={t('detail.grant_reward')}
+            loading={pending === 'grant'}
+            disabled={busy}
+            onClick={grantReward}
           />
           <DecisionButton
             tone="saffron"
@@ -478,7 +538,7 @@ function CompareSlider({
 /* ----- decision button -------------------------------------------- */
 
 interface DecisionButtonProps {
-  tone: 'brand' | 'saffron' | 'danger' | 'amber';
+  tone: 'brand' | 'sage' | 'saffron' | 'danger' | 'amber';
   icon: ReactNode;
   label: string;
   loading: boolean;
@@ -497,11 +557,13 @@ function DecisionButton({
   const cls =
     tone === 'brand'
       ? 'bg-brand text-white hover:bg-brand-press'
-      : tone === 'saffron'
-        ? 'bg-saffron text-[#3a2410] hover:bg-saffron-deep hover:text-white'
-        : tone === 'danger'
-          ? 'bg-danger-wash text-danger border border-danger/30 hover:bg-danger hover:text-white'
-          : 'bg-amber-wash text-amber-deep border border-amber/30 hover:bg-amber hover:text-white';
+      : tone === 'sage'
+        ? 'bg-sage-wash text-sage border border-sage/30 hover:bg-sage hover:text-white'
+        : tone === 'saffron'
+          ? 'bg-saffron text-[#3a2410] hover:bg-saffron-deep hover:text-white'
+          : tone === 'danger'
+            ? 'bg-danger-wash text-danger border border-danger/30 hover:bg-danger hover:text-white'
+            : 'bg-amber-wash text-amber-deep border border-amber/30 hover:bg-amber hover:text-white';
   return (
     <button
       onClick={onClick}

@@ -88,7 +88,21 @@ export function SessionStatus() {
       </div>
 
       <div className="px-4 pb-6 flex-1 flex flex-col gap-4">
-        {status === 'open' && (
+        {status === 'open' && data.items.length > 0 && (
+          // Order placed — food is on the way. The before-photo CTA is
+          // voluntary so the diner isn't yanked into the camera before
+          // the plates land.
+          <StateCard
+            tone="brand"
+            icon={<Utensils size={22} />}
+            heading={t('session_status.waiting_for_food_heading')}
+            blurb={t('session_status.waiting_for_food_blurb')}
+            ctaHref={`/sessions/${id}/before`}
+            ctaLabel={t('session_status.take_before')}
+          />
+        )}
+
+        {status === 'open' && data.items.length === 0 && (
           <StateCard
             tone="brand"
             icon={<Camera size={22} />}

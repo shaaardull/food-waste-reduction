@@ -144,6 +144,8 @@
     "title": "Your meal",
     "status_label": "Status",
     "take_before": "Take the before photo",
+    "waiting_for_food_heading": "Your order is on the way",
+    "waiting_for_food_blurb": "Relax — no rush. When the plates arrive at your table, tap below and snap the before photo.",
     "between_meals_hint": "Enjoy your meal. When you're ready to pay, come back here.",
     "claim_after": "Claim — take the after photo",
     "review_heading": "Your server is reviewing — usually under a minute.",

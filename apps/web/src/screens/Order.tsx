@@ -121,7 +121,11 @@ export function Order() {
         { items: Object.values(lines) },
         token,
       );
-      navigate(`/sessions/${sessionId}/before`);
+      // Don't force the camera open — the diner hasn't eaten yet.
+      // Land on the session-status page which shows a "food is on
+      // the way" state with a voluntary "Take before photo" CTA they
+      // tap when the plates arrive.
+      navigate(`/sessions/${sessionId}`);
     } catch (err) {
       if (err instanceof ApiException) setError(err.message);
     } finally {

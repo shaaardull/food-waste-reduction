@@ -109,7 +109,9 @@
     "no_signals": "कोणतेही फसवणूक संकेत नाहीत.",
     "decision_form": "निर्णय",
     "score_low": "कमी संपवलं",
-    "score_high": "जास्त संपवलं"
+    "score_high": "जास्त संपवलं",
+    "grant_reward": "रिवॉर्ड द्या",
+    "grant_reward_note": "स्टाफ मॅन्युअल ग्रँट — व्हिजन स्कोअर बाजूला ठेवला."
   },
   "reason_code": {
     "plate_not_clean_enough": "ताट पुरेसं साफ नाही",

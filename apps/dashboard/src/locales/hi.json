@@ -109,7 +109,9 @@
     "no_signals": "कोई धोखाधड़ी संकेत नहीं।",
     "decision_form": "निर्णय",
     "score_low": "कम ख़त्म",
-    "score_high": "ज़्यादा ख़त्म"
+    "score_high": "ज़्यादा ख़त्म",
+    "grant_reward": "रिवॉर्ड दें",
+    "grant_reward_note": "स्टाफ़ मैनुअल ग्रांट — विज़न स्कोर को नज़रअंदाज़ किया।"
   },
   "reason_code": {
     "plate_not_clean_enough": "थाली पर्याप्त साफ़ नहीं",
