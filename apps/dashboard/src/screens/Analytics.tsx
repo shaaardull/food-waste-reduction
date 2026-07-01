@@ -2,6 +2,18 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import {
+  Leaf,
+  Download,
+  Sparkles,
+  Clock,
+  Sliders,
+  ShieldAlert,
+  Utensils,
+  Check,
+  TrendingUp,
+} from 'lucide-react';
+import { clsx } from 'clsx';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
@@ -90,12 +102,6 @@ export function Analytics() {
     refetchInterval: 60_000,
   });
 
-  /**
-   * Fetch the PDF as a blob and trigger a browser download. Bypasses
-   * api.ts because that helper auto-parses JSON; we need raw bytes
-   * here. Uses a temporary <a download="..."> so the filename comes
-   * from the server's Content-Disposition (or the fallback below).
-   */
   async function downloadPdf() {
     if (!restaurantId || !token || downloading) return;
     setDownloading(true);
@@ -108,7 +114,6 @@ export function Analytics() {
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
-      // Pull filename from Content-Disposition if present.
       const cd = res.headers.get('Content-Disposition') ?? '';
       const match = /filename="([^"]+)"/.exec(cd);
       const filename = match?.[1] ?? `plate-clean-sustainability-${range}.pdf`;
@@ -130,66 +135,93 @@ export function Analytics() {
   }
 
   if (!restaurantId)
-    return <p className="text-slate-600">{t('analytics.pick_restaurant')}</p>;
-  if (isLoading || !data)
-    return <p className="text-slate-600">{t('analytics.loading')}</p>;
+    return <p className="text-s-muted text-sm">{t('analytics.pick_restaurant')}</p>;
+  if (isLoading || !data) {
+    return <p className="text-s-muted text-sm">{t('analytics.loading')}</p>;
+  }
 
   const totals = data.totals;
 
   return (
-    <section className="space-y-4">
-      <header className="flex items-baseline justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-semibold">{t('analytics.title')}</h1>
-        <div className="flex items-center gap-3 text-sm">
-          <div className="flex gap-1">
-            {RANGES.map((r) => (
-              <button
-                key={r}
-                onClick={() => setRange(r)}
-                className={`px-3 py-1 rounded-md border ${
-                  r === range
-                    ? 'bg-brand-600 text-white border-brand-600'
-                    : 'border-slate-300 hover:border-brand-400'
-                }`}
-              >
-                {t(`analytics.range.${r}`)}
-              </button>
-            ))}
+    <section className="flex flex-col gap-4">
+      <header className="flex flex-col gap-2">
+        <div className="row spread items-end flex-wrap gap-2">
+          <div>
+            <div className="text-[12px] font-semibold text-s-muted dev uppercase tracking-wide">
+              {t('app.nav.analytics')}
+            </div>
+            <h1 className="display text-[28px] text-s-ink leading-tight">
+              {t('analytics.title')}
+            </h1>
           </div>
-          <button
-            onClick={downloadPdf}
-            disabled={downloading}
-            className="px-3 py-1 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
-            title={t('analytics.pdf.download_hint') ?? undefined}
-          >
-            {downloading ? t('analytics.pdf.downloading') : t('analytics.pdf.download')}
-          </button>
+          <div className="row gap-2 flex-wrap">
+            <div className="row gap-1.5">
+              {RANGES.map((r) => {
+                const active = r === range;
+                return (
+                  <button
+                    key={r}
+                    onClick={() => setRange(r)}
+                    className={clsx(
+                      'chip transition',
+                      active
+                        ? 'bg-brand text-white'
+                        : 'bg-s-paper border border-s-line text-s-muted hover:text-s-ink',
+                    )}
+                    aria-pressed={active}
+                  >
+                    {t(`analytics.range.${r}`)}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={downloadPdf}
+              disabled={downloading}
+              className="row gap-1.5 items-center chip bg-sage-wash text-sage hover:bg-sage hover:text-white transition disabled:opacity-50"
+              title={t('analytics.pdf.download_hint') ?? undefined}
+            >
+              <Download size={12} />
+              {downloading ? t('analytics.pdf.downloading') : t('analytics.pdf.download')}
+            </button>
+          </div>
         </div>
+        <p className="text-[12.5px] text-s-muted">{t('analytics.blurb')}</p>
       </header>
+
       {downloadError && (
-        <p className="text-xs text-red-700">
+        <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
           {t('analytics.pdf.download_error')}: {downloadError}
         </p>
       )}
 
-      <p className="text-xs text-slate-500">{t('analytics.blurb')}</p>
-
-      {/* Top-line cards */}
+      {/* top-line stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label={t('analytics.stat.sessions')} value={String(totals.sessions)} />
-        <Stat
+        <StatCard
+          icon={<TrendingUp size={14} />}
+          tone="info"
+          label={t('analytics.stat.sessions')}
+          value={String(totals.sessions)}
+        />
+        <StatCard
+          icon={<Check size={14} />}
+          tone="sage"
           label={t('analytics.stat.approval_rate')}
           value={pct(data.rates.approval_rate)}
           caption={t('analytics.stat.decided_n', { count: totals.decided })}
         />
-        <Stat
+        <StatCard
+          icon={<Sparkles size={14} />}
+          tone="saffron"
           label={t('analytics.stat.rewards_issued')}
           value={String(totals.rewards_issued)}
           caption={t('analytics.stat.redemption_rate', {
             rate: pct(data.rates.redemption_rate),
           })}
         />
-        <Stat
+        <StatCard
+          icon={<Sliders size={14} />}
+          tone="brand"
           label={t('analytics.stat.avg_score')}
           value={fmtScore(data.avg_final_score)}
           caption={t('analytics.stat.pending_n', {
@@ -198,179 +230,239 @@ export function Analytics() {
         />
       </div>
 
-      {/* Decision time + decision mix */}
+      {/* decision-time + decision-mix */}
       <div className="grid md:grid-cols-2 gap-3">
-        <section className="rounded-lg bg-white border border-slate-200 p-3 text-sm">
-          <h2 className="font-medium mb-2">{t('analytics.decision_time.heading')}</h2>
-          <dl className="space-y-1 text-slate-700">
-            <Pair
-              term={t('analytics.decision_time.p50')}
-              value={fmtMs(data.decision_latency_ms.p50)}
-            />
-            <Pair
-              term={t('analytics.decision_time.p95')}
-              value={fmtMs(data.decision_latency_ms.p95)}
-            />
-            <Pair
-              term={t('analytics.decision_time.n')}
-              value={String(data.decision_latency_ms.count)}
-            />
-          </dl>
-        </section>
+        <Section icon={<Clock size={14} />} label={t('analytics.decision_time.heading')}>
+          <Pair
+            term={t('analytics.decision_time.p50')}
+            value={fmtMs(data.decision_latency_ms.p50)}
+          />
+          <Pair
+            term={t('analytics.decision_time.p95')}
+            value={fmtMs(data.decision_latency_ms.p95)}
+          />
+          <Pair
+            term={t('analytics.decision_time.n')}
+            value={String(data.decision_latency_ms.count)}
+          />
+        </Section>
 
-        <section className="rounded-lg bg-white border border-slate-200 p-3 text-sm">
-          <h2 className="font-medium mb-2">{t('analytics.decision_mix.heading')}</h2>
-          <dl className="space-y-1 text-slate-700">
-            <Pair
-              term={t('analytics.decision_mix.approved')}
-              value={String(totals.approved)}
-            />
-            <Pair
-              term={t('analytics.decision_mix.adjusted')}
-              value={String(totals.adjusted)}
-            />
-            <Pair
-              term={t('analytics.decision_mix.rejected')}
-              value={String(totals.rejected)}
-            />
-          </dl>
-        </section>
+        <Section icon={<Sliders size={14} />} label={t('analytics.decision_mix.heading')}>
+          <Pair
+            term={t('analytics.decision_mix.approved')}
+            value={String(totals.approved)}
+            accent="sage"
+          />
+          <Pair
+            term={t('analytics.decision_mix.adjusted')}
+            value={String(totals.adjusted)}
+            accent="amber"
+          />
+          <Pair
+            term={t('analytics.decision_mix.rejected')}
+            value={String(totals.rejected)}
+            accent="danger"
+          />
+        </Section>
       </div>
 
-      {/* Sustainability */}
-      <section className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm">
-        <h2 className="font-medium text-emerald-900 mb-1">
-          {t('analytics.sustainability.heading')}
-        </h2>
-        <p className="text-xs text-emerald-800/80 mb-2">
-          {t('analytics.sustainability.blurb')}
-        </p>
-        <div className="grid grid-cols-3 gap-2">
-          <Stat
-            label={t('analytics.sustainability.kg_food_saved')}
+      {/* sustainability hero */}
+      <section className="card p-5 bg-sage-wash/40 border-sage/20 flex flex-col gap-4">
+        <div className="row gap-2.5 items-center">
+          <div className="w-10 h-10 rounded-md bg-sage-wash text-sage flex items-center justify-center">
+            <Leaf size={18} />
+          </div>
+          <div>
+            <div className="font-semibold text-[15px] text-sage">
+              {t('analytics.sustainability.heading')}
+            </div>
+            <p className="text-[12px] text-s-muted leading-snug">
+              {t('analytics.sustainability.blurb')}
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2.5">
+          <SustainabilityTile
             value={data.sustainability.kg_food_saved.toFixed(2)}
-            kind="green"
+            label={t('analytics.sustainability.kg_food_saved')}
           />
-          <Stat
-            label={t('analytics.sustainability.kg_co2e_saved')}
+          <SustainabilityTile
             value={data.sustainability.kg_co2e_saved.toFixed(2)}
-            kind="green"
+            label={t('analytics.sustainability.kg_co2e_saved')}
           />
-          <Stat
-            label={t('analytics.sustainability.trees_day')}
+          <SustainabilityTile
             value={data.sustainability.trees_day_equivalent.toFixed(1)}
-            kind="green"
+            label={t('analytics.sustainability.trees_day')}
           />
         </div>
       </section>
 
-      {/* Top dishes */}
-      <section className="rounded-lg bg-white border border-slate-200 p-3 text-sm">
-        <h2 className="font-medium mb-2">{t('analytics.top_dishes.heading')}</h2>
+      {/* top dishes */}
+      <Section icon={<Utensils size={14} />} label={t('analytics.top_dishes.heading')}>
         {data.top_dishes.length === 0 ? (
-          <p className="text-slate-500 text-xs">{t('analytics.top_dishes.empty')}</p>
+          <p className="text-[13px] text-s-muted">{t('analytics.top_dishes.empty')}</p>
         ) : (
-          <table className="w-full text-left">
-            <thead className="text-xs text-slate-500">
-              <tr>
-                <th className="font-normal py-1">{t('analytics.top_dishes.dish')}</th>
-                <th className="font-normal py-1">
-                  {t('analytics.top_dishes.category')}
-                </th>
-                <th className="font-normal py-1 text-right">
-                  {t('analytics.top_dishes.orders')}
-                </th>
-                <th className="font-normal py-1 text-right">
-                  {t('analytics.top_dishes.avg_score')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.top_dishes.map((d) => (
-                <tr key={d.menu_item_id} className="border-t border-slate-100">
-                  <td className="py-1">{d.name}</td>
-                  <td className="py-1 text-slate-600">{d.category ?? '—'}</td>
-                  <td className="py-1 text-right">{d.orders}</td>
-                  <td className="py-1 text-right">{Math.round(d.avg_final_score * 100)}%</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="text-[11px] text-s-muted dev uppercase tracking-wide">
+                  <th className="text-left py-1.5 font-semibold">
+                    {t('analytics.top_dishes.dish')}
+                  </th>
+                  <th className="text-left py-1.5 font-semibold">
+                    {t('analytics.top_dishes.category')}
+                  </th>
+                  <th className="text-right py-1.5 font-semibold">
+                    {t('analytics.top_dishes.orders')}
+                  </th>
+                  <th className="text-right py-1.5 font-semibold">
+                    {t('analytics.top_dishes.avg_score')}
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.top_dishes.map((d) => (
+                  <tr key={d.menu_item_id} className="border-t border-s-line">
+                    <td className="py-1.5 text-s-ink">{d.name}</td>
+                    <td className="py-1.5 text-s-muted capitalize">
+                      {d.category ?? '—'}
+                    </td>
+                    <td className="py-1.5 text-right tnum">{d.orders}</td>
+                    <td className="py-1.5 text-right tnum">
+                      {Math.round(d.avg_final_score * 100)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </section>
+      </Section>
 
-      {/* Fraud signals */}
-      <section className="rounded-lg bg-white border border-slate-200 p-3 text-sm">
-        <h2 className="font-medium mb-2">{t('analytics.fraud.heading')}</h2>
+      {/* fraud signals */}
+      <Section icon={<ShieldAlert size={14} />} label={t('analytics.fraud.heading')}>
         {data.fraud_signals.length === 0 ? (
-          <p className="text-slate-500 text-xs">{t('analytics.fraud.empty')}</p>
+          <p className="text-[13px] text-s-muted">{t('analytics.fraud.empty')}</p>
         ) : (
-          <ul className="space-y-1">
+          <ul className="flex flex-col gap-1.5">
             {data.fraud_signals.map((f) => (
               <li
                 key={f.signal_type}
-                className="flex items-baseline justify-between border-t border-slate-100 pt-1 text-xs"
+                className="row spread items-baseline border-t border-s-line/60 pt-1.5 first:border-t-0 first:pt-0 text-[12.5px]"
               >
-                <span>{f.signal_type}</span>
-                <span className="text-slate-600">
+                <span className="text-s-ink">{f.signal_type}</span>
+                <span className="row gap-2 items-baseline">
                   {f.severity_counts.block > 0 && (
-                    <span className="text-red-700 mr-2">
+                    <span className="chip chip-danger">
                       {t('analytics.fraud.severity.block', {
                         count: f.severity_counts.block,
                       })}
                     </span>
                   )}
                   {f.severity_counts.warning > 0 && (
-                    <span className="text-amber-700 mr-2">
+                    <span className="chip chip-amber">
                       {t('analytics.fraud.severity.warning', {
                         count: f.severity_counts.warning,
                       })}
                     </span>
                   )}
                   {f.severity_counts.info > 0 && (
-                    <span className="text-slate-500 mr-2">
+                    <span className="chip chip-muted">
                       {t('analytics.fraud.severity.info', {
                         count: f.severity_counts.info,
                       })}
                     </span>
                   )}
-                  <span className="font-mono">{f.total}</span>
+                  <span className="tnum font-bold text-s-ink">{f.total}</span>
                 </span>
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Section>
     </section>
   );
 }
 
-interface StatProps {
+/* ----- pieces ----------------------------------------------------- */
+
+interface StatCardProps {
+  icon: React.ReactNode;
+  tone: 'info' | 'sage' | 'saffron' | 'brand';
   label: string;
   value: string;
   caption?: string;
-  kind?: 'default' | 'green';
 }
 
-function Stat({ label, value, caption, kind = 'default' }: StatProps) {
-  const bg =
-    kind === 'green'
-      ? 'bg-emerald-100 border-emerald-200 text-emerald-900'
-      : 'bg-white border-slate-200 text-slate-900';
+function StatCard({ icon, tone, label, value, caption }: StatCardProps) {
+  const accent =
+    tone === 'sage'
+      ? 'text-sage'
+      : tone === 'saffron'
+        ? 'text-saffron-deep'
+        : tone === 'info'
+          ? 'text-info'
+          : 'text-brand';
   return (
-    <div className={`rounded-lg border p-3 ${bg}`}>
-      <div className="text-xs opacity-75">{label}</div>
-      <div className="text-2xl font-semibold leading-tight">{value}</div>
-      {caption && <div className="text-xs opacity-75 mt-0.5">{caption}</div>}
+    <div className="stat flex flex-col gap-1.5">
+      <div className={`row gap-1.5 items-center ${accent}`}>
+        {icon}
+        <span className="k dev uppercase tracking-wide">{label}</span>
+      </div>
+      <div className="v tnum">{value}</div>
+      {caption && <div className="text-[11.5px] text-s-muted dev">{caption}</div>}
     </div>
   );
 }
 
-function Pair({ term, value }: { term: string; value: string }) {
+interface SectionProps {
+  icon: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+}
+
+function Section({ icon, label, children }: SectionProps) {
   return (
-    <div className="flex justify-between">
-      <dt className="text-slate-500">{term}</dt>
-      <dd>{value}</dd>
+    <section className="bg-s-paper border border-s-line rounded-lg p-4 flex flex-col gap-2">
+      <div className="row gap-2 items-center text-s-muted">
+        {icon}
+        <span className="font-semibold text-[12px] dev uppercase tracking-wide">
+          {label}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">{children}</div>
+    </section>
+  );
+}
+
+interface PairProps {
+  term: string;
+  value: string;
+  accent?: 'sage' | 'amber' | 'danger';
+}
+
+function Pair({ term, value, accent }: PairProps) {
+  const cls =
+    accent === 'sage'
+      ? 'text-sage'
+      : accent === 'amber'
+        ? 'text-amber-deep'
+        : accent === 'danger'
+          ? 'text-danger'
+          : 'text-s-ink';
+  return (
+    <div className="row spread items-baseline py-0.5 text-[13px]">
+      <span className="text-s-muted">{term}</span>
+      <span className={`tnum font-bold ${cls}`}>{value}</span>
+    </div>
+  );
+}
+
+function SustainabilityTile({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="rounded-md bg-paper border border-line p-3">
+      <div className="tnum font-bold text-[22px] text-ink leading-none">{value}</div>
+      <div className="text-[11.5px] text-muted dev mt-1 leading-tight">{label}</div>
     </div>
   );
 }

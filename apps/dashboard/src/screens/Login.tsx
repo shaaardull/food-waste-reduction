@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
+import { Building2, Lock, Mail } from 'lucide-react';
 import type { Restaurant } from '@plate-clean/shared-types';
-import { api, ApiException } from '../lib/api';
+import { api } from '../lib/api';
+import type { ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
+/**
+ * Staff sign-in. Picks the restaurant on the same screen so the rail
+ * has a context to render against the moment the user lands.
+ */
 export function Login() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -48,7 +54,7 @@ export function Login() {
       }
       navigate('/validations');
     } catch (err) {
-      if (err instanceof ApiException) setError(err.message);
+      if ((err as ApiException).message) setError((err as ApiException).message);
       else setError(t('login.generic_error'));
     } finally {
       setBusy(false);
@@ -56,35 +62,45 @@ export function Login() {
   }
 
   return (
-    <section className="max-w-md mx-auto space-y-4">
-      <h1 className="text-xl font-semibold">{t('login.title')}</h1>
-      <form onSubmit={submit} className="space-y-3">
-        <label className="block">
-          <span className="text-sm text-slate-600">{t('login.email')}</span>
+    <section className="max-w-md mx-auto pt-8 flex flex-col gap-5">
+      <header className="text-center">
+        <div className="text-[12px] font-semibold text-s-muted dev uppercase tracking-wide">
+          {t('app.name_staff')}
+        </div>
+        <h1 className="display text-[32px] text-s-ink leading-tight mt-1">
+          {t('login.title')}
+        </h1>
+      </header>
+
+      <form
+        onSubmit={submit}
+        className="bg-s-paper border border-s-line rounded-lg p-5 flex flex-col gap-4"
+      >
+        <FormField icon={<Mail size={14} />} label={t('login.email')}>
           <input
             required
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="input"
+            autoComplete="email"
           />
-        </label>
-        <label className="block">
-          <span className="text-sm text-slate-600">{t('login.password')}</span>
+        </FormField>
+        <FormField icon={<Lock size={14} />} label={t('login.password')}>
           <input
             required
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="input"
+            autoComplete="current-password"
           />
-        </label>
-        <label className="block">
-          <span className="text-sm text-slate-600">{t('login.restaurant')}</span>
+        </FormField>
+        <FormField icon={<Building2 size={14} />} label={t('login.restaurant')}>
           <select
             value={chosen}
             onChange={(e) => setChosen(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            className="input"
           >
             {restaurants.map((r) => (
               <option key={r.id} value={r.id}>
@@ -92,29 +108,52 @@ export function Login() {
               </option>
             ))}
           </select>
-        </label>
-        {error && <p className="text-sm text-red-700">{error}</p>}
+        </FormField>
+        {error && (
+          <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
+            {error}
+          </p>
+        )}
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-md bg-brand-600 hover:bg-brand-700 text-white py-2 font-medium disabled:opacity-50"
+          className="btn btn-primary btn-block min-h-[48px]"
         >
           {busy ? t('login.working') : t('login.submit')}
         </button>
       </form>
-      <p className="text-sm text-slate-600 text-center pt-2 border-t border-slate-100">
+
+      <p className="text-sm text-s-muted text-center pt-1">
         <Trans
           i18nKey="login.onboard_link"
           components={{
             l: (
               <Link
                 to="/onboard"
-                className="text-brand-700 hover:underline font-medium"
+                className="text-brand font-semibold hover:underline"
               />
             ),
           }}
         />
       </p>
     </section>
+  );
+}
+
+interface FieldProps {
+  icon: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+}
+
+function FormField({ icon, label, children }: FieldProps) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="row gap-1.5 items-center text-[12.5px] font-semibold text-s-ink">
+        <span className="text-s-muted">{icon}</span>
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }

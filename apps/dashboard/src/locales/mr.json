@@ -142,7 +142,9 @@
     "already_redeemed_amount": "{{when}} ला {{amount}} साठी रिडीम झालं.",
     "voided": "रद्द केलं.",
     "expired": "संपलं.",
-    "mark_redeemed": "रिडीम म्हणून नोंदवा ({{amount}})"
+    "mark_redeemed": "रिडीम म्हणून नोंदवा ({{amount}})",
+    "status_ready": "तयार",
+    "status_used": "वापरलं"
   },
   "admin": {
     "title": "रेस्टॉरंट जोडा",

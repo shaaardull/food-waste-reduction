@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { User, Building2 } from 'lucide-react';
 import type { Restaurant } from '@plate-clean/shared-types';
-import { api, ApiException } from '../lib/api';
+import { api } from '../lib/api';
+import type { ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
 interface OnboardResponse {
@@ -77,11 +79,9 @@ export function Onboard() {
       setAuth(res.user, res.token);
       setRestaurantId(res.restaurant.id);
       setActiveRestaurant(res.restaurant);
-      // Drop the new owner into the existing AdminOnboard wizard so
-      // they can add menu items + reward rule + invite more staff.
       navigate(`/onboard/${res.restaurant.id}/setup`);
     } catch (err) {
-      if (err instanceof ApiException) setError(err.message);
+      if ((err as ApiException).message) setError((err as ApiException).message);
       else setError(t('onboard.error_generic'));
     } finally {
       setBusy(false);
@@ -89,17 +89,19 @@ export function Onboard() {
   }
 
   return (
-    <section className="max-w-2xl mx-auto space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">{t('onboard.title')}</h1>
-        <p className="text-sm text-slate-600">{t('onboard.blurb')}</p>
+    <section className="max-w-2xl mx-auto flex flex-col gap-6 pt-2">
+      <header>
+        <div className="text-[12px] font-semibold text-s-muted dev uppercase tracking-wide">
+          {t('app.name_staff')}
+        </div>
+        <h1 className="display text-[32px] text-s-ink leading-tight">
+          {t('onboard.title')}
+        </h1>
+        <p className="text-[13px] text-s-muted mt-1.5">{t('onboard.blurb')}</p>
       </header>
 
-      <form onSubmit={submit} className="space-y-6">
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium text-slate-700">
-            {t('onboard.owner_section')}
-          </h2>
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <FormCard icon={<User size={16} />} title={t('onboard.owner_section')}>
           <div className="grid sm:grid-cols-2 gap-3">
             <Field label={t('onboard.email_label')}>
               <input
@@ -131,22 +133,19 @@ export function Onboard() {
               autoComplete="name"
             />
           </Field>
-          <label className="flex items-start gap-2 text-sm">
+          <label className="row gap-2 items-start text-[13px] text-s-ink">
             <input
               type="checkbox"
               required
               checked={isAdult}
               onChange={(e) => setIsAdult(e.target.checked)}
-              className="mt-0.5"
+              className="mt-0.5 accent-brand"
             />
             <span>{t('onboard.age_confirm')}</span>
           </label>
-        </section>
+        </FormCard>
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium text-slate-700">
-            {t('onboard.restaurant_section')}
-          </h2>
+        <FormCard icon={<Building2 size={16} />} title={t('onboard.restaurant_section')}>
           <div className="grid sm:grid-cols-2 gap-3">
             <Field label={t('onboard.name_label')}>
               <input
@@ -157,10 +156,7 @@ export function Onboard() {
                 maxLength={120}
               />
             </Field>
-            <Field
-              label={t('onboard.slug_label')}
-              hint={t('onboard.slug_hint')}
-            >
+            <Field label={t('onboard.slug_label')} hint={t('onboard.slug_hint')}>
               <input
                 required
                 value={slug}
@@ -204,7 +200,7 @@ export function Onboard() {
                 type="color"
                 value={themeColor}
                 onChange={(e) => setThemeColor(e.target.value)}
-                className="h-10 w-full rounded-md border border-slate-300"
+                className="h-10 w-full rounded-md border border-s-line"
               />
             </Field>
           </div>
@@ -217,27 +213,52 @@ export function Onboard() {
               placeholder={t('onboard.tagline_placeholder') ?? undefined}
             />
           </Field>
-        </section>
+        </FormCard>
 
         {error && (
-          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+          <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
             {error}
           </p>
         )}
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="row gap-3 items-center flex-wrap">
           <button
             type="submit"
             disabled={busy}
-            className="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 font-medium disabled:opacity-50"
+            className="btn btn-primary min-h-[48px] px-5 disabled:opacity-50"
           >
             {busy ? t('onboard.creating') : t('onboard.submit')}
           </button>
-          <Link to="/login" className="text-sm text-brand-700 hover:underline">
+          <Link
+            to="/login"
+            className="text-[13px] text-brand font-semibold hover:underline"
+          >
             {t('onboard.have_account')}
           </Link>
         </div>
       </form>
+    </section>
+  );
+}
+
+/* ----- pieces ----------------------------------------------------- */
+
+interface FormCardProps {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+}
+
+function FormCard({ icon, title, children }: FormCardProps) {
+  return (
+    <section className="bg-s-paper border border-s-line rounded-lg p-4 flex flex-col gap-3">
+      <div className="row gap-2 items-center text-s-muted">
+        {icon}
+        <span className="font-semibold text-[12px] dev uppercase tracking-wide">
+          {title}
+        </span>
+      </div>
+      {children}
     </section>
   );
 }
@@ -250,10 +271,12 @@ interface FieldProps {
 
 function Field({ label, hint, children }: FieldProps) {
   return (
-    <label className="block space-y-1">
-      <span className="text-xs text-slate-600">{label}</span>
+    <label className="block">
+      <span className="text-[12.5px] font-semibold text-s-ink">{label}</span>
       {children}
-      {hint && <span className="text-xs text-slate-500">{hint}</span>}
+      {hint && (
+        <span className="block text-[11.5px] text-s-muted mt-1">{hint}</span>
+      )}
     </label>
   );
 }

@@ -125,7 +125,7 @@ export function AdminOnboard() {
     return (
       <section className="max-w-md mx-auto space-y-3">
         <h1 className="text-xl font-semibold">{t('admin.admin_only_title')}</h1>
-        <p className="text-sm text-slate-600">{t('admin.admin_only_blurb')}</p>
+        <p className="text-sm text-s-muted">{t('admin.admin_only_blurb')}</p>
       </section>
     );
   }
@@ -249,32 +249,32 @@ export function AdminOnboard() {
     <section className="max-w-xl mx-auto space-y-5">
       <header className="space-y-1">
         <h1 className="text-xl font-semibold">{t('admin.title')}</h1>
-        <ol className="text-xs text-slate-600 flex gap-2 flex-wrap">
-          <li className={step === 'restaurant' ? 'text-brand-700 font-medium' : ''}>{t('admin.step.details')}</li>
+        <ol className="text-xs text-s-muted flex gap-2 flex-wrap">
+          <li className={step === 'restaurant' ? 'text-brand font-semibold' : ''}>{t('admin.step.details')}</li>
           <li>›</li>
-          <li className={step === 'menu' ? 'text-brand-700 font-medium' : ''}>{t('admin.step.menu')}</li>
+          <li className={step === 'menu' ? 'text-brand font-semibold' : ''}>{t('admin.step.menu')}</li>
           <li>›</li>
-          <li className={step === 'reward' ? 'text-brand-700 font-medium' : ''}>{t('admin.step.reward')}</li>
+          <li className={step === 'reward' ? 'text-brand font-semibold' : ''}>{t('admin.step.reward')}</li>
           <li>›</li>
-          <li className={step === 'staff' ? 'text-brand-700 font-medium' : ''}>{t('admin.step.staff')}</li>
+          <li className={step === 'staff' ? 'text-brand font-semibold' : ''}>{t('admin.step.staff')}</li>
           <li>›</li>
-          <li className={step === 'done' ? 'text-brand-700 font-medium' : ''}>{t('admin.step.done')}</li>
+          <li className={step === 'done' ? 'text-brand font-semibold' : ''}>{t('admin.step.done')}</li>
         </ol>
       </header>
       {error && (
-        <p className="rounded-md bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2">
+        <p className="rounded-md text-danger bg-danger-wash border border-danger/20 text-sm px-3 py-2">
           {error}
         </p>
       )}
 
       {step === 'restaurant' && (
-        <form onSubmit={createRestaurant} className="space-y-3 bg-white border border-slate-200 rounded-lg p-4">
+        <form onSubmit={createRestaurant} className="space-y-3 bg-s-paper border border-s-line rounded-lg p-4">
           <Field label={t('admin.details.name_label')}>
             <input
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="input"
             />
           </Field>
           <Field label={t('admin.details.slug_label')} hint={t('admin.details.slug_hint')}>
@@ -283,7 +283,7 @@ export function AdminOnboard() {
               pattern="[a-z0-9-]+"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono"
+              className="input font-mono"
             />
           </Field>
           <Field label={t('admin.details.address_label')}>
@@ -291,7 +291,7 @@ export function AdminOnboard() {
               required
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="input"
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
@@ -302,7 +302,7 @@ export function AdminOnboard() {
                 step="any"
                 value={latitude}
                 onChange={(e) => setLatitude(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="input"
               />
             </Field>
             <Field label={t('admin.details.longitude_label')}>
@@ -312,7 +312,7 @@ export function AdminOnboard() {
                 step="any"
                 value={longitude}
                 onChange={(e) => setLongitude(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="input"
               />
             </Field>
           </div>
@@ -322,12 +322,12 @@ export function AdminOnboard() {
                 type="color"
                 value={primaryColor}
                 onChange={(e) => setPrimaryColor(e.target.value)}
-                className="h-9 w-12 rounded border border-slate-300"
+                className="h-9 w-12 rounded border border-s-line"
               />
               <input
                 value={primaryColor}
                 onChange={(e) => setPrimaryColor(e.target.value)}
-                className="flex-1 rounded-md border border-slate-300 px-3 py-2 font-mono"
+                className="flex-1 input font-mono"
               />
             </div>
           </Field>
@@ -336,7 +336,7 @@ export function AdminOnboard() {
               type="url"
               value={logoUrl}
               onChange={(e) => setLogoUrl(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="input"
               placeholder="https://…"
             />
           </Field>
@@ -345,13 +345,13 @@ export function AdminOnboard() {
               value={tagline}
               onChange={(e) => setTagline(e.target.value)}
               maxLength={140}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="input"
             />
           </Field>
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-md bg-brand-600 hover:bg-brand-700 text-white py-2 disabled:opacity-50"
+            className="btn btn-primary btn-block min-h-[44px] disabled:opacity-50"
           >
             {busy ? t('admin.details.creating') : t('admin.details.create')}
           </button>
@@ -359,15 +359,15 @@ export function AdminOnboard() {
       )}
 
       {step === 'menu' && (
-        <div className="space-y-3 bg-white border border-slate-200 rounded-lg p-4">
-          <p className="text-sm text-slate-600">{t('admin.menu.blurb')}</p>
+        <div className="space-y-3 bg-s-paper border border-s-line rounded-lg p-4">
+          <p className="text-sm text-s-muted">{t('admin.menu.blurb')}</p>
           <div className="space-y-2">
             {items.map((it, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 items-center">
                 <input
                   value={it.name}
                   onChange={(e) => updateItem(items, idx, { name: e.target.value }, setItems)}
-                  className="col-span-5 rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="col-span-5 input mt-0 py-1 text-[13px]"
                 />
                 <input
                   type="number"
@@ -375,7 +375,7 @@ export function AdminOnboard() {
                   onChange={(e) =>
                     updateItem(items, idx, { price_minor: Number(e.target.value) }, setItems)
                   }
-                  className="col-span-3 rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="col-span-3 input mt-0 py-1 text-[13px]"
                 />
                 <select
                   value={it.category}
@@ -387,7 +387,7 @@ export function AdminOnboard() {
                       setItems,
                     )
                   }
-                  className="col-span-2 rounded-md border border-slate-300 px-2 py-1 text-sm"
+                  className="col-span-2 input mt-0 py-1 text-[13px]"
                 >
                   <option value="main">{t('admin.menu.category.main')}</option>
                   <option value="side">{t('admin.menu.category.side')}</option>
@@ -415,14 +415,14 @@ export function AdminOnboard() {
                   { name: '', price_minor: 0, category: 'main', is_reward_eligible: false },
                 ])
               }
-              className="rounded-md border border-slate-300 px-3 py-1 text-sm"
+              className="btn btn-outline text-[14px] min-h-[36px] px-3"
             >
               {t('admin.menu.add_row')}
             </button>
             <button
               onClick={bulkAddItems}
               disabled={busy || items.some((i) => !i.name)}
-              className="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-1 text-sm disabled:opacity-50"
+              className="btn btn-primary text-[14px] min-h-[36px] px-4 disabled:opacity-50"
             >
               {busy ? t('admin.menu.saving') : t('admin.menu.save_n', { count: items.length })}
             </button>
@@ -431,8 +431,8 @@ export function AdminOnboard() {
       )}
 
       {step === 'reward' && (
-        <div className="space-y-3 bg-white border border-slate-200 rounded-lg p-4">
-          <p className="text-sm text-slate-600">{t('admin.reward.blurb')}</p>
+        <div className="space-y-3 bg-s-paper border border-s-line rounded-lg p-4">
+          <p className="text-sm text-s-muted">{t('admin.reward.blurb')}</p>
           <Field label={t('admin.reward.threshold_label')}>
             <input
               type="number"
@@ -440,15 +440,15 @@ export function AdminOnboard() {
               max={95}
               value={thresholdPct}
               onChange={(e) => setThresholdPct(Number(e.target.value))}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="input"
             />
-            <p className="text-xs text-slate-500 mt-1">{t('admin.reward.threshold_hint')}</p>
+            <p className="text-xs text-s-muted mt-1">{t('admin.reward.threshold_hint')}</p>
           </Field>
           <Field label={t('admin.reward.dish_label')}>
             <select
               value={rewardMenuItemId}
               onChange={(e) => setRewardMenuItemId(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="input"
             >
               {createdMenu.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -460,7 +460,7 @@ export function AdminOnboard() {
           <button
             onClick={createRule}
             disabled={busy || !rewardMenuItemId}
-            className="w-full rounded-md bg-brand-600 hover:bg-brand-700 text-white py-2 disabled:opacity-50"
+            className="btn btn-primary btn-block min-h-[44px] disabled:opacity-50"
           >
             {busy ? t('admin.reward.creating') : t('admin.reward.create')}
           </button>
@@ -469,8 +469,8 @@ export function AdminOnboard() {
 
       {step === 'staff' && restaurant && (
         <div className="space-y-4">
-          <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
-            <p className="text-sm text-slate-600">
+          <div className="bg-s-paper border border-s-line rounded-lg p-4 space-y-3">
+            <p className="text-sm text-s-muted">
               <Trans i18nKey="admin.staff.blurb" components={{ strong: <strong /> }} />
             </p>
             <form onSubmit={inviteStaff} className="space-y-3">
@@ -481,14 +481,14 @@ export function AdminOnboard() {
                     type="email"
                     value={staffEmail}
                     onChange={(e) => setStaffEmail(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2"
+                    className="input"
                   />
                 </Field>
                 <Field label={t('admin.staff.display_name_label')}>
                   <input
                     value={staffName}
                     onChange={(e) => setStaffName(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2"
+                    className="input"
                   />
                 </Field>
               </div>
@@ -497,7 +497,7 @@ export function AdminOnboard() {
                   <select
                     value={staffRole}
                     onChange={(e) => setStaffRole(e.target.value as StaffRole)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2"
+                    className="input"
                   >
                     <option value="owner">{t('admin.staff.role_owner')}</option>
                     <option value="manager">{t('admin.staff.role_manager')}</option>
@@ -514,7 +514,7 @@ export function AdminOnboard() {
                     minLength={8}
                     value={staffPassword}
                     onChange={(e) => setStaffPassword(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono"
+                    className="input font-mono"
                     placeholder="plate-clean-demo"
                   />
                 </Field>
@@ -523,7 +523,7 @@ export function AdminOnboard() {
                 <button
                   type="submit"
                   disabled={busy || !staffEmail || staffPassword.length < 8}
-                  className="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 text-sm disabled:opacity-50"
+                  className="btn btn-primary text-[14px] min-h-[40px] disabled:opacity-50"
                 >
                   {busy ? t('admin.staff.sending') : t('admin.staff.send_invite')}
                 </button>
@@ -531,7 +531,7 @@ export function AdminOnboard() {
                   type="button"
                   onClick={() => setStep('done')}
                   disabled={invitedStaff.length === 0 && busy}
-                  className="rounded-md border border-slate-300 px-4 py-2 text-sm"
+                  className="btn btn-outline text-[14px] min-h-[40px]"
                 >
                   {invitedStaff.length === 0
                     ? t('admin.staff.skip_and_finish')
@@ -542,24 +542,24 @@ export function AdminOnboard() {
           </div>
 
           {invitedStaff.length > 0 && (
-            <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-2">
+            <div className="rounded-lg bg-s-bg border border-s-line p-3 space-y-2">
               <p className="text-sm font-medium">{t('admin.staff.invited_so_far', { count: invitedStaff.length })}</p>
               <ul className="text-sm space-y-1">
                 {invitedStaff.map((s) => (
                   <li key={s.user_id} className="font-mono text-xs">
-                    {s.email} · {s.role} · pw <span className="text-slate-500">{s.password}</span>
+                    {s.email} · {s.role} · pw <span className="text-s-muted">{s.password}</span>
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-slate-500">{t('admin.staff.credentials_warning')}</p>
+              <p className="text-xs text-s-muted">{t('admin.staff.credentials_warning')}</p>
             </div>
           )}
         </div>
       )}
 
       {step === 'done' && restaurant && rewardRule && (
-        <div className="space-y-3 bg-brand-50 border border-brand-600/40 rounded-lg p-4">
-          <p className="font-medium text-brand-700">{t('admin.done.all_set')}</p>
+        <div className="space-y-3 bg-brand-wash border border-brand/30 rounded-lg p-4">
+          <p className="font-medium text-brand">{t('admin.done.all_set')}</p>
           <ul className="text-sm space-y-1">
             <li>
               <Trans
@@ -586,8 +586,8 @@ export function AdminOnboard() {
             </li>
           </ul>
           {invitedStaff.length > 0 && (
-            <div className="rounded-md bg-white border border-slate-200 p-3 text-xs space-y-1">
-              <p className="font-medium text-slate-700">{t('admin.done.credentials_title')}</p>
+            <div className="rounded-md bg-s-paper border border-s-line p-3 text-xs space-y-1">
+              <p className="font-medium text-s-ink">{t('admin.done.credentials_title')}</p>
               <ul className="space-y-0.5 font-mono">
                 {invitedStaff.map((s) => (
                   <li key={s.user_id}>
@@ -597,7 +597,7 @@ export function AdminOnboard() {
               </ul>
             </div>
           )}
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-s-muted">
             <Trans
               i18nKey="admin.done.owner_signin_pointer"
               components={{ code: <code /> }}
@@ -605,7 +605,7 @@ export function AdminOnboard() {
           </p>
           <button
             onClick={() => navigate('/validations')}
-            className="rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 text-sm"
+            className="btn btn-primary text-[14px] min-h-[40px]"
           >
             {t('admin.done.done')}
           </button>
@@ -626,9 +626,9 @@ function Field({
 }) {
   return (
     <label className="block text-sm">
-      <span className="text-slate-600">{label}</span>
+      <span className="text-s-muted">{label}</span>
       <div className="mt-1">{children}</div>
-      {hint && <p className="text-xs text-slate-500 mt-1">{hint}</p>}
+      {hint && <p className="text-xs text-s-muted mt-1">{hint}</p>}
     </label>
   );
 }

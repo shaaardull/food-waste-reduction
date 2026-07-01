@@ -142,7 +142,9 @@
     "already_redeemed_amount": "{{when}} को {{amount}} में रिडीम हो चुका।",
     "voided": "रद्द किया गया।",
     "expired": "ख़त्म हो गया।",
-    "mark_redeemed": "रिडीम चिह्नित करें ({{amount}})"
+    "mark_redeemed": "रिडीम चिह्नित करें ({{amount}})",
+    "status_ready": "तैयार",
+    "status_used": "इस्तेमाल"
   },
   "admin": {
     "title": "रेस्टोरेंट जोड़ें",

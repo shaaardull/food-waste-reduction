@@ -142,7 +142,9 @@
     "already_redeemed_amount": "Already redeemed at {{when}} for {{amount}}.",
     "voided": "Voided.",
     "expired": "Expired.",
-    "mark_redeemed": "Mark redeemed ({{amount}})"
+    "mark_redeemed": "Mark redeemed ({{amount}})",
+    "status_ready": "Ready",
+    "status_used": "Used"
   },
   "admin": {
     "title": "Onboard a restaurant",
