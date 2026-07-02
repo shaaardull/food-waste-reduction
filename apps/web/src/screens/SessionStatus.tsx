@@ -279,8 +279,14 @@ function RewardPanel({ reward, typeChosen, onChosen, t }: RewardPanelProps) {
       : t('choose_reward.type.bill_discount_label');
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* hero confirmation banner */}
+    <div className="flex flex-col gap-4">
+      {/* v2 sprout celebration hero — a growing plant on a radial
+          sage→brand disc, sparse confetti dots that boop in, and the
+          "you grew a little forest" italic headline. Replaces the
+          v1 saffron confbanner as the emotional peak of the flow. */}
+      <SproutCelebration t={t} />
+      {/* legacy confirmation ribbon — kept as a compact status line
+          under the hero so the ticket below still has context. */}
       <div className="confbanner rounded-md bg-saffron-wash text-saffron-deep">
         <Sparkles size={18} />
         <span>{t('session_status.approved_heading')}</span>
@@ -334,5 +340,83 @@ function RewardPanel({ reward, typeChosen, onChosen, t }: RewardPanelProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * SproutCelebration — the reward-issued emotional peak.
+ *
+ * A sprout grows on a radial sage→brand disc, sparse confetti
+ * squares boop in around it, and the "you grew a little forest"
+ * italic headline lands underneath. Sits at the top of RewardPanel
+ * (the `rewarded` state); the redemption-code ticket follows below.
+ */
+function SproutCelebration({
+  t,
+}: {
+  t: ReturnType<typeof useTranslation>['t'];
+}) {
+  // A handful of confetti dots sprinkled around the sprout. Each one
+  // has its own colour + delay so the boop cascades rather than fires
+  // in unison. Positions are relative to the disc's centre.
+  interface ConfoDot {
+    top?: string;
+    bottom?: string;
+    left?: string;
+    right?: string;
+    color: string;
+    delay: string;
+  }
+  const confetti: ConfoDot[] = [
+    { top: '4%', left: '18%', color: 'hsl(33 88% 56%)', delay: '0.1s' },
+    { top: '10%', right: '20%', color: 'hsl(78 64% 50%)', delay: '0.18s' },
+    { top: '40%', left: '6%', color: 'hsl(340 62% 58%)', delay: '0.24s' },
+    { top: '52%', right: '4%', color: 'hsl(145 54% 40%)', delay: '0.3s' },
+    { bottom: '18%', left: '22%', color: 'hsl(28 78% 44%)', delay: '0.36s' },
+    { bottom: '10%', right: '26%', color: 'hsl(153 46% 33%)', delay: '0.42s' },
+  ];
+
+  return (
+    <section className="card p-5 flex flex-col items-center text-center gap-3 relative overflow-hidden">
+      {/* confetti field */}
+      {confetti.map((c, i) => (
+        <span
+          key={i}
+          className="confo"
+          style={{
+            top: c.top,
+            bottom: c.bottom,
+            left: c.left,
+            right: c.right,
+            background: c.color,
+            animationDelay: c.delay,
+          }}
+        />
+      ))}
+
+      {/* sprout */}
+      <div className="sprout" aria-hidden>
+        <div className="soil" />
+        <div className="stem grow-up" style={{ animationDelay: '0.15s' }} />
+        <div
+          className="leaf l grow-up"
+          style={{ animationDelay: '0.55s', transformOrigin: 'bottom right' }}
+        />
+        <div
+          className="leaf r grow-up"
+          style={{ animationDelay: '0.7s', transformOrigin: 'bottom left' }}
+        />
+      </div>
+
+      {/* italic headline + subcopy */}
+      <div>
+        <h2 className="display text-[28px] text-brand leading-[1.02] px-2">
+          {t('session_status.grew_forest_heading')}
+        </h2>
+        <p className="text-[13.5px] text-muted mt-2 leading-snug max-w-[36ch] mx-auto">
+          {t('session_status.grew_forest_sub')}
+        </p>
+      </div>
+    </section>
   );
 }
