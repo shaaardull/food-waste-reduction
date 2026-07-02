@@ -73,7 +73,7 @@ export default {
       },
       fontFamily: {
         sans: ['Hanken Grotesk', 'system-ui', 'sans-serif'],
-        serif: ['Instrument Serif', 'Georgia', 'serif'],
+        serif: ['Fraunces', 'Georgia', 'serif'],
         dev: ['Mukta', 'Hanken Grotesk', 'sans-serif'],
         mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
       },

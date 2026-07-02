@@ -10,31 +10,34 @@
    Per-restaurant theming overrides --brand-h/s/l in theme.ts.
    ============================================================ */
 :root {
-  /* ── BRAND CONTRACT (override these per-restaurant in theme.ts) ── */
-  --brand-h: 176;
-  --brand-s: 52%;
-  --brand-l: 27%;
-  --brand-press-h: 176;
-  --brand-press-s: 54%;
-  --brand-press-l: 20%;
-  --brand-tint-h: 176;
-  --brand-tint-s: 40%;
-  --brand-tint-l: 38%;
-  --brand-wash-h: 176;
-  --brand-wash-s: 34%;
+  /* ── BRAND CONTRACT (override these per-restaurant in theme.ts) ──
+     v2 promotes green from accent to brand. The staff app picks up
+     the new hue via this token and nothing else — surface neutrals
+     (--s-*), density, and typography stay Counter-cool. */
+  --brand-h: 153;
+  --brand-s: 46%;
+  --brand-l: 33%;
+  --brand-press-h: 153;
+  --brand-press-s: 50%;
+  --brand-press-l: 25%;
+  --brand-tint-h: 153;
+  --brand-tint-s: 42%;
+  --brand-tint-l: 42%;
+  --brand-wash-h: 153;
+  --brand-wash-s: 40%;
   --brand-wash-l: 95%;
-  --brand-line-h: 176;
-  --brand-line-s: 24%;
-  --brand-line-l: 86%;
+  --brand-line-h: 153;
+  --brand-line-s: 30%;
+  --brand-line-l: 85%;
 
   /* legacy numeric brand palette — referenced by Tailwind fallbacks while
      screens migrate from `bg-brand-600` to `bg-brand`. Removed at the end
      of the design refresh once nothing reads from them. */
-  --brand-50: #f0fdfa;
+  --brand-50: hsl(153 40% 95%);
   --brand-500: hsl(var(--brand-tint-h) var(--brand-tint-s) var(--brand-tint-l));
   --brand-600: hsl(var(--brand-h) var(--brand-s) var(--brand-l));
   --brand-700: hsl(var(--brand-press-h) var(--brand-press-s) var(--brand-press-l));
-  --brand-900: hsl(var(--brand-h) 60% 10%);
+  --brand-900: hsl(153 60% 10%);
 
   --sh-sm: 0 1px 2px rgba(18, 38, 36, 0.06);
   --sh-card: 0 1px 2px rgba(18, 38, 36, 0.05), 0 10px 26px -12px rgba(18, 38, 36, 0.16);
