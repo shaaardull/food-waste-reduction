@@ -21,7 +21,7 @@ from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
 from app.models.restaurant import Restaurant
-from app.models.reward import Reward
+from app.models.reward import Reward, RewardRule
 from app.models.user import User
 from app.schemas.session import (
     CaptureOut,
@@ -321,16 +321,41 @@ async def get_session(
         select(Reward).where(Reward.meal_session_id == session.id)
     )
     reward = reward_result.scalar_one_or_none()
-    reward_out = (
-        {
+    reward_out: dict[str, object] | None = None
+    if reward is not None:
+        # Fetch the rule so the diner's RewardPanel can render the
+        # choose-type sheet when the rule allows both `menu_item` and
+        # `bill_discount`. Missing rule (deleted / bad seed) is soft-
+        # failed — we just omit `allowed_reward_types` and the client
+        # defaults to both.
+        rule_result = await db.execute(
+            select(RewardRule).where(RewardRule.id == reward.reward_rule_id)
+        )
+        rule = rule_result.scalar_one_or_none()
+        now = datetime.now(UTC)
+        if now >= reward.expires_at:
+            current_value = 0
+        elif now >= reward.half_value_at:
+            current_value = reward.value_minor // 2
+        else:
+            current_value = reward.value_minor
+        reward_out = {
             "id": str(reward.id),
             "redemption_code": reward.redemption_code,
+            "reward_type": reward.reward_type,
+            "value_minor": reward.value_minor,
+            "current_value_minor": current_value,
+            "issued_at": reward.issued_at.isoformat(),
+            "half_value_at": reward.half_value_at.isoformat(),
             "expires_at": reward.expires_at.isoformat(),
             "redeemed_at": reward.redeemed_at.isoformat() if reward.redeemed_at else None,
+            "redeemed_value_minor": reward.redeemed_value_minor,
+            "voided_at": reward.voided_at.isoformat() if reward.voided_at else None,
+            "voided_reason": reward.voided_reason,
+            "allowed_reward_types": list(rule.allowed_reward_types or [])
+            if rule is not None
+            else ["menu_item", "bill_discount"],
         }
-        if reward
-        else None
-    )
 
     return SessionDetailOut(
         session=SessionOut.model_validate(session),
