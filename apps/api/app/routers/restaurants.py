@@ -14,6 +14,7 @@ from app.models.reward import RewardRule
 from app.models.user import User
 from app.schemas.restaurant import (
     MenuItemOut,
+    MenuItemPatchIn,
     MenuItemsBulkIn,
     RestaurantCreateIn,
     RestaurantOut,
@@ -113,6 +114,31 @@ async def _require_owner_or_admin(
         )
 
 
+async def _require_any_restaurant_staff(
+    db: AsyncSession, user: User, restaurant_id: UUID
+) -> None:
+    """Menu editing is delegated all the way down to servers — the
+    per-role decision was made explicitly in the sprint kickoff. Any
+    membership in restaurant_staff for this restaurant passes; role
+    doesn't matter. Admins pass unconditionally.
+    """
+    if user.role == "admin":
+        return
+    if user.role != "staff":
+        raise NotRestaurantStaff()
+    res = await db.execute(
+        select(RestaurantStaff).where(
+            RestaurantStaff.user_id == user.id,
+            RestaurantStaff.restaurant_id == restaurant_id,
+        )
+    )
+    if res.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not on the staff of this restaurant",
+        )
+
+
 @router.patch("/{restaurant_id}", response_model=RestaurantOut)
 async def patch_restaurant(
     restaurant_id: UUID,
@@ -154,8 +180,11 @@ async def add_menu_items(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[MenuItemOut]:
-    """Bulk-add menu items. Owner-only."""
-    await _require_owner_or_admin(db, user, restaurant_id)
+    """Bulk-add menu items. Any restaurant staff (owner / manager /
+    server) can add — the sprint kickoff explicitly widened this so a
+    waiter noticing a new special can add it without pinging an owner.
+    Admins pass unconditionally."""
+    await _require_any_restaurant_staff(db, user, restaurant_id)
     if (await db.get(Restaurant, restaurant_id)) is None:
         raise HTTPException(status_code=404, detail="Restaurant not found")
     created: list[MenuItem] = []
@@ -178,6 +207,68 @@ async def add_menu_items(
     for m in created:
         await db.refresh(m)
     return [MenuItemOut.model_validate(m) for m in created]
+
+
+@router.patch(
+    "/{restaurant_id}/menu-items/{item_id}",
+    response_model=MenuItemOut,
+)
+async def patch_menu_item(
+    restaurant_id: UUID,
+    item_id: UUID,
+    payload: MenuItemPatchIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MenuItemOut:
+    """Partial update of a single menu item. Any restaurant staff can edit
+    (the wider role set was decided in the sprint kickoff — a waiter can
+    correct a price in the moment). Only fields the client sends are
+    applied; everything else is untouched."""
+    await _require_any_restaurant_staff(db, user, restaurant_id)
+    item = await db.get(MenuItem, item_id)
+    if item is None or item.restaurant_id != restaurant_id:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+    # Pydantic's exclude_unset gives us "the keys the client actually
+    # sent" — critical for partial updates so a missing `description`
+    # doesn't stomp the existing value with None.
+    updates = payload.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        if key == "reference_image_url" and value is not None:
+            value = str(value)
+        setattr(item, key, value)
+    await db.commit()
+    await db.refresh(item)
+    return MenuItemOut.model_validate(item)
+
+
+@router.delete(
+    "/{restaurant_id}/menu-items/{item_id}",
+    response_model=MenuItemOut,
+)
+async def delete_menu_item(
+    restaurant_id: UUID,
+    item_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MenuItemOut:
+    """Soft delete — flip `is_active=false`. The row survives so past
+    `meal_session_items` still resolve their FK, and an "Undo" chip in
+    the dashboard can flip it back with a PATCH. `GET /restaurants/:id/menu`
+    already filters `is_active=true`, so a soft-deleted item vanishes
+    from the diner Order screen immediately."""
+    await _require_any_restaurant_staff(db, user, restaurant_id)
+    item = await db.get(MenuItem, item_id)
+    if item is None or item.restaurant_id != restaurant_id:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+    if not item.is_active:
+        # Idempotent — a second delete on an already-inactive row is a
+        # no-op, not an error. Matches the spirit of the staff validate
+        # endpoint's idempotency.
+        return MenuItemOut.model_validate(item)
+    item.is_active = False
+    await db.commit()
+    await db.refresh(item)
+    return MenuItemOut.model_validate(item)
 
 
 @router.post(

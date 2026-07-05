@@ -65,17 +65,34 @@ class MenuItemOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+MenuCategory = Literal["starter", "main", "side", "bread", "drink", "dessert"]
+
+
 class MenuItemIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=400)
     price_minor: int = Field(ge=0, le=1_000_000_00)
-    category: Literal["main", "side", "drink", "dessert"] | None = None
+    category: MenuCategory | None = None
     is_reward_eligible: bool = False
     reference_image_url: HttpUrl | None = None
 
 
 class MenuItemsBulkIn(BaseModel):
     items: list[MenuItemIn] = Field(min_length=1, max_length=200)
+
+
+class MenuItemPatchIn(BaseModel):
+    """Partial update — every field optional. Frontend Menu editor
+    PATCHes only what changed, so a price tweak doesn't have to
+    re-send name / description / etc."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=400)
+    price_minor: int | None = Field(default=None, ge=0, le=1_000_000_00)
+    category: MenuCategory | None = None
+    is_reward_eligible: bool | None = None
+    is_active: bool | None = None
+    reference_image_url: HttpUrl | None = None
 
 
 class RewardRuleIn(BaseModel):
