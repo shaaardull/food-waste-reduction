@@ -28,12 +28,14 @@ class MenuExtraction(Base, UUIDPKMixin, TimestampMixin):
 
     restaurant_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("restaurants.id"),
+        ForeignKey("restaurants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     staff_user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
     )
     # Where the source menu-card photo lives in object storage. Nullable
     # so the row can survive the retention purge while keeping the audit

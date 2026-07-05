@@ -68,6 +68,22 @@ def upload_capture(session_id: UUID, phase: str, image_bytes: bytes, mime: str) 
     return key
 
 
+def upload_menu_extraction(extraction_id: UUID, image_bytes: bytes, mime: str) -> str:
+    """Store the source menu-card photo alongside plate captures. The
+    key layout mirrors captures/ so the retention job can walk one
+    prefix instead of two."""
+    ext = "jpg" if mime == "image/jpeg" else "png"
+    key = f"menu-extractions/{extraction_id}/source.{ext}"
+    s3 = _client()
+    s3.put_object(
+        Bucket=settings.S3_BUCKET,
+        Key=key,
+        Body=image_bytes,
+        ContentType=mime,
+    )
+    return key
+
+
 def signed_url(key: str, expires_seconds: int = 900) -> str:
     s3 = _client()
     return s3.generate_presigned_url(

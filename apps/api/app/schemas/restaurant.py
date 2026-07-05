@@ -81,6 +81,35 @@ class MenuItemsBulkIn(BaseModel):
     items: list[MenuItemIn] = Field(min_length=1, max_length=200)
 
 
+class MenuExtractedItemOut(BaseModel):
+    """A single proposed dish from a menu-card scan. Not persisted to
+    menu_items until the staff confirms it via POST /menu-items —
+    every field is server-decoded from the Claude tool call. Names
+    match MenuItemIn so the frontend can round-trip a confirmed item
+    without re-mapping."""
+
+    name: str
+    description: str | None = None
+    price_minor: int
+    category: str | None = None
+    confidence: float
+
+
+class MenuExtractionOut(BaseModel):
+    """Response to POST /menu-items/extract. `extraction_id` lets the
+    frontend echo it back on the follow-up bulk-add so we can update
+    `items_accepted` for prompt-tuning telemetry."""
+
+    extraction_id: UUID
+    items: list[MenuExtractedItemOut]
+    detected_currency: str
+    confidence: float
+    notes: str | None = None
+    processing_ms: int
+    model_name: str
+    model_version: str
+
+
 class MenuItemPatchIn(BaseModel):
     """Partial update — every field optional. Frontend Menu editor
     PATCHes only what changed, so a price tweak doesn't have to

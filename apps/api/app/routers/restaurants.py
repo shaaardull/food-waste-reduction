@@ -1,18 +1,22 @@
+from datetime import UTC, datetime
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.errors import NotRestaurantStaff
+from app.errors import ImageInvalid, NotRestaurantStaff
+from app.models.menu_extraction import MenuExtraction
 from app.models.menu_item import MenuItem
 from app.models.restaurant import Restaurant, RestaurantStaff
 from app.models.reward import RewardRule
 from app.models.user import User
 from app.schemas.restaurant import (
+    MenuExtractedItemOut,
+    MenuExtractionOut,
     MenuItemOut,
     MenuItemPatchIn,
     MenuItemsBulkIn,
@@ -25,6 +29,8 @@ from app.schemas.restaurant import (
     StaffInviteOut,
 )
 from app.security import get_current_user, hash_password, haversine_m
+from app.services import storage
+from app.vision import anthropic_client as vision_client
 
 router = APIRouter()
 
@@ -269,6 +275,110 @@ async def delete_menu_item(
     await db.commit()
     await db.refresh(item)
     return MenuItemOut.model_validate(item)
+
+
+# Menu categories we consider "valid" server-side. The Claude tool
+# schema constrains its output to this same set, but a defensive
+# server-side coerce keeps a hallucinated category from bleeding into
+# the response — we simply drop it to None and let staff pick.
+_VALID_MENU_CATEGORIES = {"starter", "main", "side", "bread", "drink", "dessert"}
+
+
+@router.post(
+    "/{restaurant_id}/menu-items/extract",
+    response_model=MenuExtractionOut,
+)
+async def extract_menu_from_photo(
+    restaurant_id: UUID,
+    image: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MenuExtractionOut:
+    """Vision-based menu-card import. Staff uploads a photo of the
+    printed menu; Claude returns a structured list of proposed dishes
+    which the frontend surfaces in a review grid. Nothing lands in
+    `menu_items` here — the staff clicks Confirm on the frontend and
+    that hits the existing bulk-add endpoint.
+
+    Runs synchronously (5–10 s round trip). If we ever need async we
+    lift this into a Celery task; the response shape stays the same
+    behind an extraction_id.
+    """
+    await _require_any_restaurant_staff(db, user, restaurant_id)
+    if (await db.get(Restaurant, restaurant_id)) is None:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    image_bytes = await image.read()
+    try:
+        mime, _sha = storage.validate_and_hash(image_bytes)
+    except ImageInvalid:
+        raise
+    # Mint the extraction id up front so we can lay the S3 object
+    # under a stable key even if the vision call fails — the audit
+    # row stays useful for post-mortem.
+    extraction_id = uuid4()
+    image_key = storage.upload_menu_extraction(extraction_id, image_bytes, mime)
+
+    # Synchronous vision call. `extract_menu_from_image` handles its
+    # own timing + error mapping to ModelUnavailable.
+    tool_input, processing_ms, model_version = vision_client.extract_menu_from_image(
+        image_bytes, mime
+    )
+
+    raw_items = tool_input.get("items", []) or []
+    proposed: list[MenuExtractedItemOut] = []
+    for item in raw_items:
+        try:
+            name = str(item.get("name", "")).strip()
+            if not name:
+                continue
+            category = item.get("category")
+            if category not in _VALID_MENU_CATEGORIES:
+                category = None
+            price_minor = int(item.get("price_minor") or 0)
+            confidence = float(item.get("confidence") or 0.0)
+            description = item.get("description") or None
+            proposed.append(
+                MenuExtractedItemOut(
+                    name=name[:120],
+                    description=(description[:400] if description else None),
+                    price_minor=max(0, min(price_minor, 1_000_000_00)),
+                    category=category,
+                    confidence=max(0.0, min(confidence, 1.0)),
+                )
+            )
+        except (TypeError, ValueError):
+            # A malformed row from the model shouldn't blow up the
+            # whole extraction. Skip it and let the notes carry the
+            # signal.
+            continue
+
+    extraction_row = MenuExtraction(
+        id=extraction_id,
+        restaurant_id=restaurant_id,
+        staff_user_id=user.id,
+        image_s3_key=image_key,
+        model_name="claude-vision",
+        model_version=model_version,
+        raw_output=tool_input,
+        items_proposed=len(proposed),
+        items_accepted=0,  # bumped when staff confirms via bulk-add
+        processing_ms=processing_ms,
+        extracted_at=datetime.now(UTC),
+    )
+    db.add(extraction_row)
+    await db.commit()
+
+    return MenuExtractionOut(
+        extraction_id=extraction_id,
+        items=proposed,
+        detected_currency=str(tool_input.get("detected_currency") or "INR"),
+        confidence=float(tool_input.get("confidence") or 0.0),
+        notes=(tool_input.get("notes") or None),
+        processing_ms=processing_ms,
+        model_name="claude-vision",
+        model_version=model_version,
+    )
 
 
 @router.post(

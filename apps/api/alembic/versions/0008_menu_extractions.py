@@ -31,16 +31,21 @@ def upgrade() -> None:
             primary_key=True,
             server_default=sa.text("gen_random_uuid()"),
         ),
+        # CASCADE on both parents matches the pattern used by other
+        # audit-style tables (labeled_sessions, staff_metrics_snapshots):
+        # deleting the parent nukes the log rows too. Without CASCADE,
+        # the test-suite teardown (which bulk-deletes restaurants by
+        # slug prefix) hits a FK violation.
         sa.Column(
             "restaurant_id",
             postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("restaurants.id"),
+            sa.ForeignKey("restaurants.id", ondelete="CASCADE"),
             nullable=False,
         ),
         sa.Column(
             "staff_user_id",
             postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id"),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
             nullable=False,
         ),
         # Source image key in S3 / MinIO. Nullable so the retention job

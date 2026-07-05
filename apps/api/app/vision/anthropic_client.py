@@ -7,7 +7,13 @@ import anthropic
 from app.config import get_settings
 from app.errors import ModelUnavailable
 from app.logging import get_logger
-from app.vision.prompts import SYSTEM_PROMPT, TOOL_DEFINITION, build_user_prompt
+from app.vision.prompts import (
+    EXTRACT_MENU_SYSTEM_PROMPT,
+    EXTRACT_MENU_TOOL,
+    SYSTEM_PROMPT,
+    TOOL_DEFINITION,
+    build_user_prompt,
+)
 
 log = get_logger(__name__)
 settings = get_settings()
@@ -72,5 +78,65 @@ def score_images(
     )
     if tool_use is None:
         log.error("anthropic_no_tool_use", model=settings.VISION_MODEL)
+        raise ModelUnavailable()
+    return tool_use.input, processing_ms, response.model
+
+
+def extract_menu_from_image(
+    image_bytes: bytes,
+    image_mime: str,
+) -> tuple[dict[str, Any], int, str]:
+    """Calls Claude with a menu-card photo and the extract_menu tool.
+
+    Returns (parsed_tool_input, processing_ms, model_version_string).
+    Same failure semantics as score_images — network / rate-limit /
+    empty tool-use all raise ModelUnavailable.
+
+    Kept synchronous by design: a menu card is usually a single page,
+    so the round trip is 5-10 s and the staff can wait. If we start
+    seeing multi-page menus or heavy concurrency, we lift-and-shift
+    this call into a Celery task; the callsite in routers/restaurants.py
+    is the only thing that changes.
+    """
+    client = _client()
+    start = time.perf_counter()
+    try:
+        response = client.messages.create(
+            model=settings.VISION_MODEL,
+            # 4x the plate-scoring budget — menu cards routinely list
+            # 30+ dishes with descriptions, easily blowing past 1024.
+            max_tokens=4096,
+            system=EXTRACT_MENU_SYSTEM_PROMPT,
+            tools=[EXTRACT_MENU_TOOL],
+            tool_choice={"type": "tool", "name": "extract_menu"},
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        _image_block(image_bytes, image_mime),
+                        {
+                            "type": "text",
+                            "text": (
+                                "Extract every dish from this menu card and "
+                                "call the extract_menu tool."
+                            ),
+                        },
+                    ],
+                }
+            ],
+        )
+    except anthropic.APIError as exc:
+        log.error("anthropic_menu_api_error", error=str(exc))
+        raise ModelUnavailable() from exc
+    processing_ms = int((time.perf_counter() - start) * 1000)
+
+    tool_use = next(
+        (block for block in response.content if getattr(block, "type", "") == "tool_use"),
+        None,
+    )
+    if tool_use is None:
+        log.error(
+            "anthropic_menu_no_tool_use", model=settings.VISION_MODEL
+        )
         raise ModelUnavailable()
     return tool_use.input, processing_ms, response.model
