@@ -12,6 +12,7 @@ import {
   Plus,
   LogOut,
   Building2,
+  Utensils,
 } from 'lucide-react';
 import { useAuthStore } from './lib/auth';
 import { useApplyTheme } from './lib/theme';
@@ -77,6 +78,7 @@ function StaffRail() {
   }> = [
     { to: '/', label: t('app.nav.summary'), icon: <LayoutDashboard size={16} />, end: true },
     { to: '/validations', label: t('app.nav.validations'), icon: <ListChecks size={16} /> },
+    { to: '/menu', label: t('app.nav.menu'), icon: <Utensils size={16} /> },
     { to: '/redeem', label: t('app.nav.redeem'), icon: <Receipt size={16} /> },
     { to: '/analytics', label: t('app.nav.analytics'), icon: <TrendingUp size={16} /> },
     { to: '/staff-metrics', label: t('app.nav.staff_metrics'), icon: <Users size={16} /> },

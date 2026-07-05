@@ -169,9 +169,31 @@ async def patch_restaurant(
 
 @router.get("/{restaurant_id}/menu", response_model=list[MenuItemOut])
 async def get_menu(restaurant_id: UUID, db: AsyncSession = Depends(get_db)) -> list[MenuItemOut]:
+    """Diner-facing menu — active items only, no auth. This is what the
+    Order screen renders."""
     result = await db.execute(
         select(MenuItem).where(MenuItem.restaurant_id == restaurant_id, MenuItem.is_active.is_(True))
     )
+    return [MenuItemOut.model_validate(m) for m in result.scalars().all()]
+
+
+@router.get("/{restaurant_id}/menu-items", response_model=list[MenuItemOut])
+async def list_menu_items_for_staff(
+    restaurant_id: UUID,
+    include_inactive: bool = Query(default=False),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MenuItemOut]:
+    """Staff-side menu view — same shape as GET /menu but authenticated
+    and optionally includes soft-deleted rows so the dashboard can
+    surface an "Archived" section and offer one-tap undo. Any
+    restaurant staff can call."""
+    await _require_any_restaurant_staff(db, user, restaurant_id)
+    query = select(MenuItem).where(MenuItem.restaurant_id == restaurant_id)
+    if not include_inactive:
+        query = query.where(MenuItem.is_active.is_(True))
+    query = query.order_by(MenuItem.category, MenuItem.name)
+    result = await db.execute(query)
     return [MenuItemOut.model_validate(m) for m in result.scalars().all()]
 
 

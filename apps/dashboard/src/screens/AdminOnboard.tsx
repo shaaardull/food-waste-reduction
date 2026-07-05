@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
+import { Camera } from 'lucide-react';
 import type { Restaurant } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
+import { ScanMenuModal, type ScannedItem } from '../components/ScanMenuModal';
 
 type Step = 'restaurant' | 'menu' | 'reward' | 'staff' | 'done';
 
@@ -19,7 +21,7 @@ interface InvitedStaff {
 interface MenuItemForm {
   name: string;
   price_minor: number;
-  category: 'main' | 'side' | 'drink' | 'dessert';
+  category: 'starter' | 'main' | 'side' | 'bread' | 'drink' | 'dessert';
   is_reward_eligible: boolean;
 }
 
@@ -74,6 +76,10 @@ export function AdminOnboard() {
 
   // Step 2 state
   const [items, setItems] = useState<MenuItemForm[]>(DEFAULT_MENU);
+  // Toggle for the vision-based menu-card scanner. When the modal
+  // confirms, we merge its rows into `items` and the wizard's own
+  // "Save {{count}} items" button handles the actual POST.
+  const [scanMenuOpen, setScanMenuOpen] = useState(false);
 
   // Step 3 state
   const [thresholdPct, setThresholdPct] = useState(75);
@@ -361,6 +367,32 @@ export function AdminOnboard() {
       {step === 'menu' && (
         <div className="space-y-3 bg-s-paper border border-s-line rounded-lg p-4">
           <p className="text-sm text-s-muted">{t('admin.menu.blurb')}</p>
+          {/* Vision shortcut — snap the printed menu instead of typing
+              20 rows. Merges into the existing `items` state so the
+              owner can still eyeball everything before Save. */}
+          {restaurant && (
+            <div className="row gap-3 items-start bg-brand-wash/60 border border-brand/25 rounded-md p-3">
+              <div className="w-9 h-9 rounded-md bg-brand text-white flex items-center justify-center flex-shrink-0">
+                <Camera size={16} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-[13.5px] text-s-ink">
+                  {t('admin.menu.scan_card')}
+                </div>
+                <div className="text-[12px] text-s-muted mt-0.5">
+                  {t('admin.menu.scan_hint')}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setScanMenuOpen(true)}
+                className="btn btn-primary text-[13.5px] min-h-[36px] px-3"
+              >
+                <Camera size={14} />
+                {t('menu_editor.scan_button')}
+              </button>
+            </div>
+          )}
           <div className="space-y-2">
             {items.map((it, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 items-center">
@@ -389,8 +421,10 @@ export function AdminOnboard() {
                   }
                   className="col-span-2 input mt-0 py-1 text-[13px]"
                 >
+                  <option value="starter">{t('admin.menu.category.starter')}</option>
                   <option value="main">{t('admin.menu.category.main')}</option>
                   <option value="side">{t('admin.menu.category.side')}</option>
+                  <option value="bread">{t('admin.menu.category.bread')}</option>
                   <option value="drink">{t('admin.menu.category.drink')}</option>
                   <option value="dessert">{t('admin.menu.category.dessert')}</option>
                 </select>
@@ -427,6 +461,29 @@ export function AdminOnboard() {
               {busy ? t('admin.menu.saving') : t('admin.menu.save_n', { count: items.length })}
             </button>
           </div>
+          {scanMenuOpen && restaurant && (
+            <ScanMenuModal
+              restaurantId={restaurant.id}
+              token={token}
+              onClose={() => setScanMenuOpen(false)}
+              onConfirmed={(picked: ScannedItem[]) => {
+                // Merge the extracted rows into the wizard's local state.
+                // Any pre-filled DEFAULT_MENU rows with a blank name are
+                // dropped so the owner isn't editing 4 default rows +
+                // 20 scanned rows. Non-blank existing rows are kept.
+                const cleaned = items.filter((it) => it.name.trim());
+                const additions: MenuItemForm[] = picked.map((p) => ({
+                  name: p.name,
+                  price_minor: p.price_minor,
+                  category:
+                    (p.category as MenuItemForm['category']) ?? 'main',
+                  is_reward_eligible: false,
+                }));
+                setItems([...cleaned, ...additions]);
+                setScanMenuOpen(false);
+              }}
+            />
+          )}
         </div>
       )}
 

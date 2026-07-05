@@ -248,6 +248,58 @@ async def test_delete_menu_item_diner_blocked(client, db):
 
 
 @pytest.mark.asyncio
+async def test_staff_menu_items_list_defaults_active_only(client, db):
+    """GET /menu-items without include_inactive must not leak
+    soft-deleted rows into the default staff view."""
+    restaurant, items, _ = make_restaurant(db, name="Staff Menu Active")
+    manager = make_staff(db, restaurant.id)
+    token = await login(client, manager.email)
+    # Soft-delete one item.
+    victim = items[0]
+    await client.delete(
+        f"/api/v1/restaurants/{restaurant.id}/menu-items/{victim.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    res = await client.get(
+        f"/api/v1/restaurants/{restaurant.id}/menu-items",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    names = [i["name"] for i in res.json()]
+    assert victim.name not in names
+
+
+@pytest.mark.asyncio
+async def test_staff_menu_items_list_include_inactive(client, db):
+    restaurant, items, _ = make_restaurant(db, name="Staff Menu All")
+    manager = make_staff(db, restaurant.id)
+    token = await login(client, manager.email)
+    victim = items[0]
+    await client.delete(
+        f"/api/v1/restaurants/{restaurant.id}/menu-items/{victim.id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    res = await client.get(
+        f"/api/v1/restaurants/{restaurant.id}/menu-items?include_inactive=true",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    rows = res.json()
+    assert any(r["name"] == victim.name and r["is_active"] is False for r in rows)
+
+
+@pytest.mark.asyncio
+async def test_staff_menu_items_list_diner_blocked(client, db):
+    restaurant, _, _ = make_restaurant(db, name="Staff Menu Diner Block")
+    _, diner_token = await register_diner(client)
+    res = await client.get(
+        f"/api/v1/restaurants/{restaurant.id}/menu-items",
+        headers={"Authorization": f"Bearer {diner_token}"},
+    )
+    assert res.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_bulk_add_menu_items_manager_now_allowed(client, db):
     """Regression — before this sprint, POST /menu-items was owner-only.
     The gate is now `any restaurant staff`, so a manager posting a new

@@ -47,6 +47,22 @@ export const api = {
     request<T>(path, {
       method: 'POST',
       token,
+      // Multipart uploads (e.g. menu-card scan) pass a FormData
+      // instance; the request helper already sets the right
+      // Content-Type. Only JSON-encode plain objects.
+      body:
+        body instanceof FormData
+          ? body
+          : body
+            ? JSON.stringify(body)
+            : undefined,
+    }),
+  patch: <T>(path: string, body?: unknown, token?: string | null) =>
+    request<T>(path, {
+      method: 'PATCH',
+      token,
       body: body ? JSON.stringify(body) : undefined,
     }),
+  del: <T>(path: string, token?: string | null) =>
+    request<T>(path, { method: 'DELETE', token }),
 };
