@@ -1,3 +1,4 @@
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import (
@@ -6,6 +7,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     UniqueConstraint,
 )
@@ -34,6 +36,18 @@ class Restaurant(Base, UUIDPKMixin, TimestampMixin):
     )
     theme_logo_url: Mapped[str | None] = mapped_column(String, nullable=True)
     tagline: Mapped[str | None] = mapped_column(String, nullable=True)
+    # GST config — added in sprint Gap-D. Every bill snapshots the
+    # rate at issue time, so a restaurant tweaking their rate later
+    # doesn't retroactively change past bills. Default 5% matches
+    # dine-in for non-hotel restaurants in India (CGST 2.5 + SGST 2.5).
+    gstin: Mapped[str | None] = mapped_column(String, nullable=True)
+    gst_rate: Mapped[Decimal] = mapped_column(
+        Numeric(4, 3), nullable=False, default=Decimal("0.050"), server_default="0.050"
+    )
+    hsn_code: Mapped[str] = mapped_column(
+        String, nullable=False, default="9963", server_default="9963"
+    )
+    bill_prefix: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class RestaurantStaff(Base, UUIDPKMixin, TimestampMixin):

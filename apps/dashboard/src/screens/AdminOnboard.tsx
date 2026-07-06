@@ -73,6 +73,11 @@ export function AdminOnboard() {
   const [primaryColor, setPrimaryColor] = useState('#0f766e');
   const [logoUrl, setLogoUrl] = useState('');
   const [tagline, setTagline] = useState('');
+  // GST config — added in Gap-D. Optional at onboarding; defaults kick
+  // in server-side (5% CGST+SGST split, HSN 9963, no prefix).
+  const [gstin, setGstin] = useState('');
+  const [gstRatePct, setGstRatePct] = useState('5');
+  const [billPrefix, setBillPrefix] = useState('');
 
   // Step 2 state
   const [items, setItems] = useState<MenuItemForm[]>(DEFAULT_MENU);
@@ -151,6 +156,14 @@ export function AdminOnboard() {
       };
       if (tagline) body.tagline = tagline;
       if (logoUrl) body.theme_logo_url = logoUrl;
+      if (gstin.trim()) body.gstin = gstin.trim().toUpperCase();
+      // Only override server default (5%) when the user actually
+      // touched the field. Keep as string — Pydantic Decimal accepts.
+      if (gstRatePct.trim() && gstRatePct.trim() !== '5') {
+        const asFraction = (Number(gstRatePct) / 100).toFixed(3);
+        body.gst_rate = asFraction;
+      }
+      if (billPrefix.trim()) body.bill_prefix = billPrefix.trim();
       const created = await api.post<Restaurant>('/restaurants', body, token);
       setRestaurant(created);
       setStep('menu');
@@ -352,6 +365,58 @@ export function AdminOnboard() {
               onChange={(e) => setTagline(e.target.value)}
               maxLength={140}
               className="input"
+            />
+          </Field>
+          {/* GST config — optional at onboarding. All four fields can
+              be blanked and the server applies defaults (5% split as
+              CGST 2.5 + SGST 2.5, HSN 9963, no bill prefix). */}
+          <div className="row gap-2 items-baseline mt-2">
+            <span className="text-[12px] font-semibold text-s-muted dev uppercase tracking-wide">
+              {t('admin.details.gst_section')}
+            </span>
+            <span className="text-[11px] text-s-muted">
+              {t('admin.details.gst_hint')}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label={t('admin.details.gstin_label')}
+              hint={t('admin.details.gstin_hint')}
+            >
+              <input
+                value={gstin}
+                onChange={(e) => setGstin(e.target.value.toUpperCase())}
+                maxLength={15}
+                pattern="[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[0-9A-Z]{1}Z[0-9A-Z]{1}"
+                placeholder="27ABCDE1234F1Z5"
+                className="input font-mono"
+              />
+            </Field>
+            <Field
+              label={t('admin.details.gst_rate_label')}
+              hint={t('admin.details.gst_rate_hint')}
+            >
+              <input
+                type="number"
+                min="0"
+                max="28"
+                step="0.5"
+                value={gstRatePct}
+                onChange={(e) => setGstRatePct(e.target.value)}
+                className="input"
+              />
+            </Field>
+          </div>
+          <Field
+            label={t('admin.details.bill_prefix_label')}
+            hint={t('admin.details.bill_prefix_hint')}
+          >
+            <input
+              value={billPrefix}
+              onChange={(e) => setBillPrefix(e.target.value)}
+              maxLength={32}
+              placeholder="SPT/2026/"
+              className="input font-mono"
             />
           </Field>
           <button

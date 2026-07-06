@@ -5,6 +5,14 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, HttpUrl
 
 
+# India GSTIN — 15 chars, format: 2 digit state code + 10 char PAN +
+# 1 entity code + 1 alphabet (default Z) + 1 checksum. We match on
+# the length + charset rather than the checksum to keep validation
+# forgiving for the pilot; strict verification via the GSTN portal
+# is a separate concern.
+_GSTIN_PATTERN = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[0-9A-Z]{1}Z[0-9A-Z]{1}$"
+
+
 class RestaurantOut(BaseModel):
     id: UUID
     name: str
@@ -19,6 +27,12 @@ class RestaurantOut(BaseModel):
     theme_primary_color: str
     theme_logo_url: str | None = None
     tagline: str | None = None
+    # GST config (Gap-D). Every bill snapshots the rate at issue time
+    # so a later change here doesn't retroactively re-price past bills.
+    gstin: str | None = None
+    gst_rate: Decimal = Decimal("0.050")
+    hsn_code: str = "9963"
+    bill_prefix: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -35,6 +49,14 @@ class RestaurantCreateIn(BaseModel):
     theme_primary_color: str = Field(default="#0f766e", pattern=r"^#[0-9a-fA-F]{6}$")
     theme_logo_url: HttpUrl | None = None
     tagline: str | None = Field(default=None, max_length=200)
+    # GST config. All optional at create time — most pilot restaurants
+    # don't have their GSTIN handy on day one; they patch it in later.
+    gstin: str | None = Field(default=None, pattern=_GSTIN_PATTERN)
+    gst_rate: Decimal | None = Field(
+        default=None, ge=Decimal("0.00"), le=Decimal("0.28")
+    )
+    hsn_code: str | None = Field(default=None, min_length=4, max_length=8)
+    bill_prefix: str | None = Field(default=None, max_length=32)
 
 
 class RestaurantPatchIn(BaseModel):
@@ -49,6 +71,16 @@ class RestaurantPatchIn(BaseModel):
     theme_primary_color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
     theme_logo_url: HttpUrl | None = None
     tagline: str | None = Field(default=None, max_length=200)
+    gstin: str | None = Field(default=None, pattern=_GSTIN_PATTERN)
+    # gst_rate ceiling of 0.28 covers the max slab in India (28% on
+    # sin-goods). Real restaurant food is either 5% or 18%; the wide
+    # range exists so we don't need another migration if the tax
+    # code changes.
+    gst_rate: Decimal | None = Field(
+        default=None, ge=Decimal("0.00"), le=Decimal("0.28")
+    )
+    hsn_code: str | None = Field(default=None, min_length=4, max_length=8)
+    bill_prefix: str | None = Field(default=None, max_length=32)
 
 
 class MenuItemOut(BaseModel):

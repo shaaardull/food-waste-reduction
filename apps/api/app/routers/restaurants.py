@@ -63,7 +63,7 @@ async def create_restaurant(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required"
         )
-    restaurant = Restaurant(
+    kwargs: dict[str, object] = dict(
         name=payload.name,
         slug=payload.slug,
         address=payload.address,
@@ -77,6 +77,17 @@ async def create_restaurant(
         theme_logo_url=str(payload.theme_logo_url) if payload.theme_logo_url else None,
         tagline=payload.tagline,
     )
+    # GST fields only get overridden when the caller passes them —
+    # otherwise we let the DB defaults (5%, HSN 9963, no GSTIN) apply.
+    if payload.gstin is not None:
+        kwargs["gstin"] = payload.gstin
+    if payload.gst_rate is not None:
+        kwargs["gst_rate"] = payload.gst_rate
+    if payload.hsn_code is not None:
+        kwargs["hsn_code"] = payload.hsn_code
+    if payload.bill_prefix is not None:
+        kwargs["bill_prefix"] = payload.bill_prefix
+    restaurant = Restaurant(**kwargs)
     db.add(restaurant)
     try:
         await db.commit()

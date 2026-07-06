@@ -1,3 +1,4 @@
+from app.models.bill import Bill
 from app.models.consumption_score import ConsumptionScore
 from app.models.dispute import Dispute
 from app.models.fraud_signal import FraudSignal
@@ -13,6 +14,7 @@ from app.models.staff_validation import StaffValidation
 from app.models.user import User
 
 __all__ = [
+    "Bill",
     "User",
     "Restaurant",
     "RestaurantStaff",
