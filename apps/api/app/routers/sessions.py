@@ -15,6 +15,7 @@ from app.errors import (
     SessionExpired,
     WrongSessionStatus,
 )
+from app.models.bill import Bill
 from app.models.consumption_score import ConsumptionScore
 from app.models.dispute import Dispute
 from app.models.meal_session import MealSession, MealSessionItem
@@ -23,6 +24,7 @@ from app.models.plate_capture import PlateCapture
 from app.models.restaurant import Restaurant, RestaurantStaff
 from app.models.reward import Reward, RewardRule
 from app.models.user import User
+from app.schemas.bill import BillGenerateIn, BillOut
 from app.schemas.session import (
     CaptureOut,
     DisputeIn,
@@ -37,7 +39,7 @@ from app.schemas.session import (
     SessionOut,
 )
 from app.security import get_current_user, haversine_m
-from app.services import fraud, nonce, rate_limit, storage
+from app.services import billing, fraud, nonce, rate_limit, storage
 
 router = APIRouter()
 settings = get_settings()
@@ -397,6 +399,117 @@ async def get_score(
             else None
         ),
     }
+
+
+def _bill_line_items_to_out(raw: list[dict[str, object]]) -> list[dict[str, object]]:
+    """The JSONB payload we wrote at generation time is already the
+    shape BillLineItemOut expects — but Pydantic won't coerce the
+    `menu_item_id` string back to UUID for us in a plain dict. Just
+    pass through; the schema at the endpoint boundary handles it."""
+    return raw
+
+
+def _bill_to_out(bill: Bill) -> dict[str, object]:
+    return {
+        "id": str(bill.id),
+        "meal_session_id": str(bill.meal_session_id),
+        "restaurant_id": str(bill.restaurant_id),
+        "bill_number": bill.bill_number,
+        "line_items": _bill_line_items_to_out(bill.line_items_json),
+        "subtotal_minor": bill.subtotal_minor,
+        "discount_minor": bill.discount_minor,
+        "reward_redemption_code": bill.reward_redemption_code,
+        "taxable_amount_minor": bill.taxable_amount_minor,
+        "cgst_rate": str(bill.cgst_rate),
+        "sgst_rate": str(bill.sgst_rate),
+        "cgst_amount_minor": bill.cgst_amount_minor,
+        "sgst_amount_minor": bill.sgst_amount_minor,
+        "total_minor": bill.total_minor,
+        "currency": bill.currency,
+        "delivery_email": bill.delivery_email,
+        "delivery_phone": bill.delivery_phone,
+        "delivered_via": bill.delivered_via,
+        "delivery_status": bill.delivery_status,
+        "issued_at": bill.issued_at.isoformat(),
+        "sent_at": bill.sent_at.isoformat() if bill.sent_at else None,
+    }
+
+
+async def _user_can_access_session_bill(
+    db: AsyncSession, user: User, session: MealSession
+) -> bool:
+    """The bill's access set is: (a) the diner who owns the session,
+    (b) any staff of the session's restaurant, (c) any admin.
+    Return True/False rather than raise so callers can distinguish
+    404 (session missing) from 403 (session exists but you don't own
+    or staff it)."""
+    if user.role == "admin":
+        return True
+    if session.diner_user_id == user.id:
+        return True
+    if user.role != "staff":
+        return False
+    res = await db.execute(
+        select(RestaurantStaff).where(
+            RestaurantStaff.user_id == user.id,
+            RestaurantStaff.restaurant_id == session.restaurant_id,
+        )
+    )
+    return res.scalar_one_or_none() is not None
+
+
+@router.post("/{session_id}/bill", response_model=BillOut)
+async def generate_bill(
+    session_id: UUID,
+    payload: BillGenerateIn | None = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, object]:
+    """Snapshot the session into a tax-invoice bill and return it.
+    Idempotent — a second call returns the same bill unchanged; the
+    optional `apply_redemption_code` on the payload is honoured only
+    at the moment of first generation.
+
+    Access: diner (own session), any restaurant staff, admin.
+    """
+    session = await db.get(MealSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if not await _user_can_access_session_bill(db, user, session):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to generate a bill for this session",
+        )
+    bill = await billing.get_or_create_bill(
+        db,
+        session_id=session.id,
+        apply_redemption_code=payload.apply_redemption_code if payload else None,
+        delivery_email=payload.delivery_email if payload else None,
+        delivery_phone=payload.delivery_phone if payload else None,
+    )
+    return _bill_to_out(bill)
+
+
+@router.get("/{session_id}/bill", response_model=BillOut)
+async def get_bill(
+    session_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, object]:
+    """Retrieve a previously-generated bill. 404 if none exists."""
+    session = await db.get(MealSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if not await _user_can_access_session_bill(db, user, session):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view this session's bill",
+        )
+    res = await db.execute(select(Bill).where(Bill.meal_session_id == session_id))
+    bill = res.scalar_one_or_none()
+    if bill is None:
+        raise HTTPException(status_code=404, detail="No bill has been generated yet")
+    return _bill_to_out(bill)
 
 
 @router.post("/{session_id}/kitchen-ack")
