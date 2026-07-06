@@ -14,6 +14,7 @@ celery_app = Celery(
         "app.tasks.anomaly",
         "app.tasks.staff_metrics",
         "app.tasks.image_retention",
+        "app.tasks.deliver_bill",
     ],
 )
 

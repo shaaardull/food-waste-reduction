@@ -26,6 +26,20 @@ class Settings(BaseSettings):
     OTP_PROVIDER: Literal["console", "msg91", "twilio"] = "console"
     OTP_API_KEY: str = ""
 
+    # ── Email (Gap-D bill delivery) ─────────────────────────────────
+    # `console` logs the rendered message to stdout (matches the OTP
+    # pattern for dev), `smtp` actually opens a connection. If SMTP
+    # is misconfigured on a `smtp` build we fall back to logging with
+    # an error rather than crashing the delivery task.
+    EMAIL_MODE: Literal["console", "smtp"] = "console"
+    SMTP_HOST: str = "smtp.zoho.in"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_STARTTLS: bool = True
+    EMAIL_FROM_NAME: str = "Plate-Clean Rewards"
+    EMAIL_FROM_ADDRESS: str = ""  # falls back to SMTP_USER if blank
+
     S3_ENDPOINT: str = "http://localhost:9000"
     S3_REGION: str = "us-east-1"
     S3_BUCKET: str = "plate-clean-images"
