@@ -13,6 +13,7 @@ import { Disputes } from './screens/Disputes';
 import { Login } from './screens/Login';
 import { Menu } from './screens/Menu';
 import { Onboard } from './screens/Onboard';
+import { Orders } from './screens/Orders';
 import { Redeem } from './screens/Redeem';
 import { StaffMetrics } from './screens/StaffMetrics';
 import { Summary } from './screens/Summary';
@@ -31,6 +32,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<App />}>
             <Route index element={<Summary />} />
             <Route path="login" element={<Login />} />
+            <Route path="orders" element={<Orders />} />
             <Route path="validations" element={<ValidationQueue />} />
             <Route path="validations/:sessionId" element={<ValidationDetail />} />
             <Route path="menu" element={<Menu />} />

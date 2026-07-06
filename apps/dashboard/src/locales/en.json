@@ -5,6 +5,7 @@
     "with_restaurant": "{{name}} · Staff",
     "no_restaurant": "No restaurant selected",
     "nav": {
+      "orders": "Live orders",
       "validations": "Validation queue",
       "menu": "Menu",
       "redeem": "Redeem code",
@@ -123,6 +124,19 @@
     "model_underestimated": "model underestimated",
     "dispute_with_diner": "dispute with diner",
     "other": "other"
+  },
+  "orders": {
+    "title": "Live orders",
+    "blurb": "Every meal in progress at your restaurant right now. New tables show up on the left the moment a diner sends their order from the app.",
+    "empty_title": "No live orders",
+    "empty_blurb": "When a diner sends an order from a table, it'll show up here — usually within a second.",
+    "col_new": "New orders",
+    "col_preparing": "Preparing",
+    "col_eating": "Eating",
+    "col_ready": "Ready to claim",
+    "column_empty": "Nothing here",
+    "mark_sent": "Mark sent",
+    "review_in_queue": "Open in review"
   },
   "menu_editor": {
     "title": "Menu",

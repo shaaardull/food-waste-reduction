@@ -78,6 +78,104 @@ async def _ensure_owner(
         )
 
 
+# Statuses that qualify a session as "still in progress" for the
+# Orders dashboard. Ordered by the column they map to on the frontend
+# so any status_rank sort below produces column-consistent groupings.
+_ACTIVE_ORDER_STATUSES = (
+    "open",
+    "before_captured",
+    "eating",
+    "after_submitted",
+    "pending_staff_validation",
+)
+
+
+@router.get("/restaurants/{restaurant_id}/dashboard/orders")
+async def list_live_orders(
+    restaurant_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Live-orders board. Returns every meal session at this restaurant
+    that's still in play — from "just placed an order" all the way
+    through "waiting for staff validation".
+
+    The dashboard groups them into four columns client-side:
+      NEW ORDERS     status='open' + items + kitchen_ack_at IS NULL
+      PREPARING      status='open' + items + kitchen_ack_at IS NOT NULL
+      EATING         status='before_captured'
+      READY TO CLAIM status IN ('after_submitted','pending_staff_validation')
+
+    Rooted on `started_at ASC` so oldest orders sit at the top of each
+    column. Only sessions that have at least one item pass through the
+    NEW/PREPARING columns; a session in `open` with zero items is a
+    diner who hasn't ordered yet and there's nothing for the kitchen
+    to see.
+    """
+    await _ensure_staff(db, user, restaurant_id)
+    if (await db.get(Restaurant, restaurant_id)) is None:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    # Pull sessions in one query; join item rows separately so we don't
+    # explode the row count with a cross join.
+    sess_res = await db.execute(
+        select(MealSession)
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            MealSession.status.in_(_ACTIVE_ORDER_STATUSES),
+        )
+        .order_by(MealSession.started_at.asc())
+    )
+    sessions = list(sess_res.scalars().all())
+    if not sessions:
+        return {"orders": []}
+
+    session_ids = [s.id for s in sessions]
+
+    # Items per session, joined to menu_items to grab display names.
+    items_res = await db.execute(
+        select(MealSessionItem, MenuItem)
+        .join(MenuItem, MealSessionItem.menu_item_id == MenuItem.id)
+        .where(MealSessionItem.meal_session_id.in_(session_ids))
+    )
+    items_by_session: dict[UUID, list[dict[str, Any]]] = {}
+    for msi, menu in items_res.all():
+        items_by_session.setdefault(msi.meal_session_id, []).append(
+            {
+                "menu_item_id": str(menu.id),
+                "name": menu.name,
+                "quantity": msi.quantity,
+                "portion_size": msi.portion_size,
+                "notes": msi.notes,
+            }
+        )
+
+    now = datetime.now(UTC)
+    out: list[dict[str, Any]] = []
+    for s in sessions:
+        items = items_by_session.get(s.id, [])
+        # `open` sessions without items don't belong on the board — the
+        # diner hasn't chosen anything yet.
+        if s.status == "open" and not items:
+            continue
+        out.append(
+            {
+                "session_id": str(s.id),
+                "table_code": s.table_code,
+                "status": s.status,
+                "items": items,
+                "started_at": s.started_at.isoformat(),
+                "started_seconds_ago": int(
+                    (now - s.started_at).total_seconds()
+                ),
+                "kitchen_ack_at": (
+                    s.kitchen_ack_at.isoformat() if s.kitchen_ack_at else None
+                ),
+            }
+        )
+    return {"orders": out}
+
+
 @router.get("/restaurants/{restaurant_id}/dashboard/summary")
 async def summary(
     restaurant_id: UUID,

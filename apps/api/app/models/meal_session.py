@@ -56,6 +56,13 @@ class MealSession(Base, UUIDPKMixin, TimestampMixin):
     client_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
     device_fingerprint: Mapped[str | None] = mapped_column(String, nullable=True)
     escalated: Mapped[bool] = mapped_column(default=False, nullable=False, server_default="false")
+    # Sprint Gap-C decision: cosmetic kitchen acknowledgement. Non-null
+    # when a staff member taps "Mark sent" on the Orders dashboard; the
+    # diner flow doesn't gate on it. If null, the order lives in the
+    # NEW ORDERS column; once set, it moves to PREPARING.
+    kitchen_ack_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class MealSessionItem(Base, UUIDPKMixin, TimestampMixin):

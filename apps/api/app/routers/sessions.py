@@ -20,7 +20,7 @@ from app.models.dispute import Dispute
 from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
-from app.models.restaurant import Restaurant
+from app.models.restaurant import Restaurant, RestaurantStaff
 from app.models.reward import Reward, RewardRule
 from app.models.user import User
 from app.schemas.session import (
@@ -396,6 +396,51 @@ async def get_score(
             if reward
             else None
         ),
+    }
+
+
+@router.post("/{session_id}/kitchen-ack")
+async def kitchen_ack(
+    session_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str | None]:
+    """Kitchen taps "Mark sent" on the Orders dashboard. Cosmetic — the
+    diner flow doesn't gate on this value; the button just moves the
+    card from NEW ORDERS to PREPARING on the kanban.
+
+    Idempotent: a second tap on an already-ack'd session is a no-op
+    (returns the existing timestamp). Any restaurant staff can call —
+    same policy as the Menu editor and Live Orders view.
+    """
+    session = await db.get(MealSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    # Auth: user must be staff of THIS session's restaurant, or admin.
+    if user.role != "admin":
+        if user.role != "staff":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only restaurant staff can acknowledge orders",
+            )
+        membership = await db.execute(
+            select(RestaurantStaff).where(
+                RestaurantStaff.user_id == user.id,
+                RestaurantStaff.restaurant_id == session.restaurant_id,
+            )
+        )
+        if membership.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not on the staff of this restaurant",
+            )
+    if session.kitchen_ack_at is None:
+        session.kitchen_ack_at = datetime.now(UTC)
+        await db.commit()
+        await db.refresh(session)
+    return {
+        "session_id": str(session.id),
+        "kitchen_ack_at": session.kitchen_ack_at.isoformat(),
     }
 
 
