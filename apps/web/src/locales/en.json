@@ -35,6 +35,18 @@
     "how_approve_d": "Little waste? Your reward unlocks.",
     "ethics_note": "Rewards are a thank-you for reducing waste — not a judgement. No reward just means a smaller portion next time. Photos kept 7 days."
   },
+  "onboard_choice": {
+    "eyebrow": "Just scanned a table",
+    "headline": "How would you like to continue?",
+    "subheadline": "Pick the way that's fastest for you. Your reward and receipt work the same either way.",
+    "phone_title": "Continue with phone",
+    "phone_badge": "fastest",
+    "phone_blurb": "We'll text you a 6-digit code. No password, no account setup.",
+    "email_title": "Continue with email",
+    "email_blurb": "Sign in or create a full account. Bills also arrive in your inbox.",
+    "back": "Back",
+    "ethics_note": "We only send bills, OTPs, and reward alerts. No marketing. Delete your data any time from Profile."
+  },
   "quick_start": {
     "title": "Use your phone, skip the account",
     "blurb": "Enter your phone number and we'll text you a one-time code. You'll get the reward both in this app and as an SMS so you don't have to keep this tab open.",
@@ -162,7 +174,32 @@
     "rejected_heading": "No reward this time.",
     "rejected_blurb": "The server didn't see enough food finished to qualify. If you think this is wrong, you can raise a dispute — an owner will look at it within 48 hours.",
     "session_details": "Session details",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "get_bill_title": "Get my bill",
+    "get_bill_blurb": "Emailed or texted to you. Show it at the counter to pay."
+  },
+  "get_bill": {
+    "eyebrow": "Bill",
+    "title": "Get my bill",
+    "blurb": "We'll send an itemised tax invoice with the GST split. Pay at the counter with the printed copy or your phone.",
+    "close": "Close",
+    "channel_email": "Email",
+    "channel_sms": "SMS",
+    "field_email": "Where to send it?",
+    "field_phone": "Phone number",
+    "sms_hint": "Include the country code. Standard messaging rates apply.",
+    "cancel": "Cancel",
+    "send": "Send bill",
+    "sending": "Sending…",
+    "done": "Done",
+    "sent_title": "On its way",
+    "sent_heading": "Bill queued",
+    "sent_email_blurb": "Should land at {{target}} within a minute. Check spam if you don't see it.",
+    "sent_sms_blurb": "Should land at {{target}} within a minute.",
+    "reward_applied_chip": "Reward discount applied",
+    "err_email_required": "Enter an email address.",
+    "err_phone_required": "Enter a phone number.",
+    "generic_error": "Couldn't send the bill. Try again."
   },
   "reward_panel": {
     "show_to_server": "Show this to your server:",

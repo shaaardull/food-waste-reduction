@@ -113,7 +113,10 @@
     "score_low": "कमी संपवलं",
     "score_high": "जास्त संपवलं",
     "grant_reward": "रिवॉर्ड द्या",
-    "grant_reward_note": "स्टाफ मॅन्युअल ग्रँट — व्हिजन स्कोअर बाजूला ठेवला."
+    "grant_reward_note": "स्टाफ मॅन्युअल ग्रँट — व्हिजन स्कोअर बाजूला ठेवला.",
+    "send_bill_title": "बिल पाठवा",
+    "send_bill_blurb": "निर्णय झाल्यावर, इनव्हॉइस ईमेल करा जेणेकरून डायनर काउंटरवर पैसे देऊ शकेल.",
+    "send_bill_button": "बिल पाठवा"
   },
   "reason_code": {
     "plate_not_clean_enough": "ताट पुरेसं साफ नाही",
@@ -136,7 +139,34 @@
     "col_ready": "क्लेमसाठी तयार",
     "column_empty": "इथे काही नाही",
     "mark_sent": "पाठवलं",
-    "review_in_queue": "पडताळणीत उघडा"
+    "review_in_queue": "पडताळणीत उघडा",
+    "bill_none": "बिल नाही",
+    "bill_pending": "बिल रांगेत",
+    "bill_sent": "बिल पाठवलं",
+    "bill_failed": "बिल अयशस्वी",
+    "bill_send": "बिल पाठवा",
+    "bill_resend": "पुन्हा पाठवा"
+  },
+  "bill_send": {
+    "eyebrow": "बिल",
+    "title": "डायनरला बिल पाठवा",
+    "sent_title": "बिल पाठवलं",
+    "blurb": "आयटम यादी, GST विभागणी आणि रिवॉर्ड सूटसह CGST-अनुरूप टॅक्स इनव्हॉइस ईमेल करते.",
+    "field_channel": "डिलिव्हरी चॅनेल",
+    "channel_email": "ईमेल",
+    "channel_sms": "SMS",
+    "channel_both": "दोन्ही",
+    "field_email": "डायनरचा ईमेल",
+    "field_phone": "डायनरचा फोन",
+    "cancel": "रद्द करा",
+    "send": "बिल पाठवा",
+    "sending": "पाठवत आहे…",
+    "done": "झालं",
+    "sent_heading": "बिल {{number}} रांगेत",
+    "sent_blurb": "एका मिनिटात डायनरच्या इनबॉक्समध्ये पोहोचेल. कधीही पुन्हा पाठवू शकता.",
+    "err_email_required": "डायनरचा ईमेल टाका.",
+    "err_phone_required": "डायनरचा फोन टाका.",
+    "generic_error": "बिल पाठवता आलं नाही. पुन्हा प्रयत्न करा."
   },
   "menu_editor": {
     "title": "मेन्यू",

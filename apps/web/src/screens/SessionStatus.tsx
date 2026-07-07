@@ -12,11 +12,13 @@ import {
   QrCode,
   Clock,
   Check,
+  Receipt,
 } from 'lucide-react';
 import type { Reward } from '@plate-clean/shared-types';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import { ChooseRewardType, formatValue } from '../components/ChooseRewardType';
+import { GetBillModal } from '../components/GetBillModal';
 import { LangToggle } from '../components/LangToggle';
 
 interface SessionDetail {
@@ -46,6 +48,7 @@ export function SessionStatus() {
   const { id = '' } = useParams();
   const token = useAuthStore((s) => s.token);
   const [typeChosen, setTypeChosen] = useState(false);
+  const [billModalOpen, setBillModalOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['session', id],
@@ -154,6 +157,37 @@ export function SessionStatus() {
           />
         )}
 
+        {/* Bill CTA — available whenever the diner has ordered
+            something and is in a state where a bill makes sense.
+            Idempotent on the API side, so a diner tapping this twice
+            just re-sends. */}
+        {(status === 'rewarded' ||
+          status === 'staff_approved' ||
+          status === 'staff_rejected' ||
+          status === 'before_captured' ||
+          status === 'after_submitted' ||
+          status === 'pending_staff_validation' ||
+          status === 'disputed') &&
+          data.items.length > 0 && (
+            <button
+              onClick={() => setBillModalOpen(true)}
+              className="card p-4 row gap-3 items-center hover:border-brand transition text-left"
+            >
+              <div className="w-10 h-10 rounded-md bg-brand-wash text-brand flex items-center justify-center flex-shrink-0">
+                <Receipt size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-[15px] text-ink">
+                  {t('session_status.get_bill_title')}
+                </div>
+                <div className="text-[12.5px] text-muted mt-0.5">
+                  {t('session_status.get_bill_blurb')}
+                </div>
+              </div>
+              <div className="text-brand font-bold text-[16px]">→</div>
+            </button>
+          )}
+
         {/* dev affordance — collapsed by default */}
         <details className="text-xs text-muted mt-auto">
           <summary className="cursor-pointer dev">{t('session_status.session_details')}</summary>
@@ -162,6 +196,13 @@ export function SessionStatus() {
           </pre>
         </details>
       </div>
+
+      {billModalOpen && (
+        <GetBillModal
+          sessionId={id}
+          onClose={() => setBillModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

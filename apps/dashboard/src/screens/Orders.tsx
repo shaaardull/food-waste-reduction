@@ -9,10 +9,13 @@ import {
   Timer,
   Check,
   ArrowRight,
+  Receipt,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useState } from 'react';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
+import { BillSendModal } from '../components/BillSendModal';
 
 /**
  * Live orders — the kitchen visibility surface. Sits above Validation
@@ -51,6 +54,12 @@ interface Order {
   started_at: string;
   started_seconds_ago: number;
   kitchen_ack_at: string | null;
+  // Bill status, joined from the bills table on the server.
+  bill_id: string | null;
+  bill_number: string | null;
+  bill_delivery_status: 'pending' | 'sent' | 'failed' | null;
+  bill_total_minor: number | null;
+  bill_sent_at: string | null;
 }
 
 interface OrdersResponse {
@@ -80,6 +89,7 @@ export function Orders() {
   const navigate = useNavigate();
   const { token, restaurantId } = useAuthStore();
   const qc = useQueryClient();
+  const [billModalFor, setBillModalFor] = useState<Order | null>(null);
 
   useEffect(() => {
     if (!token) navigate('/login');
@@ -176,6 +186,7 @@ export function Orders() {
                 {t('orders.mark_sent')}
               </button>
             )}
+            onSendBill={setBillModalFor}
             t={t}
           />
           <Column
@@ -184,6 +195,7 @@ export function Orders() {
             label={t('orders.col_preparing')}
             count={byColumn.preparing.length}
             orders={byColumn.preparing}
+            onSendBill={setBillModalFor}
             t={t}
           />
           <Column
@@ -192,6 +204,7 @@ export function Orders() {
             label={t('orders.col_eating')}
             count={byColumn.eating.length}
             orders={byColumn.eating}
+            onSendBill={setBillModalFor}
             t={t}
           />
           <Column
@@ -209,9 +222,18 @@ export function Orders() {
                 <ArrowRight size={14} />
               </Link>
             )}
+            onSendBill={setBillModalFor}
             t={t}
           />
         </div>
+      )}
+
+      {billModalFor && (
+        <BillSendModal
+          sessionId={billModalFor.session_id}
+          tableCode={billModalFor.table_code}
+          onClose={() => setBillModalFor(null)}
+        />
       )}
     </section>
   );
@@ -224,10 +246,20 @@ interface ColumnProps {
   count: number;
   orders: Order[];
   renderAction?: (o: Order) => React.ReactNode;
+  onSendBill: (o: Order) => void;
   t: ReturnType<typeof useTranslation>['t'];
 }
 
-function Column({ tone, icon, label, count, orders, renderAction, t }: ColumnProps) {
+function Column({
+  tone,
+  icon,
+  label,
+  count,
+  orders,
+  renderAction,
+  onSendBill,
+  t,
+}: ColumnProps) {
   const accentText =
     tone === 'brand'
       ? 'text-brand'
@@ -266,6 +298,7 @@ function Column({ tone, icon, label, count, orders, renderAction, t }: ColumnPro
               key={o.session_id}
               order={o}
               action={renderAction?.(o)}
+              onSendBill={onSendBill}
               t={t}
             />
           ))}
@@ -278,10 +311,11 @@ function Column({ tone, icon, label, count, orders, renderAction, t }: ColumnPro
 interface OrderCardProps {
   order: Order;
   action: React.ReactNode;
+  onSendBill: (o: Order) => void;
   t: ReturnType<typeof useTranslation>['t'];
 }
 
-function OrderCard({ order, action, t }: OrderCardProps) {
+function OrderCard({ order, action, onSendBill, t }: OrderCardProps) {
   return (
     <article className="rounded-lg border border-s-line bg-s-paper p-3 flex flex-col gap-2">
       <div className="row spread items-center">
@@ -306,7 +340,61 @@ function OrderCard({ order, action, t }: OrderCardProps) {
           </li>
         ))}
       </ul>
+      <BillLine order={order} onSendBill={onSendBill} t={t} />
       {action && <div>{action}</div>}
     </article>
+  );
+}
+
+/**
+ * BillLine — per-card bill state summary + click-to-send.
+ * Sits between the item list and the column action button so a staff
+ * member always sees whether the bill went out without having to
+ * drill into the session.
+ */
+function BillLine({
+  order,
+  onSendBill,
+  t,
+}: {
+  order: Order;
+  onSendBill: (o: Order) => void;
+  t: ReturnType<typeof useTranslation>['t'];
+}) {
+  const status = order.bill_delivery_status;
+  const label =
+    status === 'sent'
+      ? t('orders.bill_sent')
+      : status === 'pending'
+        ? t('orders.bill_pending')
+        : status === 'failed'
+          ? t('orders.bill_failed')
+          : t('orders.bill_none');
+  const chipClass =
+    status === 'sent'
+      ? 'chip-sage'
+      : status === 'pending'
+        ? 'chip-amber'
+        : status === 'failed'
+          ? 'chip-danger'
+          : 'chip-muted';
+  const canSend = order.items.length > 0;
+  return (
+    <div className="row spread gap-2 pt-1 border-t border-s-line/60">
+      <span className={clsx('chip', chipClass)}>
+        <Receipt size={11} />
+        {label}
+      </span>
+      {canSend && (
+        <button
+          onClick={() => onSendBill(order)}
+          className="text-[12px] font-semibold text-brand hover:underline"
+        >
+          {status === 'sent'
+            ? t('orders.bill_resend')
+            : t('orders.bill_send')}
+        </button>
+      )}
+    </div>
   );
 }

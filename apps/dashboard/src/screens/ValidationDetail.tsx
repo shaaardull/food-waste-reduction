@@ -15,6 +15,7 @@ import {
   Gift,
   GripVertical,
   StickyNote,
+  Receipt,
   ClipboardList,
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -22,6 +23,7 @@ import { api } from '../lib/api';
 import type { ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import { useValidationDrafts } from '../lib/validationDrafts';
+import { BillSendModal } from '../components/BillSendModal';
 
 interface Bundle {
   session_id: string;
@@ -92,6 +94,7 @@ export function ValidationDetail() {
   const [notes, setNotesState] = useState<string>(initialDraft?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Decision | null>(null);
+  const [billModalOpen, setBillModalOpen] = useState(false);
 
   // Wrap setters so every change funnels into the draft store, keyed
   // by sessionId. No debounce needed — the store is in-process.
@@ -403,6 +406,36 @@ export function ValidationDetail() {
           </p>
         )}
       </section>
+
+      {/* Ancillary action — sending the bill isn't the primary
+          decision, so it sits between the decision form and the
+          sticky action bar as a small text link. Opens the same
+          BillSendModal component the Orders board uses. */}
+      <div className="row spread items-center bg-s-paper border border-s-line rounded-lg px-4 py-3">
+        <div>
+          <div className="font-semibold text-[13px] text-s-ink">
+            {t('detail.send_bill_title')}
+          </div>
+          <div className="text-[12px] text-s-muted mt-0.5">
+            {t('detail.send_bill_blurb')}
+          </div>
+        </div>
+        <button
+          onClick={() => setBillModalOpen(true)}
+          className="btn btn-outline min-h-[36px] text-[13px] px-3"
+        >
+          <Receipt size={14} />
+          {t('detail.send_bill_button')}
+        </button>
+      </div>
+
+      {billModalOpen && (
+        <BillSendModal
+          sessionId={sessionId}
+          tableCode={bundle.table_code}
+          onClose={() => setBillModalOpen(false)}
+        />
+      )}
 
       {/* sticky action bar */}
       <div className="fixed bottom-0 left-[228px] right-0 z-30 px-6 py-3 bg-s-paper/95 backdrop-blur border-t border-s-line">

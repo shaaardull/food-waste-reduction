@@ -113,7 +113,10 @@
     "score_low": "less finished",
     "score_high": "more finished",
     "grant_reward": "Grant reward",
-    "grant_reward_note": "Staff manual grant — overrides vision score."
+    "grant_reward_note": "Staff manual grant — overrides vision score.",
+    "send_bill_title": "Send the bill",
+    "send_bill_blurb": "Once you've decided, email the itemised bill so the diner can pay at the counter.",
+    "send_bill_button": "Send bill"
   },
   "reason_code": {
     "plate_not_clean_enough": "plate not clean enough",
@@ -136,7 +139,34 @@
     "col_ready": "Ready to claim",
     "column_empty": "Nothing here",
     "mark_sent": "Mark sent",
-    "review_in_queue": "Open in review"
+    "review_in_queue": "Open in review",
+    "bill_none": "No bill",
+    "bill_pending": "Bill queued",
+    "bill_sent": "Bill sent",
+    "bill_failed": "Bill failed",
+    "bill_send": "Send bill",
+    "bill_resend": "Resend"
+  },
+  "bill_send": {
+    "eyebrow": "Bill",
+    "title": "Send bill to diner",
+    "sent_title": "Bill sent",
+    "blurb": "Emails a CGST-compliant tax invoice with the itemised list, GST split, and any reward discount applied.",
+    "field_channel": "Delivery channel",
+    "channel_email": "Email",
+    "channel_sms": "SMS",
+    "channel_both": "Both",
+    "field_email": "Diner's email",
+    "field_phone": "Diner's phone",
+    "cancel": "Cancel",
+    "send": "Send bill",
+    "sending": "Sending…",
+    "done": "Done",
+    "sent_heading": "Bill {{number}} queued",
+    "sent_blurb": "Should land in the diner's inbox within a minute. You can resend at any time.",
+    "err_email_required": "Enter the diner's email address.",
+    "err_phone_required": "Enter the diner's phone number.",
+    "generic_error": "Couldn't send the bill. Try again."
   },
   "menu_editor": {
     "title": "Menu",

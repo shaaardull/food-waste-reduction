@@ -13,6 +13,7 @@ from app.errors import NotRestaurantStaff
 from app.models.consumption_score import ConsumptionScore
 from app.models.dispute import Dispute
 from app.models.fraud_signal import FraudSignal
+from app.models.bill import Bill
 from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
@@ -150,6 +151,16 @@ async def list_live_orders(
             }
         )
 
+    # Bill status per session — LEFT JOIN, so sessions without a bill
+    # simply return None fields. The frontend renders a "No bill" chip
+    # in that case and lets staff click to generate.
+    bills_res = await db.execute(
+        select(Bill).where(Bill.meal_session_id.in_(session_ids))
+    )
+    bills_by_session: dict[UUID, Bill] = {}
+    for b in bills_res.scalars().all():
+        bills_by_session[b.meal_session_id] = b
+
     now = datetime.now(UTC)
     out: list[dict[str, Any]] = []
     for s in sessions:
@@ -158,6 +169,7 @@ async def list_live_orders(
         # diner hasn't chosen anything yet.
         if s.status == "open" and not items:
             continue
+        bill = bills_by_session.get(s.id)
         out.append(
             {
                 "session_id": str(s.id),
@@ -170,6 +182,13 @@ async def list_live_orders(
                 ),
                 "kitchen_ack_at": (
                     s.kitchen_ack_at.isoformat() if s.kitchen_ack_at else None
+                ),
+                "bill_id": str(bill.id) if bill else None,
+                "bill_number": bill.bill_number if bill else None,
+                "bill_delivery_status": bill.delivery_status if bill else None,
+                "bill_total_minor": bill.total_minor if bill else None,
+                "bill_sent_at": (
+                    bill.sent_at.isoformat() if bill and bill.sent_at else None
                 ),
             }
         )

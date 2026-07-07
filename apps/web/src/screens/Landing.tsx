@@ -150,7 +150,7 @@ export function Landing() {
           </Link>
         ) : (
           <>
-            <Link to="/quick-start" className="btn btn-primary btn-lg btn-block">
+            <Link to="/onboard-choice" className="btn btn-primary btn-lg btn-block">
               <Zap size={19} />
               {t('landing.quick_start')}
             </Link>

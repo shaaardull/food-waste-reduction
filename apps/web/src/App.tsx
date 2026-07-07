@@ -9,7 +9,13 @@ import { useApplyTheme } from './lib/theme';
  * header on those routes. Everything past auth (scan, order, capture,
  * status, rewards, profile) keeps the existing branded header.
  */
-const FRONT_DOOR_ROUTES = new Set(['/', '/login', '/quick-start', '/stats']);
+const FRONT_DOOR_ROUTES = new Set([
+  '/',
+  '/login',
+  '/quick-start',
+  '/onboard-choice',
+  '/stats',
+]);
 
 export function App() {
   const { t } = useTranslation();

@@ -8,6 +8,7 @@ import './lib/i18n'; // initialises i18next before any screen renders
 import { App } from './App';
 import { Landing } from './screens/Landing';
 import { Login } from './screens/Login';
+import { OnboardChoice } from './screens/OnboardChoice';
 import { ScanTable } from './screens/ScanTable';
 import { Order } from './screens/Order';
 import { BeforeCapture } from './screens/BeforeCapture';
@@ -32,6 +33,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<App />}>
             <Route index element={<Landing />} />
             <Route path="login" element={<Login />} />
+            <Route path="onboard-choice" element={<OnboardChoice />} />
             <Route path="quick-start" element={<QuickStart />} />
             <Route path="scan" element={<ScanTable />} />
             <Route path="sessions/:id/order" element={<Order />} />
