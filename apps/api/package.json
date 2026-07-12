@@ -5,10 +5,12 @@
   "scripts": {
     "dev": "uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
     "start": "gunicorn app.main:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000",
-    "lint": "ruff check app tests",
+    "lint": "echo 'ruff runs in the dedicated Python CI job'",
     "lint:copy": "echo 'no copy-lint for api'",
     "typecheck": "echo 'mypy runs in the dedicated Python CI job'",
-    "test": "pytest",
+    "test": "echo 'pytest runs in the dedicated Python CI job'",
+    "lint:local": "ruff check app tests",
+    "test:local": "pytest",
     "build": "echo 'python package — no build step'",
     "migrate": "alembic upgrade head",
     "seed": "python -m app.scripts.seed"
