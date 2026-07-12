@@ -73,13 +73,7 @@ export function PlatformQrTokens() {
   const [retiringRow, setRetiringRow] = useState<QRTokenRow | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  if (user?.role !== 'admin') {
-    return (
-      <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
-        {t('qr_tokens.admin_only')}
-      </p>
-    );
-  }
+  const isAdmin = user?.role === 'admin';
 
   const listQuery = useQuery({
     queryKey: ['qr-tokens', stateFilter, batchFilter],
@@ -93,7 +87,9 @@ export function PlatformQrTokens() {
         authToken,
       );
     },
-    enabled: Boolean(authToken),
+    // Gate the fetch behind admin role — the server would 403 anyway,
+    // but skipping the request avoids a pointless round-trip.
+    enabled: Boolean(authToken) && isAdmin,
   });
 
   const rows = listQuery.data ?? [];
@@ -106,6 +102,15 @@ export function PlatformQrTokens() {
     for (const r of rows) if (r.batch_label) set.add(r.batch_label);
     return [...set].sort();
   }, [rows]);
+
+  // Early return AFTER all hooks — rules-of-hooks compliance.
+  if (!isAdmin) {
+    return (
+      <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
+        {t('qr_tokens.admin_only')}
+      </p>
+    );
+  }
 
   function copyToken(t: string) {
     void navigator.clipboard.writeText(t);

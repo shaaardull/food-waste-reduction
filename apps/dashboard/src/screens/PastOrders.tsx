@@ -133,12 +133,6 @@ export function PastOrders() {
     refetchInterval: 30_000,
   });
 
-  if (!restaurantId) {
-    return (
-      <p className="text-s-muted text-sm">{t('summary.pick_restaurant')}</p>
-    );
-  }
-
   const orders = data?.orders ?? [];
   const filtered = useMemo(
     () =>
@@ -147,6 +141,13 @@ export function PastOrders() {
         : orders.filter((o) => o.status === statusFilter),
     [orders, statusFilter],
   );
+
+  // Early return AFTER all hooks — rules-of-hooks compliance.
+  if (!restaurantId) {
+    return (
+      <p className="text-s-muted text-sm">{t('summary.pick_restaurant')}</p>
+    );
+  }
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);

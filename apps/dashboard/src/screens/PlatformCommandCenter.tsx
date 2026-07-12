@@ -163,12 +163,13 @@ export function PlatformCommandCenter() {
     if (!token) navigate('/login');
   }, [token, navigate]);
 
+  const [tab, setTab] = useState<'analytics' | 'bugs'>('analytics');
+
+  // Early returns AFTER all hooks — rules-of-hooks compliance.
   if (!token) return null;
   if (user && user.role !== 'admin') {
     return <NotFound />;
   }
-
-  const [tab, setTab] = useState<'analytics' | 'bugs'>('analytics');
 
   return (
     <div className="max-w-screen-xl mx-auto">
