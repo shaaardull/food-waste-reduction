@@ -164,7 +164,7 @@ export function QrResolve() {
           <StaticCard
             icon={<QrCode size={26} className="text-brand" />}
             title={t('qr.unassigned_title')}
-            body={t('qr.unassigned_body')}
+            message={t('qr.unassigned_body')}
           />
         )}
 
@@ -172,7 +172,7 @@ export function QrResolve() {
           <StaticCard
             icon={<AlertCircle size={26} className="text-danger" />}
             title={t('qr.retired_title')}
-            body={t('qr.retired_body')}
+            message={t('qr.retired_body')}
           />
         )}
 
@@ -180,7 +180,7 @@ export function QrResolve() {
           <StaticCard
             icon={<AlertCircle size={26} className="text-muted" />}
             title={t('qr.unknown_title')}
-            body={t('qr.unknown_body')}
+            message={t('qr.unknown_body')}
           />
         )}
 
@@ -188,7 +188,7 @@ export function QrResolve() {
           <StaticCard
             icon={<AlertCircle size={26} className="text-danger" />}
             title={t('qr.error_title')}
-            body={errorMsg ?? t('qr.error_generic')}
+            message={errorMsg ?? t('qr.error_generic')}
           />
         )}
 
@@ -206,11 +206,11 @@ export function QrResolve() {
 function StaticCard({
   icon,
   title,
-  body,
+  message,
 }: {
   icon: React.ReactNode;
   title: string;
-  body: string;
+  message: string;
 }) {
   return (
     <div className="card p-6 flex flex-col items-center gap-3 max-w-[38ch]">
@@ -219,7 +219,7 @@ function StaticCard({
       </div>
       <div>
         <div className="font-bold text-[16px] text-ink">{title}</div>
-        <p className="text-[13px] text-muted mt-1 leading-snug">{body}</p>
+        <p className="text-[13px] text-muted mt-1 leading-snug">{message}</p>
       </div>
     </div>
   );
