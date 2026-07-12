@@ -1,8 +1,15 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  test: {
+    // The e2e/ folder is Playwright's — vitest must ignore it, otherwise
+    // it imports `@playwright/test`, which fails because Playwright's
+    // test.describe() only runs under the Playwright runner.
+    exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
+  },
   plugins: [
     react(),
     VitePWA({

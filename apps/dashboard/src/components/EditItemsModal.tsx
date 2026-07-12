@@ -3,7 +3,8 @@ import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { X, Plus, Trash2, Pencil, AlertTriangle } from 'lucide-react';
-import { api, ApiException } from '../lib/api';
+import { api } from '../lib/api';
+import type { ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
 /**

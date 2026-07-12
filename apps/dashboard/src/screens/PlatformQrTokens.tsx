@@ -15,7 +15,8 @@ import {
   Copy,
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { api, ApiException } from '../lib/api';
+import { api } from '../lib/api';
+import type { ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
 /**
