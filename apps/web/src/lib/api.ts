@@ -40,7 +40,7 @@ async function request<T>(path: string, opts: ApiOptions = {}): Promise<T> {
     }
     let code = payload.error?.code;
     let message = payload.error?.message;
-    let details = payload.error?.details;
+    const details = payload.error?.details;
     if (!code && !message && payload.detail !== undefined) {
       if (typeof payload.detail === 'string') {
         message = payload.detail;

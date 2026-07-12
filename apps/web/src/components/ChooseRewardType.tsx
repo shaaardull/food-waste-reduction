@@ -3,7 +3,8 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Sparkles, Utensils, Receipt } from 'lucide-react';
 import type { Reward, RewardType } from '@plate-clean/shared-types';
-import { api, ApiException } from '../lib/api';
+import { api } from '../lib/api';
+import type { ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
 interface Props {
