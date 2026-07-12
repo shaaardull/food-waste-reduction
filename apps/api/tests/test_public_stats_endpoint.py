@@ -102,10 +102,8 @@ async def test_public_stats_shape_has_no_pii(client, db):
     allowed_keys = {
         "range",
         "period_days",
-        "restaurants_active",
         "sessions_counted",
         "k_anonymous",
-        "k_anonymity_floor",
         "kg_food_saved",
         "kg_co2e_saved",
         "trees_day_equivalent",
@@ -115,15 +113,21 @@ async def test_public_stats_shape_has_no_pii(client, db):
     }
     extra = set(body.keys()) - allowed_keys
     assert not extra, f"Response leaks unexpected keys: {extra}"
+    # `restaurants_active` and `k_anonymity_floor` were deliberately
+    # removed — the count is business-sensitive at pilot scale and
+    # the floor would leak it by subtraction from a client's empty
+    # state. This assertion locks that in.
+    assert "restaurants_active" not in body
+    assert "k_anonymity_floor" not in body
 
 
 @pytest.mark.asyncio
 async def test_public_stats_k_anonymity_below_floor_returns_nulls(
     client, db, monkeypatch
 ):
-    """If only one restaurant has approved sessions in the window, the
-    gate kicks in: numbers are null, k_anonymous is false. Restaurants
-    count must still be reported (it's just an integer, not identifying)."""
+    """Below the k-anonymity floor: k_anonymous is false and every
+    scalar is null. sessions_counted is still reported (it's an
+    aggregate of diner activity, not a restaurant identifier)."""
     # Need to control the world — pretend nothing else exists by tightening
     # the floor temporarily.
     from app.routers import public as public_router
@@ -138,9 +142,6 @@ async def test_public_stats_k_anonymity_below_floor_returns_nulls(
     assert body["trees_day_equivalent"] is None
     assert body["rewards_issued"] is None
     assert body["rewards_redeemed"] is None
-    # restaurants_active and sessions_counted are integers, not identifying
-    # on their own.
-    assert isinstance(body["restaurants_active"], int)
     assert isinstance(body["sessions_counted"], int)
 
 
@@ -178,7 +179,6 @@ async def test_public_stats_above_floor_returns_numbers(client, db, monkeypatch)
     body = res.json()
     assert body["k_anonymous"] is True
     assert body["sessions_counted"] >= 10
-    assert body["restaurants_active"] >= 2
     assert body["kg_food_saved"] is not None
     assert body["kg_food_saved"] > 0
     assert body["kg_co2e_saved"] is not None

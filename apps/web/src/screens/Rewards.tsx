@@ -1,9 +1,12 @@
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { Sparkles, HeartHandshake, Clock, Check } from 'lucide-react';
+import { Sparkles, HeartHandshake, Clock, Check, MapPin, ChevronDown, History } from 'lucide-react';
+import { clsx } from 'clsx';
 import type { Reward } from '@plate-clean/shared-types';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
+import { useNewRewardsBadge } from '../lib/newRewards';
 import { formatValue } from '../components/ChooseRewardType';
 import { LangToggle } from '../components/LangToggle';
 
@@ -47,6 +50,13 @@ function classify(r: Reward, now: Date): DerivedReward {
 export function Rewards() {
   const { t } = useTranslation();
   const token = useAuthStore((s) => s.token);
+  // Clears the "+N" top-nav badge — mount is the right moment because
+  // the diner is now looking at the inbox. Guarded so a diner with a
+  // stale-tab reload doesn't keep re-writing localStorage.
+  const { markSeen } = useNewRewardsBadge();
+  useEffect(() => {
+    markSeen();
+  }, [markSeen]);
   const { data, isLoading } = useQuery({
     queryKey: ['rewards'],
     queryFn: () => api.get<Reward[]>('/rewards', token),
@@ -95,25 +105,115 @@ function RewardList({
 }) {
   const now = new Date();
   const derived = rewards.map((r) => classify(r, now));
-  const phaseRank: Record<Phase, number> = {
-    full: 0,
-    half: 1,
-    redeemed: 2,
-    voided: 3,
-    expired: 4,
-  };
-  derived.sort((a, b) => {
-    if (phaseRank[a.phase] !== phaseRank[b.phase])
-      return phaseRank[a.phase] - phaseRank[b.phase];
-    return new Date(b.issued_at).getTime() - new Date(a.issued_at).getTime();
-  });
+
+  // Three buckets:
+  //   active   — full / half; can still be shown to staff.
+  //   redeemed — already used at least once. Kept visible so the diner
+  //              has a receipt of what they spent (previous behaviour
+  //              hid these under a collapsed toggle, which meant a
+  //              diner asking "did I already use PLATE-4E43?" had to
+  //              dig).
+  //   archived — expired / voided; no diner action possible, so kept
+  //              collapsed to avoid drowning fresh coupons.
+  const isActive = (p: Phase) => p === 'full' || p === 'half';
+  const active = derived
+    .filter((r) => isActive(r.phase))
+    .sort((a, b) => {
+      if (a.phase !== b.phase) return a.phase === 'full' ? -1 : 1;
+      return new Date(b.issued_at).getTime() - new Date(a.issued_at).getTime();
+    });
+  const redeemed = derived
+    .filter((r) => r.phase === 'redeemed')
+    .sort(
+      (a, b) =>
+        new Date(b.redeemed_at ?? b.issued_at).getTime() -
+        new Date(a.redeemed_at ?? a.issued_at).getTime(),
+    );
+  const archived = derived
+    .filter((r) => r.phase === 'expired' || r.phase === 'voided')
+    .sort((a, b) => {
+      if (a.phase !== b.phase) return a.phase === 'voided' ? -1 : 1;
+      return new Date(b.issued_at).getTime() - new Date(a.issued_at).getTime();
+    });
+
+  const [archivedOpen, setArchivedOpen] = useState(false);
 
   return (
-    <ul className="flex flex-col gap-3">
-      {derived.map((r) => (
-        <RewardTicket key={r.id} reward={r} t={t} />
-      ))}
-    </ul>
+    <div className="flex flex-col gap-5">
+      {active.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <div className="row gap-1.5 items-center text-[11.5px] font-bold tracking-wide dev text-brand uppercase">
+            <Sparkles size={12} />
+            {t('rewards.section_active', { count: active.length })}
+          </div>
+          <ul className="flex flex-col gap-3">
+            {active.map((r) => (
+              <RewardTicket key={r.id} reward={r} t={t} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {active.length === 0 && (redeemed.length > 0 || archived.length > 0) && (
+        // Empty active state message when the diner has ONLY history —
+        // don't just show them a wall of expired chips, tell them
+        // what happened.
+        <div className="card p-4 flex flex-col items-center text-center gap-1.5">
+          <Sparkles size={22} className="text-muted" />
+          <p className="text-[13.5px] text-ink font-semibold">
+            {t('rewards.no_active_title')}
+          </p>
+          <p className="text-[12px] text-muted leading-snug max-w-[36ch]">
+            {t('rewards.no_active_blurb')}
+          </p>
+        </div>
+      )}
+
+      {redeemed.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <div className="row gap-1.5 items-center text-[11.5px] font-bold tracking-wide dev text-muted uppercase">
+            <Check size={12} />
+            {t('rewards.section_redeemed', { count: redeemed.length })}
+          </div>
+          <ul className="flex flex-col gap-3">
+            {redeemed.map((r) => (
+              <RewardTicket key={r.id} reward={r} t={t} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {archived.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => setArchivedOpen((v) => !v)}
+            className="row spread items-center bg-paper border border-line rounded-md px-3 py-2.5 hover:border-brand transition"
+          >
+            <div className="row gap-2 items-center">
+              <History size={14} className="text-muted" />
+              <span className="font-semibold text-[13px] text-ink">
+                {t('rewards.section_archived', { count: archived.length })}
+              </span>
+            </div>
+            <ChevronDown
+              size={14}
+              className={clsx(
+                'transition-transform text-muted',
+                archivedOpen && 'rotate-180',
+              )}
+            />
+          </button>
+          {archivedOpen && (
+            <ul className="flex flex-col gap-3">
+              {archived.map((r) => (
+                <RewardTicket key={r.id} reward={r} t={t} />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+    </div>
   );
 }
 
@@ -148,6 +248,15 @@ function RewardTicket({ reward: r, t }: TicketProps) {
             </span>
           )}
         </div>
+        {/* Diner may hold coupons from more than one restaurant —
+            show the issuing venue on every card so it's unambiguous
+            which one this coupon works at. */}
+        {r.restaurant_name && (
+          <div className="row gap-1 items-center text-[12px] text-brand">
+            <MapPin size={12} />
+            <span className="truncate">{r.restaurant_name}</span>
+          </div>
+        )}
         <WindowLine reward={r} t={t} />
         <div className="text-xs text-muted mt-0.5">
           {t('rewards.issued_expires', {

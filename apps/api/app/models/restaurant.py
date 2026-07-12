@@ -48,6 +48,13 @@ class Restaurant(Base, UUIDPKMixin, TimestampMixin):
         String, nullable=False, default="9963", server_default="9963"
     )
     bill_prefix: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Sprint E toggle — restaurants under the ₹20L annual turnover
+    # threshold, or on composition schemes, can flip this false so bills
+    # skip the CGST/SGST split. When disabled, taxable == subtotal and
+    # total == subtotal (rate/amount fields all zero).
+    gst_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
 
 
 class RestaurantStaff(Base, UUIDPKMixin, TimestampMixin):

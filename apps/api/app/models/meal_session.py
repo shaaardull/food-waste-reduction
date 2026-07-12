@@ -19,6 +19,7 @@ VALID_STATUSES = (
     "rewarded",
     "expired",
     "disputed",
+    "cancelled",
 )
 
 
@@ -29,7 +30,7 @@ class MealSession(Base, UUIDPKMixin, TimestampMixin):
             "status IN ("
             "'open','before_captured','eating','after_submitted','scored',"
             "'pending_staff_validation','staff_approved','staff_rejected',"
-            "'rewarded','expired','disputed')",
+            "'rewarded','expired','disputed','cancelled')",
             name="meal_sessions_status_check",
         ),
         Index("ix_meal_sessions_diner_started", "diner_user_id", "started_at"),
@@ -61,6 +62,14 @@ class MealSession(Base, UUIDPKMixin, TimestampMixin):
     # diner flow doesn't gate on it. If null, the order lives in the
     # NEW ORDERS column; once set, it moves to PREPARING.
     kitchen_ack_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Sprint E: staff can cancel a session at any stage. The reason is
+    # surfaced to the diner on SessionStatus (ethics rule 9 — diner
+    # recourse). Both nullable so old sessions that never got cancelled
+    # simply carry NULL/NULL.
+    cancelled_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 

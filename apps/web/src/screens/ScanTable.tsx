@@ -27,6 +27,30 @@ export function ScanTable() {
       .get<Restaurant[]>('/restaurants')
       .then((rs) => {
         setRestaurants(rs);
+        // If a diner scanned a bound QR sticker before signing in,
+        // QrResolve stashed the resolved (restaurant, table) pair
+        // in sessionStorage. Auto-select it now so the diner doesn't
+        // have to re-pick after finishing auth — one-shot, cleared
+        // on read so a subsequent manual scan doesn't reuse stale
+        // context.
+        try {
+          const raw = sessionStorage.getItem('qr-context');
+          if (raw) {
+            const hint = JSON.parse(raw) as {
+              restaurantId: string;
+              tableCode: string;
+            };
+            sessionStorage.removeItem('qr-context');
+            const match = rs.find((r) => r.id === hint.restaurantId);
+            if (match) {
+              setRestaurantId(match.id);
+              setTableCode(hint.tableCode);
+              return;
+            }
+          }
+        } catch {
+          /* ignore malformed / stale JSON */
+        }
         if (rs[0]) setRestaurantId(rs[0].id);
       })
       .catch(() => setError(t('scan.load_error')));

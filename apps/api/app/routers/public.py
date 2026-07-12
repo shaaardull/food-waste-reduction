@@ -125,16 +125,17 @@ async def public_stats(
         and sessions_counted >= MIN_SESSIONS_FOR_PUBLIC_STATS
     )
 
+    # `restaurants_active` is deliberately NOT in the response —
+    # even the aggregate count is business-sensitive at pilot scale.
+    # We still USE it (above) for the k-anonymity gate; we just don't
+    # expose it to callers. `k_anonymity_floor` is likewise omitted
+    # so no reverse-subtraction attack can recover the active count
+    # from "we need N more to publish."
     base = {
         "range": range,
         "period_days": days if range != "all" else None,
-        "restaurants_active": restaurants_active,
         "sessions_counted": sessions_counted,
         "k_anonymous": k_anonymous,
-        "k_anonymity_floor": {
-            "restaurants": MIN_RESTAURANTS_FOR_PUBLIC_STATS,
-            "sessions": MIN_SESSIONS_FOR_PUBLIC_STATS,
-        },
         "generated_at": now.isoformat(),
     }
     if not k_anonymous:

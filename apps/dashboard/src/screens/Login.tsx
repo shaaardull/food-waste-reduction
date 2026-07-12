@@ -95,6 +95,14 @@ export function Login() {
             className="input"
             autoComplete="current-password"
           />
+          <div className="text-right mt-1">
+            <Link
+              to="/forgot-password"
+              className="text-[12px] font-semibold text-brand hover:underline"
+            >
+              {t('login.forgot_password')}
+            </Link>
+          </div>
         </FormField>
         <FormField icon={<Building2 size={14} />} label={t('login.restaurant')}>
           <select

@@ -10,12 +10,18 @@ import {
   Check,
   ArrowRight,
   Receipt,
+  Pencil,
+  XCircle,
+  Eye,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import { BillSendModal } from '../components/BillSendModal';
+import { BillViewModal } from '../components/BillViewModal';
+import { CancelOrderModal } from '../components/CancelOrderModal';
+import { EditItemsModal } from '../components/EditItemsModal';
 
 /**
  * Live orders — the kitchen visibility surface. Sits above Validation
@@ -90,6 +96,9 @@ export function Orders() {
   const { token, restaurantId } = useAuthStore();
   const qc = useQueryClient();
   const [billModalFor, setBillModalFor] = useState<Order | null>(null);
+  const [viewBillFor, setViewBillFor] = useState<Order | null>(null);
+  const [cancelFor, setCancelFor] = useState<Order | null>(null);
+  const [editFor, setEditFor] = useState<Order | null>(null);
 
   useEffect(() => {
     if (!token) navigate('/login');
@@ -187,6 +196,9 @@ export function Orders() {
               </button>
             )}
             onSendBill={setBillModalFor}
+            onViewBill={setViewBillFor}
+            onCancel={setCancelFor}
+            onEdit={setEditFor}
             t={t}
           />
           <Column
@@ -196,6 +208,9 @@ export function Orders() {
             count={byColumn.preparing.length}
             orders={byColumn.preparing}
             onSendBill={setBillModalFor}
+            onViewBill={setViewBillFor}
+            onCancel={setCancelFor}
+            onEdit={setEditFor}
             t={t}
           />
           <Column
@@ -205,6 +220,9 @@ export function Orders() {
             count={byColumn.eating.length}
             orders={byColumn.eating}
             onSendBill={setBillModalFor}
+            onViewBill={setViewBillFor}
+            onCancel={setCancelFor}
+            onEdit={setEditFor}
             t={t}
           />
           <Column
@@ -223,6 +241,9 @@ export function Orders() {
               </Link>
             )}
             onSendBill={setBillModalFor}
+            onViewBill={setViewBillFor}
+            onCancel={setCancelFor}
+            onEdit={setEditFor}
             t={t}
           />
         </div>
@@ -233,6 +254,29 @@ export function Orders() {
           sessionId={billModalFor.session_id}
           tableCode={billModalFor.table_code}
           onClose={() => setBillModalFor(null)}
+        />
+      )}
+      {viewBillFor && (
+        <BillViewModal
+          sessionId={viewBillFor.session_id}
+          tableCode={viewBillFor.table_code}
+          onClose={() => setViewBillFor(null)}
+        />
+      )}
+      {cancelFor && (
+        <CancelOrderModal
+          sessionId={cancelFor.session_id}
+          tableCode={cancelFor.table_code}
+          onClose={() => setCancelFor(null)}
+        />
+      )}
+      {editFor && (
+        <EditItemsModal
+          sessionId={editFor.session_id}
+          tableCode={editFor.table_code}
+          restaurantId={restaurantId!}
+          currentItems={editFor.items}
+          onClose={() => setEditFor(null)}
         />
       )}
     </section>
@@ -247,6 +291,9 @@ interface ColumnProps {
   orders: Order[];
   renderAction?: (o: Order) => React.ReactNode;
   onSendBill: (o: Order) => void;
+  onViewBill: (o: Order) => void;
+  onCancel: (o: Order) => void;
+  onEdit: (o: Order) => void;
   t: ReturnType<typeof useTranslation>['t'];
 }
 
@@ -258,6 +305,9 @@ function Column({
   orders,
   renderAction,
   onSendBill,
+  onViewBill,
+  onCancel,
+  onEdit,
   t,
 }: ColumnProps) {
   const accentText =
@@ -299,6 +349,9 @@ function Column({
               order={o}
               action={renderAction?.(o)}
               onSendBill={onSendBill}
+              onViewBill={onViewBill}
+              onCancel={onCancel}
+              onEdit={onEdit}
               t={t}
             />
           ))}
@@ -312,10 +365,27 @@ interface OrderCardProps {
   order: Order;
   action: React.ReactNode;
   onSendBill: (o: Order) => void;
+  onViewBill: (o: Order) => void;
+  onCancel: (o: Order) => void;
+  onEdit: (o: Order) => void;
   t: ReturnType<typeof useTranslation>['t'];
 }
 
-function OrderCard({ order, action, onSendBill, t }: OrderCardProps) {
+function OrderCard({
+  order,
+  action,
+  onSendBill,
+  onViewBill,
+  onCancel,
+  onEdit,
+  t,
+}: OrderCardProps) {
+  const hasBill = order.bill_id !== null;
+  // Both cancel and edit are blocked once a bill exists — server refuses.
+  // Rather than surface a 409, hide the buttons; staff who need to void
+  // an issued bill do that out-of-band.
+  const canModify = !hasBill;
+
   return (
     <article className="rounded-lg border border-s-line bg-s-paper p-3 flex flex-col gap-2">
       <div className="row spread items-center">
@@ -340,7 +410,33 @@ function OrderCard({ order, action, onSendBill, t }: OrderCardProps) {
           </li>
         ))}
       </ul>
-      <BillLine order={order} onSendBill={onSendBill} t={t} />
+      <BillLine
+        order={order}
+        onSendBill={onSendBill}
+        onViewBill={onViewBill}
+        t={t}
+      />
+      {canModify && (
+        <div className="row gap-1 pt-1 border-t border-s-line/60">
+          <button
+            type="button"
+            onClick={() => onEdit(order)}
+            className="row gap-1 items-center text-[11.5px] font-semibold text-s-muted hover:text-s-ink px-1.5 py-0.5"
+          >
+            <Pencil size={11} />
+            {t('orders.edit')}
+          </button>
+          <span className="text-s-muted/40">·</span>
+          <button
+            type="button"
+            onClick={() => onCancel(order)}
+            className="row gap-1 items-center text-[11.5px] font-semibold text-s-muted hover:text-danger px-1.5 py-0.5"
+          >
+            <XCircle size={11} />
+            {t('orders.cancel')}
+          </button>
+        </div>
+      )}
       {action && <div>{action}</div>}
     </article>
   );
@@ -355,10 +451,12 @@ function OrderCard({ order, action, onSendBill, t }: OrderCardProps) {
 function BillLine({
   order,
   onSendBill,
+  onViewBill,
   t,
 }: {
   order: Order;
   onSendBill: (o: Order) => void;
+  onViewBill: (o: Order) => void;
   t: ReturnType<typeof useTranslation>['t'];
 }) {
   const status = order.bill_delivery_status;
@@ -379,12 +477,27 @@ function BillLine({
           ? 'chip-danger'
           : 'chip-muted';
   const canSend = order.items.length > 0;
+  const hasBill = order.bill_id !== null;
   return (
     <div className="row spread gap-2 pt-1 border-t border-s-line/60">
-      <span className={clsx('chip', chipClass)}>
-        <Receipt size={11} />
-        {label}
-      </span>
+      {hasBill ? (
+        <button
+          type="button"
+          onClick={() => onViewBill(order)}
+          className={clsx('chip hover:opacity-80 transition', chipClass)}
+          aria-label={t('orders.bill_view')}
+          title={t('orders.bill_view')}
+        >
+          <Receipt size={11} />
+          {label}
+          <Eye size={10} className="opacity-70" />
+        </button>
+      ) : (
+        <span className={clsx('chip', chipClass)}>
+          <Receipt size={11} />
+          {label}
+        </span>
+      )}
       {canSend && (
         <button
           onClick={() => onSendBill(order)}

@@ -39,8 +39,31 @@ class SessionOut(BaseModel):
     status: str
     started_at: datetime
     expires_at: datetime
+    # E1 additions — nullable everywhere so pre-migration sessions
+    # round-trip unchanged. The diner UI keys off `cancelled_reason`
+    # to render the "Your order was cancelled" banner.
+    cancelled_reason: str | None = None
+    cancelled_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class SessionCancelIn(BaseModel):
+    """Body for POST /sessions/:id/cancel.
+
+    The reason is free-text (staff type e.g. "kitchen ran out of
+    paneer"); ethics rule 9 requires the diner see it, so we enforce
+    a minimum length instead of allowing a bare cancellation."""
+
+    reason: str = Field(min_length=4, max_length=500)
+
+
+class SessionItemsReplaceIn(BaseModel):
+    """Body for PATCH /sessions/:id/items — replaces the entire item
+    list in one shot. Staff-only endpoint; a partial diff would be
+    trickier to reason about with the immutable-bill invariant."""
+
+    items: list[SessionItemIn]
 
 
 class SessionCreateOut(BaseModel):

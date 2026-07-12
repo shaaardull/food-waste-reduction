@@ -18,14 +18,15 @@ from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
 from app.models.restaurant import Restaurant, RestaurantStaff
-from app.models.reward import Reward
+from app.models.reward import Reward, RewardRule
 from app.models.staff_metrics import StaffMetricsSnapshot
 from app.models.staff_validation import StaffValidation
 from app.models.user import User
-from app.security import get_current_user
+from app.security import get_current_user, new_redemption_code
 from app.services import storage
 from app.services import sustainability as sustainability_svc
 from app.services import sustainability_report as sustainability_report_svc
+from app.config import get_settings
 from app.tasks.staff_metrics import ALERT_MULTIPLIER, MIN_VALIDATIONS_FOR_ALERT
 
 
@@ -54,28 +55,38 @@ async def _ensure_staff(db: AsyncSession, user: User, restaurant_id: UUID) -> No
         raise NotRestaurantStaff()
 
 
-async def _ensure_owner(
-    db: AsyncSession, user: User, restaurant_id: UUID
+async def _ensure_can_resolve_dispute(
+    db: AsyncSession,
+    user: User,
+    restaurant_id: UUID,
 ) -> None:
-    """Owner of the restaurant or platform admin only. Resolving a dispute
-    is not a server-level action — ethics rule 9 routes disputes to the
-    restaurant owner first, platform admin only if unresolved 48h later.
+    """Flat auth: any staff of the restaurant (owner / manager /
+    server) can resolve a dispute. Admins bypass. The per-role
+    hierarchy was flattened by product decision — the restaurant
+    picks who's trusted at signup time via the staff invite screen,
+    not the platform via policy.
+
+    Returns a structured 403 detail so the frontend can render a
+    friendly message rather than the raw HTTP status text.
     """
     if user.role == "admin":
         return
     if user.role != "staff":
         raise NotRestaurantStaff()
-    res = await db.execute(
+
+    membership = await db.execute(
         select(RestaurantStaff).where(
             RestaurantStaff.user_id == user.id,
             RestaurantStaff.restaurant_id == restaurant_id,
-            RestaurantStaff.role == "owner",
         )
     )
-    if res.scalar_one_or_none() is None:
+    if membership.scalar_one_or_none() is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner role required to resolve disputes",
+            detail={
+                "code": "NOT_ON_STAFF",
+                "message": "You are not on the staff of this restaurant.",
+            },
         )
 
 
@@ -190,6 +201,197 @@ async def list_live_orders(
                 "bill_sent_at": (
                     bill.sent_at.isoformat() if bill and bill.sent_at else None
                 ),
+            }
+        )
+    return {"orders": out}
+
+
+# Statuses that qualify a session as "done" — the money is either
+# settled (rewarded / staff_approved / staff_rejected), the diner
+# walked away (expired), the order got pulled (cancelled), or a
+# dispute is on record. Everything the diner can't act on anymore
+# lives here.
+_PAST_ORDER_STATUSES = (
+    "staff_approved",
+    "staff_rejected",
+    "rewarded",
+    "expired",
+    "disputed",
+    "cancelled",
+)
+
+
+@router.get("/restaurants/{restaurant_id}/dashboard/badges")
+async def dashboard_badges(
+    restaurant_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, int]:
+    """Lightweight counters for the sidebar nav badges. Returned in
+    one round-trip so the frontend can poll the whole dashboard
+    signal in a single request every ~15s without spamming the
+    heavier per-view endpoints (kanban orders, validation queue,
+    disputes list — all of which do joins and item hydration).
+
+    Values reflect the ACTIONABLE queue length for each surface,
+    not lifetime totals:
+      • `orders_active` — sessions the kitchen or floor still owes
+        work on (open → before_captured → eating → after_submitted).
+        Anything in `pending_staff_validation` moves to the
+        validations counter instead.
+      • `validations_pending` — the review queue on the staff
+        dashboard's Validations screen.
+      • `disputes_open` — open disputes only. Resolved ones drop off
+        the counter but stay visible in the "All" filter.
+    """
+    await _ensure_staff(db, user, restaurant_id)
+    if (await db.get(Restaurant, restaurant_id)) is None:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    orders_active = await db.scalar(
+        select(func.count(MealSession.id)).where(
+            MealSession.restaurant_id == restaurant_id,
+            MealSession.status.in_(
+                (
+                    "open",
+                    "before_captured",
+                    "eating",
+                    "after_submitted",
+                )
+            ),
+        )
+    )
+    validations_pending = await db.scalar(
+        select(func.count(MealSession.id)).where(
+            MealSession.restaurant_id == restaurant_id,
+            MealSession.status == "pending_staff_validation",
+        )
+    )
+    disputes_open = await db.scalar(
+        select(func.count(Dispute.id))
+        .join(MealSession, MealSession.id == Dispute.meal_session_id)
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            Dispute.status == "open",
+        )
+    )
+    # `rewards_issued_today` is monotonic across the day, so a
+    # positive delta between two poll cycles means "a new reward
+    # just landed for a diner." That's the signal the frontend
+    # uses to fire the "claim done" toast — no separate event
+    # bus needed at pilot scale.
+    today_start = datetime.now(UTC).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    rewards_issued_today = await db.scalar(
+        select(func.count(Reward.id))
+        .join(MealSession, MealSession.id == Reward.meal_session_id)
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            Reward.issued_at >= today_start,
+        )
+    )
+    return {
+        "orders_active": int(orders_active or 0),
+        "validations_pending": int(validations_pending or 0),
+        "disputes_open": int(disputes_open or 0),
+        "rewards_issued_today": int(rewards_issued_today or 0),
+    }
+
+
+@router.get("/restaurants/{restaurant_id}/dashboard/orders/past")
+async def list_past_orders(
+    restaurant_id: UUID,
+    limit: int = Query(default=50, ge=1, le=200),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Past orders board — everything that's dropped off the live view.
+
+    Same row shape as `/dashboard/orders` (so the frontend can share
+    the OrderCard render) plus a `cancelled_reason` field for the
+    session-detail modal on the past-orders screen.
+
+    Ordered by `started_at DESC` — the freshest completed order lands
+    at the top. Bounded by `limit` (default 50) so a busy restaurant
+    doesn't page in months of history on first load; the frontend
+    can offer a "load more" later if it matters.
+    """
+    await _ensure_staff(db, user, restaurant_id)
+    if (await db.get(Restaurant, restaurant_id)) is None:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    sess_res = await db.execute(
+        select(MealSession)
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            MealSession.status.in_(_PAST_ORDER_STATUSES),
+        )
+        .order_by(MealSession.started_at.desc())
+        .limit(limit)
+    )
+    sessions = list(sess_res.scalars().all())
+    if not sessions:
+        return {"orders": []}
+
+    session_ids = [s.id for s in sessions]
+
+    items_res = await db.execute(
+        select(MealSessionItem, MenuItem)
+        .join(MenuItem, MealSessionItem.menu_item_id == MenuItem.id)
+        .where(MealSessionItem.meal_session_id.in_(session_ids))
+    )
+    items_by_session: dict[UUID, list[dict[str, Any]]] = {}
+    for msi, menu in items_res.all():
+        items_by_session.setdefault(msi.meal_session_id, []).append(
+            {
+                "menu_item_id": str(menu.id),
+                "name": menu.name,
+                "quantity": msi.quantity,
+                "portion_size": msi.portion_size,
+                "notes": msi.notes,
+            }
+        )
+
+    bills_res = await db.execute(
+        select(Bill).where(Bill.meal_session_id.in_(session_ids))
+    )
+    bills_by_session: dict[UUID, Bill] = {
+        b.meal_session_id: b for b in bills_res.scalars().all()
+    }
+
+    now = datetime.now(UTC)
+    out: list[dict[str, Any]] = []
+    for s in sessions:
+        bill = bills_by_session.get(s.id)
+        out.append(
+            {
+                "session_id": str(s.id),
+                "table_code": s.table_code,
+                "status": s.status,
+                "items": items_by_session.get(s.id, []),
+                "started_at": s.started_at.isoformat(),
+                "started_seconds_ago": int((now - s.started_at).total_seconds()),
+                "kitchen_ack_at": (
+                    s.kitchen_ack_at.isoformat() if s.kitchen_ack_at else None
+                ),
+                # Only the past-orders shape carries this — the diner
+                # sees it on SessionStatus (ethics rule 9), and the
+                # staff sees it on the past-orders card so they can
+                # audit their own decision later.
+                "cancelled_reason": s.cancelled_reason,
+                "cancelled_at": (
+                    s.cancelled_at.isoformat() if s.cancelled_at else None
+                ),
+                "bill_id": str(bill.id) if bill else None,
+                "bill_number": bill.bill_number if bill else None,
+                "bill_delivery_status": bill.delivery_status if bill else None,
+                "bill_total_minor": bill.total_minor if bill else None,
+                "bill_sent_at": (
+                    bill.sent_at.isoformat() if bill and bill.sent_at else None
+                ),
+                "bill_delivery_email": bill.delivery_email if bill else None,
+                "bill_delivery_phone": bill.delivery_phone if bill else None,
             }
         )
     return {"orders": out}
@@ -881,16 +1083,24 @@ async def resolve_dispute(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Owner-only: record a resolution + notes. Idempotent: re-applying the
-    same status keeps the original resolver / resolution_notes; a conflicting
-    status returns 409 so the audit trail stays clean."""
-    await _ensure_owner(db, user, restaurant_id)
+    """Record a resolution + notes. Idempotent: re-applying the same
+    status keeps the original resolver / resolution_notes; a
+    conflicting status returns 409 so the audit trail stays clean.
+
+    Auth: any staff of the restaurant, unless they were the staff who
+    made the original call on the disputed session — see
+    `_ensure_can_resolve_dispute` for the ethics-rule-8 rationale.
+    """
     dispute = await db.get(Dispute, dispute_id)
     if dispute is None:
         raise HTTPException(status_code=404, detail="Dispute not found")
     session = await db.get(MealSession, dispute.meal_session_id)
     if session is None or session.restaurant_id != restaurant_id:
         raise HTTPException(status_code=404, detail="Dispute not found")
+    # Auth check runs after the dispute + session lookups so a
+    # not-on-staff caller still gets 403 (never 404), and 404 (not
+    # 403) for a genuinely missing dispute even to legitimate staff.
+    await _ensure_can_resolve_dispute(db, user, restaurant_id)
 
     if dispute.status != "open":
         if dispute.status == payload.status:
@@ -908,16 +1118,74 @@ async def resolve_dispute(
             detail=f"Dispute already resolved as {dispute.status}",
         )
 
+    now = datetime.now(UTC)
     dispute.status = payload.status
     dispute.resolved_by_user_id = user.id
-    dispute.resolved_at = datetime.now(UTC)
+    dispute.resolved_at = now
     if payload.resolution_notes is not None:
         dispute.resolution_notes = payload.resolution_notes
+
+    # Compensation reward — when the owner sides with the diner, mint
+    # a make-good coupon so the diner isn't left with just an apology.
+    # Reuses the restaurant's active RewardRule (same shape and value
+    # as a normal reward), tied to the disputed session so the code's
+    # provenance is auditable. Idempotency: if this session already
+    # has a non-voided reward we skip — no double-issue on a repeat
+    # resolve or a dispute over a session that was actually rewarded.
+    compensation_reward: Reward | None = None
+    if payload.status == "resolved_in_favor_diner":
+        existing_reward = await db.scalar(
+            select(Reward).where(
+                Reward.meal_session_id == session.id,
+                Reward.voided_at.is_(None),
+            )
+        )
+        if existing_reward is None:
+            rule = await db.scalar(
+                select(RewardRule).where(
+                    RewardRule.restaurant_id == session.restaurant_id,
+                    RewardRule.is_active.is_(True),
+                )
+            )
+            if rule is not None:
+                reward_item = await db.get(MenuItem, rule.reward_menu_item_id)
+                menu_value = (
+                    reward_item.price_minor if reward_item is not None else 0
+                )
+                settings = get_settings()
+                half_value_at = now + timedelta(
+                    days=settings.REWARD_FULL_VALUE_DAYS
+                )
+                expires_at = now + timedelta(days=settings.REWARD_EXPIRY_DAYS)
+                compensation_reward = Reward(
+                    meal_session_id=session.id,
+                    reward_rule_id=rule.id,
+                    redemption_code=new_redemption_code(),
+                    reward_type="menu_item",
+                    value_minor=menu_value,
+                    issued_at=now,
+                    half_value_at=half_value_at,
+                    expires_at=expires_at,
+                )
+                db.add(compensation_reward)
+
     await db.commit()
     await db.refresh(dispute)
+    if compensation_reward is not None:
+        await db.refresh(compensation_reward)
     return {
         "id": str(dispute.id),
         "status": dispute.status,
         "resolution_notes": dispute.resolution_notes,
         "resolved_at": dispute.resolved_at.isoformat() if dispute.resolved_at else None,
+        "compensation_reward": (
+            {
+                "id": str(compensation_reward.id),
+                "redemption_code": compensation_reward.redemption_code,
+                "value_minor": compensation_reward.value_minor,
+                "expires_at": compensation_reward.expires_at.isoformat(),
+            }
+            if compensation_reward is not None
+            else None
+        ),
     }

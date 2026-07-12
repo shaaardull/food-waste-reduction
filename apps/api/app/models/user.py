@@ -22,6 +22,12 @@ class User(Base, UUIDPKMixin, TimestampMixin):
     phone: Mapped[str | None] = mapped_column(String, unique=True, nullable=True, index=True)
     display_name: Mapped[str | None] = mapped_column(String, nullable=True)
     password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Google's `sub` claim — the stable per-user identifier from Google
+    # Identity Services. Populated on Google sign-in; NULL for
+    # password-only or phone-OTP-only accounts. Partial unique index
+    # in migration 0015 lets multiple NULLs coexist while blocking
+    # two Google accounts from sharing a sub.
+    google_sub: Mapped[str | None] = mapped_column(String(64), nullable=True)
     role: Mapped[str] = mapped_column(String, nullable=False, default="diner")
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -24,17 +24,41 @@ async function request<T>(
   }
   const res = await fetch(`${BASE}${path}`, { ...opts, headers });
   if (!res.ok) {
-    let payload: { error?: { code?: string; message?: string; details?: Record<string, unknown> } } = {};
+    // Backend uses two error envelope shapes:
+    //   1. `{"error": {"code", "message", "details"}}` from ApiError
+    //      (our custom wrapper — most endpoints).
+    //   2. `{"detail": ...}` from raw FastAPI HTTPException, where
+    //      `detail` can be a string OR a dict like
+    //      {"code": "...", "message": "..."} (some endpoints pass a
+    //      dict for finer-grained client switching).
+    // Handle both so a raw HTTPException(detail={"code":...})
+    // reaches the frontend as a friendly message rather than the
+    // status text "Forbidden".
+    let payload: {
+      error?: { code?: string; message?: string; details?: Record<string, unknown> };
+      detail?: string | { code?: string; message?: string };
+    } = {};
     try {
       payload = await res.json();
     } catch {
       /* ignore */
     }
+    let code = payload.error?.code;
+    let message = payload.error?.message;
+    let details = payload.error?.details;
+    if (!code && !message && payload.detail !== undefined) {
+      if (typeof payload.detail === 'string') {
+        message = payload.detail;
+      } else {
+        code = payload.detail.code;
+        message = payload.detail.message;
+      }
+    }
     throw new ApiException(
       res.status,
-      payload.error?.code ?? `HTTP_${res.status}`,
-      payload.error?.message ?? res.statusText,
-      payload.error?.details,
+      code ?? `HTTP_${res.status}`,
+      message ?? res.statusText,
+      details,
     );
   }
   if (res.status === 204) return undefined as T;

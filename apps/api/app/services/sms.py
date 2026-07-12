@@ -36,8 +36,18 @@ def send_reward_sms(*, phone: str, code: str, restaurant_name: str) -> bool:
     if settings.OTP_PROVIDER == "console":
         log.info("sms_reward", phone=phone, code=code, message=message)
         return True
-    # Real provider integrations (msg91 / twilio) go here. For now we
-    # log a warning so the operator knows the message wasn't delivered.
+    if settings.OTP_PROVIDER == "msg91":
+        from app.services.msg91 import send_reward as msg91_send_reward  # noqa: PLC0415
+
+        result = msg91_send_reward(phone, code, restaurant_name)
+        if not result.sent:
+            log.error(
+                "sms_reward_failed",
+                phone=phone,
+                code=code,
+                error=result.error,
+            )
+        return result.sent
     log.warning(
         "sms_provider_not_implemented",
         provider=settings.OTP_PROVIDER,

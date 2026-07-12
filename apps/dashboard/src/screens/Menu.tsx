@@ -28,8 +28,6 @@ import { ScanMenuModal, type ScannedItem } from '../components/ScanMenuModal';
 
 // ── Types (mirror the backend schemas) ─────────────────────────────
 
-type Category = 'starter' | 'main' | 'side' | 'bread' | 'drink' | 'dessert';
-
 interface MenuItem {
   id: string;
   restaurant_id: string;
@@ -42,7 +40,11 @@ interface MenuItem {
   reference_image_url: string | null;
 }
 
-const CATEGORIES: Category[] = ['starter', 'main', 'side', 'bread', 'drink', 'dessert'];
+// Seed categories — staff can also define custom ones (e.g.
+// "Tandoor", "Kids menu", "Coastal specials"). These act as the
+// initial suggestions; any category already used on an item is
+// merged in dynamically by the editor.
+const SEED_CATEGORIES = ['starter', 'main', 'side', 'bread', 'drink', 'dessert'];
 
 // ── Toast plumbing — dead-simple in-component queue ────────────────
 
@@ -94,19 +96,44 @@ export function Menu() {
   const activeCount = items.filter((i) => i.is_active).length;
 
   // Grouped by category so the same order the diner sees is what the
-  // staff sees when editing. `null` (uncategorized) goes last.
+  // staff sees when editing. Seed categories come first in their
+  // canonical order; any custom categories the restaurant added
+  // (e.g. "Tandoor") are appended alphabetically; uncategorised (null)
+  // goes last.
   const grouped = useMemo(() => {
     const map = new Map<string | null, MenuItem[]>();
     for (const it of items) {
-      const key = (it.category as Category) ?? null;
+      const key = (it.category?.trim() || null) as string | null;
       const arr = map.get(key) ?? [];
       arr.push(it);
       map.set(key, arr);
     }
-    const order: (Category | null)[] = [...CATEGORIES, null];
-    return order
-      .filter((c) => map.has(c))
-      .map((c) => ({ category: c, rows: map.get(c) ?? [] }));
+    const seedInOrder = SEED_CATEGORIES.filter((c) => map.has(c));
+    const custom = [...map.keys()]
+      .filter(
+        (k): k is string =>
+          k !== null && !SEED_CATEGORIES.includes(k),
+      )
+      .sort((a, b) => a.localeCompare(b));
+    const order: (string | null)[] = [
+      ...seedInOrder,
+      ...custom,
+      ...(map.has(null) ? [null] : []),
+    ];
+    return order.map((c) => ({ category: c, rows: map.get(c) ?? [] }));
+  }, [items]);
+
+  // Every category currently in use, minus null. Fed into the edit
+  // sheet as suggestion chips so a staff adding a second dish to
+  // "Tandoor" doesn't have to retype it.
+  const knownCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const it of items) {
+      const c = it.category?.trim();
+      if (c) set.add(c);
+    }
+    for (const c of SEED_CATEGORIES) set.add(c);
+    return [...set];
   }, [items]);
 
   function invalidate() {
@@ -281,10 +308,12 @@ export function Menu() {
           <div className="row gap-2 items-baseline px-1">
             <span className="text-[11px] font-semibold text-s-muted dev uppercase tracking-wide">
               {category
-                ? t(`admin.menu.category.${category}`, {
-                    defaultValue: category,
-                  })
-                : '—'}
+                ? SEED_CATEGORIES.includes(category)
+                  ? t(`admin.menu.category.${category}`, {
+                      defaultValue: category,
+                    })
+                  : category
+                : t('menu_editor.uncategorised', { defaultValue: '—' })}
             </span>
             <span className="text-[11px] text-s-muted/70">
               · {rows.length}
@@ -312,6 +341,7 @@ export function Menu() {
           item={sheet.item}
           restaurantId={restaurantId}
           token={token}
+          knownCategories={knownCategories}
           onClose={() => setSheet(null)}
           onSaved={() => {
             setSheet(null);
@@ -432,6 +462,7 @@ function EditSheet({
   item,
   restaurantId,
   token,
+  knownCategories,
   onClose,
   onSaved,
 }: {
@@ -439,6 +470,7 @@ function EditSheet({
   item: MenuItem | null;
   restaurantId: string;
   token: string | null;
+  knownCategories: string[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -448,13 +480,49 @@ function EditSheet({
   const [priceRupees, setPriceRupees] = useState(
     item ? String(Math.round(item.price_minor / 100)) : '',
   );
-  const [category, setCategory] = useState<Category | ''>(
-    (item?.category as Category) ?? '',
-  );
+  const [category, setCategory] = useState<string>(item?.category ?? '');
+  // Local free-text state for the "add a new category" input. Empty
+  // by default; once the staff types + hits Enter/Add we push it into
+  // knownCategories (visually) and select it.
+  const [newCategoryDraft, setNewCategoryDraft] = useState('');
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [rewardEligible, setRewardEligible] = useState(
     item?.is_reward_eligible ?? false,
   );
   const [error, setError] = useState<string | null>(null);
+
+  // Union of known + locally-added (this session) categories, with
+  // dedupe. Case-insensitive comparison because "Tandoor" and "tandoor"
+  // should not appear twice.
+  const categoryChoices = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const c of [...knownCategories, ...customCategories]) {
+      const key = c.trim().toLowerCase();
+      if (!key) continue;
+      if (!seen.has(key)) seen.set(key, c.trim());
+    }
+    // Keep seed categories first for muscle memory, custom after.
+    const list = [...seen.values()];
+    list.sort((a, b) => {
+      const aSeed = SEED_CATEGORIES.includes(a) ? 0 : 1;
+      const bSeed = SEED_CATEGORIES.includes(b) ? 0 : 1;
+      if (aSeed !== bSeed) return aSeed - bSeed;
+      return a.localeCompare(b);
+    });
+    return list;
+  }, [knownCategories, customCategories]);
+
+  function commitNewCategory() {
+    const clean = newCategoryDraft.trim().slice(0, 40);
+    if (!clean) return;
+    setCustomCategories((prev) =>
+      prev.some((c) => c.toLowerCase() === clean.toLowerCase())
+        ? prev
+        : [...prev, clean],
+    );
+    setCategory(clean);
+    setNewCategoryDraft('');
+  }
 
   const save = useMutation({
     mutationFn: async () => {
@@ -469,7 +537,7 @@ function EditSheet({
                 name: name.trim(),
                 description: description.trim() || null,
                 price_minor: priceMinor,
-                category: category || null,
+                category: category.trim() || null,
                 is_reward_eligible: rewardEligible,
               },
             ],
@@ -483,7 +551,7 @@ function EditSheet({
           name: name.trim(),
           description: description.trim() || null,
           price_minor: priceMinor,
-          category: category || null,
+          category: category.trim() || null,
           is_reward_eligible: rewardEligible,
         },
         token,
@@ -578,8 +646,10 @@ function EditSheet({
               {t('menu_editor.field_category')}
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {CATEGORIES.map((c) => {
-                const active = category === c;
+              {categoryChoices.map((c) => {
+                const active =
+                  category.trim().toLowerCase() === c.toLowerCase();
+                const isSeed = SEED_CATEGORIES.includes(c);
                 return (
                   <button
                     key={c}
@@ -593,10 +663,40 @@ function EditSheet({
                     )}
                     aria-pressed={active}
                   >
-                    {t(`admin.menu.category.${c}`, { defaultValue: c })}
+                    {isSeed
+                      ? t(`admin.menu.category.${c}`, { defaultValue: c })
+                      : c}
                   </button>
                 );
               })}
+            </div>
+            {/* Free-text new-category row. Enter or the + button
+                commits it to the choice list AND selects it. */}
+            <div className="row gap-1.5 mt-1">
+              <input
+                value={newCategoryDraft}
+                onChange={(e) => setNewCategoryDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitNewCategory();
+                  }
+                }}
+                placeholder={t('menu_editor.new_category_placeholder', {
+                  defaultValue: 'e.g. Tandoor, Kids menu…',
+                })}
+                maxLength={40}
+                className="input mt-0 flex-1 text-[13px]"
+              />
+              <button
+                type="button"
+                onClick={commitNewCategory}
+                disabled={!newCategoryDraft.trim()}
+                className="btn btn-outline text-[13px] min-h-[38px] px-3 disabled:opacity-40"
+              >
+                <Plus size={14} />
+                {t('menu_editor.add_category', { defaultValue: 'Add' })}
+              </button>
             </div>
             <span className="text-[11.5px] text-s-muted">
               {t('menu_editor.field_category_hint')}

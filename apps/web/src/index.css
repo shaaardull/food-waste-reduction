@@ -341,17 +341,18 @@ body {
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
-    padding: 18px;
+    padding: clamp(12px, 3.6vw, 18px);
     border-radius: var(--r-xl);
     border: 2px solid transparent;
     background: hsl(145 50% 94%);
     color: hsl(145 54% 40%);
+    min-width: 0;
   }
   .impact.saffron { background: hsl(36 90% 93%); color: hsl(28 78% 44%); }
   .impact.lime { background: hsl(74 62% 92%); color: hsl(84 50% 36%); }
   .impact.berry { background: hsl(342 70% 95%); color: hsl(340 62% 48%); }
-  .impact .big { font: 800 36px/1 'Hanken Grotesk', system-ui, sans-serif; font-variant-numeric: tabular-nums; color: hsl(160 18% 14%); }
-  .impact .cap { font: 600 11.5px 'Hanken Grotesk', system-ui, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; }
+  .impact .big { font: 800 clamp(22px, 7.5vw, 36px)/1 'Hanken Grotesk', system-ui, sans-serif; font-variant-numeric: tabular-nums; color: hsl(160 18% 14%); }
+  .impact .cap { font: 600 clamp(10px, 2.8vw, 11.5px) 'Hanken Grotesk', system-ui, sans-serif; letter-spacing: 0.05em; text-transform: uppercase; }
 
   /* ── Ring ── progress toward next reward. Set `--pct` (0-100). */
   .ring {

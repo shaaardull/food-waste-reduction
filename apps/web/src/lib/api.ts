@@ -23,17 +23,37 @@ async function request<T>(path: string, opts: ApiOptions = {}): Promise<T> {
   }
   const res = await fetch(`${BASE}${path}`, { ...opts, headers });
   if (!res.ok) {
-    let payload: { error?: { code?: string; message?: string; details?: Record<string, unknown> } } = {};
+    // Backend uses two error envelope shapes: the ApiError wrapper
+    // (`{"error": {"code","message","details"}}`) on custom errors,
+    // and raw FastAPI HTTPException (`{"detail": ...}`) elsewhere.
+    // `detail` may itself be a dict like `{"code","message"}`.
+    // Fall through both so a raw HTTPException lands as a friendly
+    // message rather than the HTTP status text.
+    let payload: {
+      error?: { code?: string; message?: string; details?: Record<string, unknown> };
+      detail?: string | { code?: string; message?: string };
+    } = {};
     try {
       payload = await res.json();
     } catch {
       /* swallow non-JSON */
     }
+    let code = payload.error?.code;
+    let message = payload.error?.message;
+    let details = payload.error?.details;
+    if (!code && !message && payload.detail !== undefined) {
+      if (typeof payload.detail === 'string') {
+        message = payload.detail;
+      } else {
+        code = payload.detail.code;
+        message = payload.detail.message;
+      }
+    }
     throw new ApiException(
       res.status,
-      payload.error?.code ?? `HTTP_${res.status}`,
-      payload.error?.message ?? res.statusText,
-      payload.error?.details,
+      code ?? `HTTP_${res.status}`,
+      message ?? res.statusText,
+      details,
     );
   }
   if (res.status === 204) return undefined as T;

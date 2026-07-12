@@ -17,12 +17,20 @@ import {
 import type { Reward } from '@plate-clean/shared-types';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
+import { useOptimisticStore } from '../lib/optimistic';
 import { ChooseRewardType, formatValue } from '../components/ChooseRewardType';
 import { GetBillModal } from '../components/GetBillModal';
 import { LangToggle } from '../components/LangToggle';
+import { RaiseDisputeModal } from '../components/RaiseDisputeModal';
 
 interface SessionDetail {
-  session: { id: string; status: string; table_code?: string };
+  session: {
+    id: string;
+    status: string;
+    table_code?: string;
+    cancelled_reason?: string | null;
+    cancelled_at?: string | null;
+  };
   items: Array<{ menu_item_id: string; quantity: number }>;
   captures: Array<{ phase: string; captured_at: string }>;
   score?: { overall_score: number; suspicious: boolean } | null;
@@ -49,6 +57,13 @@ export function SessionStatus() {
   const token = useAuthStore((s) => s.token);
   const [typeChosen, setTypeChosen] = useState(false);
   const [billModalOpen, setBillModalOpen] = useState(false);
+  const [disputeModalOpen, setDisputeModalOpen] = useState(false);
+
+  // Optimistic upload flag for the before-photo (see lib/optimistic.ts
+  // and Capture.tsx). When `pending` we render "Claim after" even if
+  // the server still reports `open`; when `error` we render a retry
+  // banner instead.
+  const optimisticBefore = useOptimisticStore((s) => s.beforeUploads[id]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['session', id],
@@ -56,7 +71,14 @@ export function SessionStatus() {
     refetchInterval: (q) => {
       const status = (q.state.data as SessionDetail | undefined)?.session.status;
       if (!status) return 2_000;
-      if (['rewarded', 'staff_approved', 'staff_rejected', 'disputed'].includes(status)) return false;
+      // Cancelled joins the terminal set — no polling once the staff
+      // pulls the plug on the order.
+      if (
+        ['rewarded', 'staff_approved', 'staff_rejected', 'disputed', 'cancelled'].includes(
+          status,
+        )
+      )
+        return false;
       return 3_000;
     },
   });
@@ -69,7 +91,16 @@ export function SessionStatus() {
     );
   }
 
-  const status = data.session.status;
+  // `effectiveStatus` blends server truth with the optimistic
+  // before-upload flag. If the diner just tapped Submit and the
+  // upload is in flight (or the poll got in before it landed),
+  // we still render "Claim after". Once the flag clears — success
+  // or error — the raw server status wins on the next render.
+  const rawStatus = data.session.status;
+  const status =
+    optimisticBefore?.kind === 'pending' && rawStatus === 'open'
+      ? 'before_captured'
+      : rawStatus;
   const tableCode = data.session.table_code;
 
   return (
@@ -91,6 +122,32 @@ export function SessionStatus() {
       </div>
 
       <div className="px-4 pb-6 flex-1 flex flex-col gap-4">
+        {/* Optimistic upload failure — the before-photo submit didn't
+            land on the server. We surface a red banner with a
+            "try again" CTA that sends the diner back to the camera.
+            The banner is scoped to the case where the raw server
+            status is still `open` (i.e. the retry actually makes
+            sense — otherwise the flag is stale from a prior meal). */}
+        {optimisticBefore?.kind === 'error' && rawStatus === 'open' && (
+          <div className="card p-4 flex flex-col gap-2.5 bg-danger-wash/40 border-danger/25">
+            <div className="row gap-2 items-center">
+              <AlertCircle size={16} className="text-danger" />
+              <div className="font-bold text-[14px] text-ink">
+                {t('session_status.before_upload_failed_heading')}
+              </div>
+            </div>
+            <p className="text-[12.5px] text-muted leading-snug">
+              {optimisticBefore.message}
+            </p>
+            <Link
+              to={`/sessions/${id}/before`}
+              className="btn btn-outline min-h-[42px] text-[13.5px]"
+            >
+              {t('session_status.before_upload_retry')}
+            </Link>
+          </div>
+        )}
+
         {status === 'open' && data.items.length > 0 && (
           // Order placed — food is on the way. The before-photo CTA is
           // voluntary so the diner isn't yanked into the camera before
@@ -157,6 +214,63 @@ export function SessionStatus() {
           />
         )}
 
+        {/* Raise-a-dispute CTA — visible on rejected sessions per
+            ethics rule 9 (diner recourse) and on staff_approved with
+            no reward (score just below threshold, diner may feel the
+            call was harsh). Once the dispute is filed the session
+            flips to 'disputed' and we swap the CTA for a
+            confirmation strip. */}
+        {(status === 'staff_rejected' || status === 'staff_approved') && (
+          <button
+            onClick={() => setDisputeModalOpen(true)}
+            className="card p-4 row gap-3 items-center hover:border-danger transition text-left"
+          >
+            <div className="w-10 h-10 rounded-md bg-danger-wash text-danger flex items-center justify-center flex-shrink-0">
+              <AlertCircle size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-[15px] text-ink">
+                {t('session_status.raise_dispute_title')}
+              </div>
+              <div className="text-[12.5px] text-muted mt-0.5">
+                {t('session_status.raise_dispute_blurb')}
+              </div>
+            </div>
+            <div className="text-danger font-bold text-[16px]">→</div>
+          </button>
+        )}
+
+        {status === 'disputed' && (
+          <div className="card p-4 row gap-3 items-center bg-danger-wash/40 border-danger/20">
+            <div className="w-10 h-10 rounded-md bg-danger-wash text-danger flex items-center justify-center flex-shrink-0">
+              <AlertCircle size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-[15px] text-ink">
+                {t('session_status.disputed_heading')}
+              </div>
+              <div className="text-[12.5px] text-muted mt-0.5">
+                {t('session_status.disputed_blurb')}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Ethics rule 9 — diner recourse. If the staff cancelled the
+            order, surface the reason the staff typed in, not a generic
+            "cancelled" copy. Reason is required server-side. */}
+        {status === 'cancelled' && (
+          <OutcomeCard
+            tone="muted"
+            icon={<AlertCircle size={22} />}
+            heading={t('session_status.cancelled_heading')}
+            blurb={
+              data.session.cancelled_reason ??
+              t('session_status.cancelled_blurb_fallback')
+            }
+          />
+        )}
+
         {/* Bill CTA — available whenever the diner has ordered
             something and is in a state where a bill makes sense.
             Idempotent on the API side, so a diner tapping this twice
@@ -201,6 +315,12 @@ export function SessionStatus() {
         <GetBillModal
           sessionId={id}
           onClose={() => setBillModalOpen(false)}
+        />
+      )}
+      {disputeModalOpen && (
+        <RaiseDisputeModal
+          sessionId={id}
+          onClose={() => setDisputeModalOpen(false)}
         />
       )}
     </div>
@@ -345,6 +465,21 @@ function RewardPanel({ reward, typeChosen, onChosen, t }: RewardPanelProps) {
           <div className="tnum font-bold text-[28px] leading-none">
             {formatValue(value)}
           </div>
+          {/* Restaurant-of-issue chip — a diner may hold coupons from
+              multiple restaurants, so we surface the name front and
+              centre. The backend enforces this too (staff at a
+              different restaurant can't redeem), but the diner
+              shouldn't have to learn that at the counter. */}
+          {reward.restaurant_name && (
+            <div className="row gap-1.5 items-center mt-1">
+              <QrCode size={13} className="text-brand" />
+              <span className="text-[12.5px] text-ink">
+                {t('reward_panel.redeemable_at', {
+                  name: reward.restaurant_name,
+                })}
+              </span>
+            </div>
+          )}
           <div className="text-xs text-muted">
             {t('reward_panel.show_to_server')}
           </div>

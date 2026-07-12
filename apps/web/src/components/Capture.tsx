@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Webcam from 'react-webcam';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { X, Zap, Check, RotateCcw } from 'lucide-react';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
+import { useOptimisticStore } from '../lib/optimistic';
 
 interface Props {
   sessionId: string;
@@ -52,6 +54,9 @@ export function Capture({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const token = useAuthStore((s) => s.token);
+  const queryClient = useQueryClient();
+  const { markBeforePending, markBeforeDone, markBeforeError } =
+    useOptimisticStore();
   const webcamRef = useRef<Webcam>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [geo, setGeo] = useState<Geo | null>(null);
@@ -78,35 +83,147 @@ export function Capture({
     }
   }, []);
 
+  /**
+   * Build the multipart body once — same shape for both phases. Kept
+   * as a nested helper so both the fire-and-forget (before) and the
+   * awaited (after) code paths can share it.
+   */
+  function buildForm(nonce: string): FormData | null {
+    if (!preview) return null;
+    const blob = dataUrlToBlob(preview);
+    const form = new FormData();
+    form.append('image', blob, `${phase}.jpg`);
+    form.append('nonce', nonce);
+    if (geo) {
+      form.append('client_lat', String(geo.lat));
+      form.append('client_lng', String(geo.lng));
+    }
+    form.append('device_fingerprint', navigator.userAgent.slice(0, 200));
+    return form;
+  }
+
   async function send() {
     if (!preview) return;
+    let nonce = sessionStorage.getItem(`nonce-${phase}-${sessionId}`);
+
+    // Race window for the `after` phase: the diner just finished the
+    // before-photo flow, which we made optimistic — they can arrive
+    // on the after-camera screen and tap Submit before the
+    // fire-and-forget before-upload has landed (and therefore before
+    // the after_capture_nonce has been stashed). Poll for up to ~8s
+    // so we don't false-negative on slow networks. If the before
+    // upload errored, the SessionStatus retry banner catches them
+    // instead of them ever reaching here — but as a safety net we
+    // still bail if the wait times out.
+    if (!nonce && phase === 'after') {
+      setBusy(true);
+      const deadline = Date.now() + 8_000;
+      while (!nonce && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 250));
+        nonce = sessionStorage.getItem(`nonce-${phase}-${sessionId}`);
+      }
+      setBusy(false);
+    }
+
+    if (!nonce) {
+      setError(t('capture.missing_nonce'));
+      return;
+    }
+    const form = buildForm(nonce);
+    if (!form) return;
+
+    if (phase === 'before') {
+      // ── Optimistic path ───────────────────────────────────────
+      // The moment the diner taps Submit we:
+      //   1. Consume the before-nonce so the fire-and-forget upload
+      //      is the only pending call for it (defensive against a
+      //      double-tap).
+      //   2. Pre-flip the /sessions/:id cache so SessionStatus
+      //      immediately renders the "Claim after" CTA — no
+      //      round-trip latency on the visible transition.
+      //   3. Mark the session as `pending` in the optimistic store
+      //      so SessionStatus keeps rendering "Claim after" even if
+      //      the 3-s poll fetches an outdated status='open' before
+      //      the upload completes.
+      //   4. Navigate immediately.
+      //   5. Fire the upload in the background — on success stash
+      //      the after-nonce and clear the flag; on failure record
+      //      the error so SessionStatus can render a retry banner.
+      sessionStorage.removeItem(`nonce-${phase}-${sessionId}`);
+
+      // Optimistic cache write — the shape mirrors SessionDetail's
+      // top-level `session.status`. We use setQueryData rather than
+      // invalidate so the next poll doesn't overwrite our optimistic
+      // value; the store flag guards subsequent polls too.
+      queryClient.setQueryData(
+        ['session', sessionId],
+        (
+          old:
+            | { session?: { status?: string } }
+            | undefined,
+        ) =>
+          old
+            ? {
+                ...old,
+                session: { ...old.session, status: 'before_captured' },
+              }
+            : old,
+      );
+      markBeforePending(sessionId);
+
+      api
+        .post<{ after_capture_nonce?: string; processing_status?: string }>(
+          `/sessions/${sessionId}/captures/${phase}`,
+          form,
+          token,
+        )
+        .then((res) => {
+          if (res.after_capture_nonce) {
+            sessionStorage.setItem(
+              `nonce-after-${sessionId}`,
+              res.after_capture_nonce,
+            );
+          }
+          markBeforeDone(sessionId);
+          // Sync with server truth in case anything else changed
+          // (e.g. staff cancellation mid-upload).
+          void queryClient.invalidateQueries({
+            queryKey: ['session', sessionId],
+          });
+        })
+        .catch((err) => {
+          const message =
+            err instanceof ApiException
+              ? err.message
+              : t('capture.generic_error');
+          markBeforeError(sessionId, message);
+          void queryClient.invalidateQueries({
+            queryKey: ['session', sessionId],
+          });
+        });
+
+      navigate(nextPath);
+      return;
+    }
+
+    // ── After phase — awaited path ───────────────────────────────
+    // The diner is already on the after-camera screen; the button
+    // shows a spinner while we upload. There's no follow-on nonce
+    // to worry about — the score task fires server-side and the
+    // diner falls back to SessionStatus polling.
     setBusy(true);
     setError(null);
     try {
-      const nonce = sessionStorage.getItem(`nonce-${phase}-${sessionId}`);
-      if (!nonce) {
-        setError(t('capture.missing_nonce'));
-        setBusy(false);
-        return;
-      }
-      const blob = dataUrlToBlob(preview);
-      const form = new FormData();
-      form.append('image', blob, `${phase}.jpg`);
-      form.append('nonce', nonce);
-      if (geo) {
-        form.append('client_lat', String(geo.lat));
-        form.append('client_lng', String(geo.lng));
-      }
-      form.append('device_fingerprint', navigator.userAgent.slice(0, 200));
-
-      const res = await api.post<{ after_capture_nonce?: string; processing_status?: string }>(
-        `/sessions/${sessionId}/captures/${phase}`,
-        form,
-        token,
-      );
+      const res = await api.post<{
+        after_capture_nonce?: string;
+        processing_status?: string;
+      }>(`/sessions/${sessionId}/captures/${phase}`, form, token);
       sessionStorage.removeItem(`nonce-${phase}-${sessionId}`);
-      if (phase === 'before' && res.after_capture_nonce) {
-        sessionStorage.setItem(`nonce-after-${sessionId}`, res.after_capture_nonce);
+      if (res.after_capture_nonce) {
+        sessionStorage.setItem(
+          `nonce-after-${sessionId}`,
+          res.after_capture_nonce,
+        );
       }
       navigate(nextPath);
     } catch (err) {

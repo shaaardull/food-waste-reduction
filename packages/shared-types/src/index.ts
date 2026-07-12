@@ -13,7 +13,8 @@ export type MealSessionStatus =
   | 'staff_rejected'
   | 'rewarded'
   | 'expired'
-  | 'disputed';
+  | 'disputed'
+  | 'cancelled';
 
 export type CapturePhase = 'before' | 'after';
 
@@ -69,6 +70,12 @@ export interface Restaurant {
   theme_primary_color: string;
   theme_logo_url?: string | null;
   tagline?: string | null;
+  // Billing / tax config — surfaced in the staff Settings screen.
+  gstin?: string | null;
+  gst_rate?: string | number;
+  hsn_code?: string;
+  bill_prefix?: string | null;
+  gst_enabled?: boolean;
 }
 
 export interface MenuItem {
@@ -91,6 +98,8 @@ export interface MealSession {
   status: MealSessionStatus;
   started_at: string;
   expires_at: string;
+  cancelled_reason?: string | null;
+  cancelled_at?: string | null;
 }
 
 export interface PerItemScore {
@@ -146,6 +155,12 @@ export interface Reward {
   current_value_minor?: number;
   /** Returned in the `validate` response so the diner UI can offer the type choice. */
   allowed_reward_types?: RewardType[];
+  /** Issuing restaurant — the coupon is redeemable ONLY at this restaurant.
+   *  Populated on every diner + staff reward endpoint (my_rewards, lookup,
+   *  choose-type, redeem, void, and the /sessions/:id reward payload). */
+  restaurant_id?: string;
+  restaurant_name?: string;
+  restaurant_slug?: string;
 }
 
 export interface ApiError {

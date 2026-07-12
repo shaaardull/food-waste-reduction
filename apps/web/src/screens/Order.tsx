@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Leaf, Plus, Minus, Utensils, QrCode } from 'lucide-react';
+import { Leaf, Plus, Minus, Utensils, QrCode, ChevronDown } from 'lucide-react';
+import { clsx } from 'clsx';
 import type { MenuItem, PortionSize } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
@@ -41,6 +42,14 @@ const PORTION_DOT_SIZE: Record<PortionSize, number> = {
   regular: 11,
   large: 14,
 };
+
+// Seed categories in the canonical order the staff-side editor uses.
+// Anything the restaurant added as a custom category (e.g. "Tandoor")
+// is appended after these, alphabetically. Uncategorised (null) always
+// goes last.
+const SEED_ORDER = ['starter', 'main', 'side', 'bread', 'drink', 'dessert'];
+
+const UNCAT_KEY = '__uncat__';
 
 export function Order() {
   const { t } = useTranslation();
@@ -83,6 +92,53 @@ export function Order() {
     () => Object.values(lines).reduce((n, l) => n + l.quantity, 0),
     [lines],
   );
+
+  // Group the menu by category, respecting the same ordering the
+  // staff editor uses: seed categories first (canonical order),
+  // then custom categories alphabetically, uncategorised last.
+  const grouped = useMemo(() => {
+    const map = new Map<string, MenuItem[]>();
+    for (const m of menu) {
+      const key = m.category?.trim() || UNCAT_KEY;
+      const arr = map.get(key) ?? [];
+      arr.push(m);
+      map.set(key, arr);
+    }
+    const seed = SEED_ORDER.filter((k) => map.has(k));
+    const custom = [...map.keys()]
+      .filter(
+        (k) => k !== UNCAT_KEY && !SEED_ORDER.includes(k),
+      )
+      .sort((a, b) => a.localeCompare(b));
+    const keys = [
+      ...seed,
+      ...custom,
+      ...(map.has(UNCAT_KEY) ? [UNCAT_KEY] : []),
+    ];
+    return keys.map((k) => ({ key: k, items: map.get(k) ?? [] }));
+  }, [menu]);
+
+  // Collapse state per section — everything open by default so a
+  // diner scrolling the menu doesn't have to tap five times before
+  // they can see any dishes. Tap a header to collapse a section.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  function toggleSection(key: string) {
+    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+  // Count how many items in each section the diner has already added,
+  // so the header can show a small "(2 added)" hint — useful once a
+  // section is collapsed.
+  const addedPerSection = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const g of grouped) {
+      let n = 0;
+      for (const it of g.items) {
+        n += lines[it.id]?.quantity ?? 0;
+      }
+      counts[g.key] = n;
+    }
+    return counts;
+  }, [grouped, lines]);
 
   function setQty(item: MenuItem, qty: number) {
     setLines((prev) => {
@@ -160,70 +216,121 @@ export function Order() {
         </span>
       </div>
 
-      {/* menu list */}
-      <div className="px-4 pb-4 flex flex-col gap-3">
-        {menu.map((item) => {
-          const line = lines[item.id];
-          const qty = line?.quantity ?? 0;
-          const category = item.category as keyof Record<string, string> | null;
+      {/* menu list, grouped by category with collapsible sections */}
+      <div className="px-4 pb-4 flex flex-col gap-4">
+        {grouped.map((section) => {
+          const isCollapsed = Boolean(collapsed[section.key]);
+          const added = addedPerSection[section.key] ?? 0;
+          const isSeed = SEED_ORDER.includes(section.key);
+          const isUncat = section.key === UNCAT_KEY;
+          const label = isUncat
+            ? t('order.category_uncategorised', { defaultValue: 'Other' })
+            : isSeed
+              ? t(`order.category.${section.key}`, {
+                  defaultValue: section.key,
+                })
+              : section.key;
           return (
-            <div key={item.id} className="card p-3">
-              <div className="row gap-3 items-start">
-                <div
-                  className="dish dish-plate w-[74px] h-[74px] flex-shrink-0"
-                  data-label=""
+            <section key={section.key} className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => toggleSection(section.key)}
+                className="row spread items-center px-2 py-1.5 rounded-md hover:bg-cream transition text-left"
+                aria-expanded={!isCollapsed}
+              >
+                <div className="row gap-2 items-baseline">
+                  <span className="dev uppercase tracking-wide text-[12px] font-bold text-brand">
+                    {label}
+                  </span>
+                  <span className="text-[11.5px] text-muted">
+                    · {section.items.length}
+                    {added > 0 && (
+                      <>
+                        {' '}
+                        ·{' '}
+                        {t('order.added_count', {
+                          count: added,
+                          defaultValue: '{{count}} added',
+                        })}
+                      </>
+                    )}
+                  </span>
+                </div>
+                <ChevronDown
+                  size={16}
+                  className={clsx(
+                    'transition-transform text-muted',
+                    isCollapsed && '-rotate-90',
+                  )}
                 />
-                <div className="flex-1 min-w-0">
-                  {category && (
-                    <div className="chip chip-muted h-[22px] mb-1.5">
-                      {t(`order.category.${category}`, {
-                        defaultValue: category,
-                      })}
-                    </div>
-                  )}
-                  <div className="font-semibold text-base">{item.name}</div>
-                  {item.description && (
-                    <div className="dev text-sm text-muted line-clamp-2">
-                      {item.description}
-                    </div>
-                  )}
-                </div>
-                <div className="text-right">
-                  <div className="price">
-                    ₹{(item.price_minor / 100).toFixed(0)}
-                  </div>
-                  <div className="mt-2">
-                    <Stepper qty={qty} onChange={(n) => setQty(item, n)} />
-                  </div>
-                </div>
-              </div>
-              {qty > 0 && (
-                <div className="seg mt-3">
-                  {PORTIONS.map(({ value, key }) => {
-                    const active = (line?.portion_size ?? 'small') === value;
+              </button>
+              {!isCollapsed && (
+                <div className="flex flex-col gap-3">
+                  {section.items.map((item) => {
+                    const line = lines[item.id];
+                    const qty = line?.quantity ?? 0;
                     return (
-                      <button
-                        key={value}
-                        onClick={() => setPortion(item.id, value)}
-                        className={`seg-item ${value === 'small' ? 'small' : ''} ${
-                          active ? 'active' : ''
-                        }`}
-                        aria-pressed={active}
-                      >
-                        <span
-                          className="dot"
-                          style={{
-                            width: PORTION_DOT_SIZE[value],
-                            height: PORTION_DOT_SIZE[value],
-                          }}
-                        />
-                        {t(key)}
-                      </button>
+                      <div key={item.id} className="card p-3">
+                        <div className="row gap-3 items-start">
+                          <div
+                            className="dish dish-plate w-[74px] h-[74px] flex-shrink-0"
+                            data-label=""
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-base">
+                              {item.name}
+                            </div>
+                            {item.description && (
+                              <div className="dev text-sm text-muted line-clamp-2">
+                                {item.description}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <div className="price">
+                              ₹{(item.price_minor / 100).toFixed(0)}
+                            </div>
+                            <div className="mt-2">
+                              <Stepper
+                                qty={qty}
+                                onChange={(n) => setQty(item, n)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        {qty > 0 && (
+                          <div className="seg mt-3">
+                            {PORTIONS.map(({ value, key }) => {
+                              const active =
+                                (line?.portion_size ?? 'small') === value;
+                              return (
+                                <button
+                                  key={value}
+                                  onClick={() => setPortion(item.id, value)}
+                                  className={`seg-item ${value === 'small' ? 'small' : ''} ${
+                                    active ? 'active' : ''
+                                  }`}
+                                  aria-pressed={active}
+                                >
+                                  <span
+                                    className="dot"
+                                    style={{
+                                      width: PORTION_DOT_SIZE[value],
+                                      height: PORTION_DOT_SIZE[value],
+                                    }}
+                                  />
+                                  {t(key)}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
               )}
-            </div>
+            </section>
           );
         })}
 

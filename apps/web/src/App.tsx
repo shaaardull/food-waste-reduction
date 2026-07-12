@@ -2,6 +2,8 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from './lib/auth';
 import { useApplyTheme } from './lib/theme';
+import { useNewRewardsBadge } from './lib/newRewards';
+import { useLiveSessionsCount } from './lib/liveSessions';
 
 /**
  * Front-door screens (`/`, `/login`, `/quick-start`, `/stats`) bring their
@@ -12,6 +14,7 @@ import { useApplyTheme } from './lib/theme';
 const FRONT_DOOR_ROUTES = new Set([
   '/',
   '/login',
+  '/forgot-password',
   '/quick-start',
   '/onboard-choice',
   '/stats',
@@ -26,8 +29,14 @@ export function App() {
   const token = useAuthStore((s) => s.token);
   const activeRestaurant = useAuthStore((s) => s.activeRestaurant);
   useApplyTheme(activeRestaurant);
+  const { count: newRewards, markSeen: markRewardsSeen } = useNewRewardsBadge();
+  const liveSessions = useLiveSessionsCount();
 
-  const fullBleed = FRONT_DOOR_ROUTES.has(loc.pathname);
+  // `/qr/:token` is dynamic (Set can't hold a pattern), so we
+  // prefix-match it as an additional front-door route. Everything
+  // else stays a strict membership check.
+  const fullBleed =
+    FRONT_DOOR_ROUTES.has(loc.pathname) || loc.pathname.startsWith('/qr/');
 
   return (
     <div className="min-h-full flex flex-col">
@@ -50,8 +59,40 @@ export function App() {
             <nav className="flex gap-3 text-sm">
               {token ? (
                 <>
-                  <Link to="/rewards" className="hover:underline">
-                    {t('app.nav.rewards')}
+                  <Link
+                    to="/sessions"
+                    className="hover:underline relative inline-flex items-center gap-1.5"
+                  >
+                    <span>{t('app.nav.sessions')}</span>
+                    {liveSessions > 0 && (
+                      <span
+                        aria-label={t('app.nav.sessions_live_aria', {
+                          count: liveSessions,
+                          defaultValue: `${liveSessions} live`,
+                        })}
+                        className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-white text-brand text-[11px] font-bold leading-none tnum"
+                      >
+                        {liveSessions > 99 ? '99+' : liveSessions}
+                      </span>
+                    )}
+                  </Link>
+                  <Link
+                    to="/rewards"
+                    onClick={markRewardsSeen}
+                    className="hover:underline relative inline-flex items-center gap-1.5"
+                  >
+                    <span>{t('app.nav.rewards')}</span>
+                    {newRewards > 0 && (
+                      <span
+                        aria-label={t('app.nav.rewards_new_aria', {
+                          count: newRewards,
+                          defaultValue: `${newRewards} new`,
+                        })}
+                        className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-saffron-deep text-white text-[11px] font-bold leading-none tnum"
+                      >
+                        {newRewards > 99 ? '99+' : newRewards}
+                      </span>
+                    )}
                   </Link>
                   <Link to="/profile" className="hover:underline">
                     {t('app.nav.profile')}

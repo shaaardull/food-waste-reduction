@@ -87,6 +87,8 @@ async def create_restaurant(
         kwargs["hsn_code"] = payload.hsn_code
     if payload.bill_prefix is not None:
         kwargs["bill_prefix"] = payload.bill_prefix
+    if payload.gst_enabled is not None:
+        kwargs["gst_enabled"] = payload.gst_enabled
     restaurant = Restaurant(**kwargs)
     db.add(restaurant)
     try:
@@ -113,22 +115,14 @@ async def get_restaurant(slug: str, db: AsyncSession = Depends(get_db)) -> Resta
 async def _require_owner_or_admin(
     db: AsyncSession, user: User, restaurant_id: UUID
 ) -> None:
-    if user.role == "admin":
-        return
-    if user.role != "staff":
-        raise NotRestaurantStaff()
-    res = await db.execute(
-        select(RestaurantStaff).where(
-            RestaurantStaff.user_id == user.id,
-            RestaurantStaff.restaurant_id == restaurant_id,
-            RestaurantStaff.role == "owner",
-        )
-    )
-    if res.scalar_one_or_none() is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner role required at this restaurant",
-        )
+    """Deprecated compatibility shim — kept so callers don't have to
+    move imports in the same sprint. The per-role hierarchy was
+    flattened by product decision: any staff (owner / manager /
+    server) can now perform every restaurant-scoped action.
+    Delegates to the flat any-staff check below. Callers should
+    switch to `_require_any_restaurant_staff` directly in future.
+    """
+    await _require_any_restaurant_staff(db, user, restaurant_id)
 
 
 async def _require_any_restaurant_staff(
@@ -460,14 +454,40 @@ async def invite_staff(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StaffInviteOut:
-    """Owner / admin can create a staff user and link them to this restaurant.
+    """Any restaurant staff or admin can invite a new staff user and
+    link them to this restaurant.
 
     This is a Phase-1 single-step invite — sets a password directly. A real
     invite-by-email flow can replace this in Phase 2 without changing callers.
+
+    Single-owner constraint: each restaurant has exactly one owner
+    account (the person who legally owns the entity). We enforce
+    that here — attempting to invite a second `owner` while one
+    already exists returns 409. Managers and servers have no such
+    cap; a restaurant can have as many of each as it wants.
     """
-    await _require_owner_or_admin(db, user, restaurant_id)
+    await _require_any_restaurant_staff(db, user, restaurant_id)
     if (await db.get(Restaurant, restaurant_id)) is None:
         raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    if payload.role == "owner":
+        existing_owner = await db.execute(
+            select(RestaurantStaff).where(
+                RestaurantStaff.restaurant_id == restaurant_id,
+                RestaurantStaff.role == "owner",
+            )
+        )
+        if existing_owner.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "OWNER_ALREADY_EXISTS",
+                    "message": (
+                        "This restaurant already has an owner. Invite the "
+                        "new person as a manager instead."
+                    ),
+                },
+            )
 
     email = payload.email.lower()
     existing = await db.execute(select(User).where(User.email == email))

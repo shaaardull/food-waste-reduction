@@ -135,12 +135,36 @@ async def test_patch_restaurant_owner_can_edit_own(client, db):
 
 
 @pytest.mark.asyncio
-async def test_patch_restaurant_non_owner_staff_blocked(client, db):
-    restaurant, _, _ = make_restaurant(db, name="Patch Block")
-    staff = make_staff(db, restaurant.id)  # manager role, not owner
+async def test_patch_restaurant_any_staff_allowed(client, db):
+    """Auth was flattened — any staff of the restaurant (manager,
+    server, owner) can edit settings. The 'non-owner blocked' rule
+    was dropped by product decision to remove the owner-hierarchy
+    gate. Cross-restaurant staff still get 403 via the not-on-staff
+    check (covered by test_patch_restaurant_foreign_staff_blocked
+    below)."""
+    restaurant, _, _ = make_restaurant(db, name="Patch Flat")
+    staff = make_staff(db, restaurant.id)  # role='manager'
     token = await login(client, staff.email)
     res = await client.patch(
         f"/api/v1/restaurants/{restaurant.id}",
+        json={"tagline": "manager-edited"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["tagline"] == "manager-edited"
+
+
+@pytest.mark.asyncio
+async def test_patch_restaurant_foreign_staff_blocked(client, db):
+    """A manager at restaurant A must NOT be able to patch
+    restaurant B. Cross-tenancy is the only 403 that survives the
+    flattening."""
+    home, _, _ = make_restaurant(db, name="Home")
+    foreign, _, _ = make_restaurant(db, name="Foreign")
+    foreign_staff = make_staff(db, foreign.id)  # only on foreign's staff
+    token = await login(client, foreign_staff.email)
+    res = await client.patch(
+        f"/api/v1/restaurants/{home.id}",
         json={"tagline": "nope"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -261,3 +285,70 @@ async def test_invite_staff(client, db):
         )
     )
     assert res2.scalar_one_or_none() is not None
+
+
+@pytest.mark.asyncio
+async def test_invite_manager_by_any_staff(client, db):
+    """Auth is flat — any restaurant staff can invite. A manager can
+    invite another manager without needing the owner to do it."""
+    restaurant, _, _ = make_restaurant(db, name="Invite by Mgr")
+    # Seed a manager, not an owner, as the inviter.
+    from tests.conftest import make_staff  # already used elsewhere
+
+    inviter = make_staff(db, restaurant.id)  # defaults to role='manager'
+    token = await login(client, inviter.email)
+    res = await client.post(
+        f"/api/v1/restaurants/{restaurant.id}/staff",
+        json={
+            "email": make_email("invited-by-mgr"),
+            "display_name": "New Manager",
+            "role": "manager",
+            "password": "plate-clean-demo",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 201, res.text
+
+
+@pytest.mark.asyncio
+async def test_invite_second_owner_returns_409(client, db):
+    """Single-owner-per-restaurant constraint: attempting to invite a
+    second owner while one already exists returns 409 with a
+    structured detail the frontend can switch on."""
+    restaurant, _, _ = make_restaurant(db, name="Solo Owner")
+    owner = _make_owner(db, restaurant.id)
+    token = await login(client, owner.email)
+    res = await client.post(
+        f"/api/v1/restaurants/{restaurant.id}/staff",
+        json={
+            "email": make_email("second-owner"),
+            "display_name": "Would-be Second Owner",
+            "role": "owner",
+            "password": "plate-clean-demo",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 409, res.text
+    body = res.json()
+    assert body["detail"]["code"] == "OWNER_ALREADY_EXISTS"
+
+
+@pytest.mark.asyncio
+async def test_invite_multiple_managers_allowed(client, db):
+    """No cap on manager count — restaurants can have as many as
+    they want. Two invites should both succeed."""
+    restaurant, _, _ = make_restaurant(db, name="Many Mgrs")
+    owner = _make_owner(db, restaurant.id)
+    token = await login(client, owner.email)
+    for i in range(2):
+        res = await client.post(
+            f"/api/v1/restaurants/{restaurant.id}/staff",
+            json={
+                "email": make_email(f"mgr-{i}"),
+                "display_name": f"Manager {i}",
+                "role": "manager",
+                "password": "plate-clean-demo",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert res.status_code == 201, res.text

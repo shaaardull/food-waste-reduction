@@ -33,6 +33,10 @@ class RestaurantOut(BaseModel):
     gst_rate: Decimal = Decimal("0.050")
     hsn_code: str = "9963"
     bill_prefix: str | None = None
+    # E1 toggle — flip off to skip the CGST/SGST split on new bills.
+    # Past bills keep their snapshot rate; only future bills follow
+    # the new setting.
+    gst_enabled: bool = True
 
     model_config = {"from_attributes": True}
 
@@ -57,6 +61,7 @@ class RestaurantCreateIn(BaseModel):
     )
     hsn_code: str | None = Field(default=None, min_length=4, max_length=8)
     bill_prefix: str | None = Field(default=None, max_length=32)
+    gst_enabled: bool | None = None
 
 
 class RestaurantPatchIn(BaseModel):
@@ -81,6 +86,7 @@ class RestaurantPatchIn(BaseModel):
     )
     hsn_code: str | None = Field(default=None, min_length=4, max_length=8)
     bill_prefix: str | None = Field(default=None, max_length=32)
+    gst_enabled: bool | None = None
 
 
 class MenuItemOut(BaseModel):
@@ -97,6 +103,10 @@ class MenuItemOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# Historical seed categories — still used by the vision-extraction
+# coerce (a hallucinated category is dropped to None). Staff can
+# freely define new categories through the menu editor; the DB column
+# is plain TEXT so anything reasonable-length works.
 MenuCategory = Literal["starter", "main", "side", "bread", "drink", "dessert"]
 
 
@@ -104,7 +114,11 @@ class MenuItemIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=400)
     price_minor: int = Field(ge=0, le=1_000_000_00)
-    category: MenuCategory | None = None
+    # Free-form category so a restaurant can group by "Tandoor",
+    # "Coastal specials", "Kids menu" etc. — anything meaningful for
+    # their menu. Capped at 40 chars so the diner UI can render it as
+    # a section header without wrapping.
+    category: str | None = Field(default=None, max_length=40)
     is_reward_eligible: bool = False
     reference_image_url: HttpUrl | None = None
 
@@ -150,7 +164,9 @@ class MenuItemPatchIn(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, max_length=400)
     price_minor: int | None = Field(default=None, ge=0, le=1_000_000_00)
-    category: MenuCategory | None = None
+    # Same rules as MenuItemIn: free-form, 40-char cap. Passing "" is
+    # coerced to None at the router since Pydantic keeps empty strings.
+    category: str | None = Field(default=None, max_length=40)
     is_reward_eligible: bool | None = None
     is_active: bool | None = None
     reference_image_url: HttpUrl | None = None

@@ -82,6 +82,10 @@ export function DisputeDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dispute', restaurantId, id] });
       queryClient.invalidateQueries({ queryKey: ['disputes'] });
+      // Drop the sidebar dispute counter immediately — the resolved
+      // dispute no longer counts as "open" and the rail should
+      // reflect that within the same tick as the navigate.
+      queryClient.invalidateQueries({ queryKey: ['dashboard-badges'] });
       navigate('/disputes');
     },
     onError: (err: ApiException) => setError(err.message),

@@ -6,6 +6,7 @@ import { ArrowLeft, Zap } from 'lucide-react';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import { LangToggle } from '../components/LangToggle';
+import { GoogleSignInButton } from '../components/GoogleSignInButton';
 
 type Mode = 'sign-in' | 'sign-up';
 
@@ -21,6 +22,7 @@ export function Login() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const [mode, setMode] = useState<Mode>('sign-in');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [isAdult, setIsAdult] = useState(false);
@@ -33,10 +35,19 @@ export function Login() {
     setBusy(true);
     try {
       const path = mode === 'sign-in' ? '/auth/login' : '/auth/register';
+      // Dual-channel sign-up: phone + email both go through /auth/register
+      // so every account has both delivery lanes (bills → email, OTP +
+      // reset codes → phone). Sign-in stays email + password.
       const payload =
         mode === 'sign-in'
           ? { email, password }
-          : { email, password, display_name: displayName, is_adult: isAdult };
+          : {
+              email,
+              phone: phone.trim(),
+              password,
+              display_name: displayName,
+              is_adult: isAdult,
+            };
       const res = await api.post<{ user: User; token: string }>(path, payload);
       setAuth(res.user, res.token);
       navigate('/scan');
@@ -73,6 +84,20 @@ export function Login() {
           </h1>
         </header>
 
+        {/* Google Identity Services sits above the email form — it's
+            the fastest path for the ~90% of diners who already have
+            a Gmail account, and dropping it below the form buries a
+            major conversion lever. The "or continue with email"
+            divider makes it clear both paths exist. */}
+        <div className="flex flex-col gap-3">
+          <GoogleSignInButton redirectTo="/scan" />
+          <div className="row gap-2 items-center text-[11px] text-muted uppercase tracking-wide dev">
+            <span className="flex-1 h-px bg-line" />
+            <span>{t('login.or_with_email')}</span>
+            <span className="flex-1 h-px bg-line" />
+          </div>
+        </div>
+
         <form onSubmit={submit} className="space-y-3.5">
           <Field label={t('login.email')}>
             <input
@@ -86,14 +111,31 @@ export function Login() {
           </Field>
 
           {mode === 'sign-up' && (
-            <Field label={t('login.display_name')}>
-              <input
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="input"
-                autoComplete="name"
-              />
-            </Field>
+            <>
+              <Field label={t('login.phone')}>
+                <input
+                  required
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+91 98765 43210"
+                  className="input"
+                  autoComplete="tel"
+                  inputMode="tel"
+                />
+                <span className="text-[11.5px] text-faint mt-1 block">
+                  {t('login.phone_hint')}
+                </span>
+              </Field>
+              <Field label={t('login.display_name')}>
+                <input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="input"
+                  autoComplete="name"
+                />
+              </Field>
+            </>
           )}
 
           <Field label={t('login.password')}>
@@ -106,6 +148,16 @@ export function Login() {
               className="input"
               autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
             />
+            {mode === 'sign-in' && (
+              <div className="text-right mt-1">
+                <Link
+                  to="/forgot-password"
+                  className="text-[12.5px] font-semibold text-brand hover:underline"
+                >
+                  {t('login.forgot_password')}
+                </Link>
+              </div>
+            )}
           </Field>
 
           {mode === 'sign-up' && (

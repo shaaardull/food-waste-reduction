@@ -124,20 +124,21 @@ async def test_patch_rejects_out_of_range_gst_rate(client, db):
 
 
 @pytest.mark.asyncio
-async def test_patch_non_owner_staff_still_blocked_on_gst(client, db):
-    """Servers can edit menu (Gap-B/C policy), but restaurant CONFIG
-    like GSTIN is owner-only — mirrors the existing restaurant PATCH
-    gate."""
+async def test_patch_gst_by_any_staff_of_restaurant(client, db):
+    """Flat auth (per product decision): any staff of the restaurant
+    can PATCH GST settings. Cross-restaurant staff still gets 403,
+    covered by test_patch_restaurant_foreign_staff_blocked in
+    test_admin_endpoints.py."""
     restaurant, _, _ = make_restaurant(db, name="Gate GST")
-    # make_staff creates a manager, not owner.
-    staff = make_staff(db, restaurant.id)
+    staff = make_staff(db, restaurant.id)  # role='manager'
     token = await login(client, staff.email)
     res = await client.patch(
         f"/api/v1/restaurants/{restaurant.id}",
         json={"gstin": "27ABCDE1234F1Z5"},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert res.status_code == 403
+    assert res.status_code == 200, res.text
+    assert res.json()["gstin"] == "27ABCDE1234F1Z5"
 
 
 @pytest.mark.asyncio

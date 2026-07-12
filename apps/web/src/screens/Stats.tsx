@@ -11,10 +11,12 @@ type Range = '30d' | '90d' | 'all';
 interface PublicStats {
   range: Range;
   period_days: number | null;
-  restaurants_active: number;
   sessions_counted: number;
+  // `restaurants_active` + `k_anonymity_floor` used to be here.
+  // The API stopped returning them since the exact restaurant count
+  // is business-sensitive at pilot scale (and the floor would leak
+  // it by subtraction from the empty-state copy).
   k_anonymous: boolean;
-  k_anonymity_floor: { restaurants: number; sessions: number };
   kg_food_saved: number | null;
   kg_co2e_saved: number | null;
   trees_day_equivalent: number | null;
@@ -91,14 +93,7 @@ export function Stats() {
         {isLoading || !data ? (
           <p className="text-muted text-sm py-8 text-center">{t('stats.loading')}</p>
         ) : !data.k_anonymous ? (
-          <EmptyState
-            floor={data.k_anonymity_floor}
-            got={{
-              restaurants: data.restaurants_active,
-              sessions: data.sessions_counted,
-            }}
-            t={t}
-          />
+          <EmptyState t={t} />
         ) : (
           <>
             {/* sage hero */}
@@ -113,10 +108,7 @@ export function Stats() {
                 {t('stats.hero_unit')}
               </div>
               <p className="text-[12.5px] text-muted mt-1.5 max-w-[36ch]">
-                {t('stats.hero_sub', {
-                  restaurants: data.restaurants_active,
-                  sessions: data.sessions_counted,
-                })}
+                {t('stats.hero_sub', { sessions: data.sessions_counted })}
               </p>
             </section>
 
@@ -202,12 +194,10 @@ function StatTile({ icon, value, unit, label }: StatTileProps) {
 }
 
 interface EmptyStateProps {
-  floor: { restaurants: number; sessions: number };
-  got: { restaurants: number; sessions: number };
   t: ReturnType<typeof useTranslation>['t'];
 }
 
-function EmptyState({ floor, got, t }: EmptyStateProps) {
+function EmptyState({ t }: EmptyStateProps) {
   return (
     <div className="empty">
       <div className="art">
@@ -217,20 +207,6 @@ function EmptyState({ floor, got, t }: EmptyStateProps) {
       <p className="text-[13px] text-muted mt-1.5 max-w-[40ch] leading-snug">
         {t('stats.empty_blurb')}
       </p>
-      <ul className="text-[12px] text-muted mt-3 flex flex-col gap-1">
-        <li>
-          {t('stats.empty_progress_restaurants', {
-            got: got.restaurants,
-            floor: floor.restaurants,
-          })}
-        </li>
-        <li>
-          {t('stats.empty_progress_sessions', {
-            got: got.sessions,
-            floor: floor.sessions,
-          })}
-        </li>
-      </ul>
     </div>
   );
 }

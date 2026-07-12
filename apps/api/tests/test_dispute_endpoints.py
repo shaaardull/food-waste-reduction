@@ -111,10 +111,15 @@ async def test_dispute_detail_404_cross_restaurant(client, db):
 
 
 @pytest.mark.asyncio
-async def test_resolve_requires_owner(client, db):
-    restaurant, _, _ = make_restaurant(db, name="Disp Owner")
+async def test_resolve_allows_any_staff_of_restaurant(client, db):
+    """The auth widened past owner-only — practical operations at
+    single-person restaurants (owner and manager are the same human)
+    would otherwise strand every dispute. Managers and servers of
+    the restaurant can now resolve too, subject to the
+    conflict-of-interest check below."""
+    restaurant, _, _ = make_restaurant(db, name="Disp AnyStaff")
     manager = _make_manager(db, restaurant.id)
-    diner_payload, _ = await register_diner(client, label="resolveowner")
+    diner_payload, _ = await register_diner(client, label="resolveanystaff")
     import uuid as _uuid
 
     dispute = _seed_dispute(db, restaurant.id, _uuid.UUID(diner_payload["id"]))
@@ -125,7 +130,82 @@ async def test_resolve_requires_owner(client, db):
         json={"status": "closed", "resolution_notes": "no decision needed"},
         headers={"Authorization": f"Bearer {token}"},
     )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["status"] == "closed"
+
+
+@pytest.mark.asyncio
+async def test_resolve_forbidden_for_non_staff(client, db):
+    """A staff of a DIFFERENT restaurant still gets 403 — the widen
+    was only to same-restaurant staff, not to any staff on the
+    platform."""
+    restaurant_a, _, _ = make_restaurant(db, name="Disp Home")
+    restaurant_b, _, _ = make_restaurant(db, name="Disp Foreign")
+    # Manager belongs to restaurant B, not the restaurant the dispute
+    # is at.
+    manager_b = _make_manager(db, restaurant_b.id)
+    diner_payload, _ = await register_diner(client, label="resolvebadstaff")
+    import uuid as _uuid
+
+    dispute = _seed_dispute(db, restaurant_a.id, _uuid.UUID(diner_payload["id"]))
+    token = await login(client, manager_b.email)
+    res = await client.post(
+        f"/api/v1/restaurants/{restaurant_a.id}/dashboard/disputes/{dispute.id}/resolve",
+        json={"status": "closed", "resolution_notes": "not mine"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert res.status_code == 403
+    body = res.json()
+    # Structured detail so the frontend can render a friendly copy.
+    assert body["detail"]["code"] == "NOT_ON_STAFF"
+
+
+@pytest.mark.asyncio
+async def test_resolve_allowed_even_when_staff_made_original_call(client, db):
+    """The staff/manager/owner hierarchy was flattened by product
+    decision — any restaurant staff can resolve any dispute at their
+    restaurant, including one against a session they themselves
+    validated. The restaurant is trusted to police its own team.
+    """
+    from datetime import UTC, datetime
+    from decimal import Decimal
+    import uuid as _uuid
+
+    from app.models.staff_validation import StaffValidation
+
+    restaurant, _, _ = make_restaurant(db, name="Disp NoCOI")
+    manager = _make_manager(db, restaurant.id)
+    diner_payload, _ = await register_diner(client, label="resolvenocoi")
+
+    dispute = _seed_dispute(db, restaurant.id, _uuid.UUID(diner_payload["id"]))
+    db.add(
+        StaffValidation(
+            meal_session_id=dispute.meal_session_id,
+            staff_user_id=manager.id,
+            restaurant_id=restaurant.id,
+            decision="rejected",
+            model_score=Decimal("0.72"),
+            final_score=Decimal("0.72"),
+            reason_code="plate_not_clean_enough",
+            decision_latency_ms=1500,
+            decided_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+
+    token = await login(client, manager.email)
+    res = await client.post(
+        f"/api/v1/restaurants/{restaurant.id}/dashboard/disputes/{dispute.id}/resolve",
+        json={
+            "status": "resolved_in_favor_restaurant",
+            "resolution_notes": "reviewed on second look — original call stands",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["status"] == "resolved_in_favor_restaurant"
 
 
 @pytest.mark.asyncio

@@ -151,6 +151,21 @@ async def _resolve_reward_discount(
             "REWARD_WRONG_RESTAURANT",
             "That reward was issued at a different restaurant.",
         )
+    # Self-discount block: a reward issued IN this session cannot be
+    # applied TO this session's own bill. Rewards are a return-visit
+    # incentive — otherwise the diner effectively pre-discounts the
+    # meal they're being rewarded for, which unwinds the point of
+    # the loop. The reward can still be spent on a FUTURE bill at
+    # the same restaurant.
+    if reward.meal_session_id == session.id:
+        raise BillGenerationError(
+            "REWARD_SAME_SESSION",
+            (
+                "This reward was earned in this same meal — save it for your "
+                "next visit to this restaurant. Rewards can't discount the "
+                "bill of the meal that earned them."
+            ),
+        )
     if reward.reward_type != "bill_discount":
         raise BillGenerationError(
             "REWARD_NOT_BILL_DISCOUNT",
@@ -229,9 +244,19 @@ async def get_or_create_bill(
     # intra-state supply (Mumbai pilot is intra-state). If we ever add
     # inter-state (IGST), a `restaurant.gst_kind` column would flag it
     # and this function would output a single igst_amount instead.
-    half_rate = restaurant.gst_rate / Decimal(2)
-    cgst_amount = _round_paise(Decimal(taxable) * half_rate)
-    sgst_amount = _round_paise(Decimal(taxable) * half_rate)
+    #
+    # Sprint E toggle: when gst_enabled is false the restaurant is
+    # below the ₹20L threshold (or on a composition scheme); we snapshot
+    # zero rates so the bill still round-trips cleanly through the same
+    # columns but the diner isn't charged GST.
+    if restaurant.gst_enabled:
+        half_rate = restaurant.gst_rate / Decimal(2)
+        cgst_amount = _round_paise(Decimal(taxable) * half_rate)
+        sgst_amount = _round_paise(Decimal(taxable) * half_rate)
+    else:
+        half_rate = Decimal("0.000")
+        cgst_amount = 0
+        sgst_amount = 0
     total = taxable + cgst_amount + sgst_amount
 
     issued_at = datetime.now(UTC)

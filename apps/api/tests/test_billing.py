@@ -288,6 +288,66 @@ async def test_bill_applies_bill_discount_reward(client, db):
 
 
 @pytest.mark.asyncio
+async def test_reward_earned_in_same_session_cannot_discount_own_bill(client, db):
+    """Rewards are a return-visit incentive. Applying the reward
+    issued in this session to this session's own bill would unwind
+    that. Guard code: REWARD_SAME_SESSION."""
+    restaurant, items, rule = make_restaurant(
+        db, name="No Self Discount"
+    )
+    diner_id, diner_email = _diner_user(db)
+    # Session earns its OWN reward (both attached to the same session).
+    the_session = _make_session_with_items(
+        db, restaurant_id=restaurant.id, menu_items=items[:2], diner_user_id=diner_id
+    )
+    reward = _issue_reward(
+        db, reward_session=the_session, rule=rule, value_minor=5000
+    )
+    token = await login(client, diner_email)
+    res = await client.post(
+        f"/api/v1/sessions/{the_session.id}/bill",
+        json={"apply_redemption_code": reward.redemption_code},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 400, res.text
+    body = res.json()
+    assert body["detail"]["code"] == "REWARD_SAME_SESSION"
+    # The friendly message should explain *why* — the frontend
+    # surfaces this verbatim under the coupon input.
+    assert "next visit" in body["detail"]["message"].lower()
+
+
+@pytest.mark.asyncio
+async def test_reward_from_prior_session_still_works_after_self_guard(
+    client, db
+):
+    """Regression guard: adding the REWARD_SAME_SESSION check must
+    not break the normal happy path where the reward comes from a
+    PRIOR session at the same restaurant."""
+    restaurant, items, rule = make_restaurant(
+        db, name="Prior Session Still OK"
+    )
+    diner_id, diner_email = _diner_user(db)
+    prior_session = _make_session_with_items(
+        db, restaurant_id=restaurant.id, menu_items=items[:1], diner_user_id=diner_id
+    )
+    reward = _issue_reward(
+        db, reward_session=prior_session, rule=rule, value_minor=3000
+    )
+    current_session = _make_session_with_items(
+        db, restaurant_id=restaurant.id, menu_items=items[:2], diner_user_id=diner_id
+    )
+    token = await login(client, diner_email)
+    res = await client.post(
+        f"/api/v1/sessions/{current_session.id}/bill",
+        json={"apply_redemption_code": reward.redemption_code},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["discount_minor"] == 3000
+
+
+@pytest.mark.asyncio
 async def test_reward_from_wrong_restaurant_rejected(client, db):
     r_a, items_a, rule_a = make_restaurant(db, name="Reward Home")
     r_b, items_b, _ = make_restaurant(db, name="Reward Foreign")

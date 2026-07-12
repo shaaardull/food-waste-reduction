@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 import type { User } from '@plate-clean/shared-types';
@@ -26,6 +26,14 @@ export function QuickStart() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
+  // `?anon=1` arrives from the "No account, just this meal" tile on
+  // OnboardChoice. Same backend flow (phone OTP, no account creation)
+  // — we just swap the eyebrow / blurb to be explicit that nothing is
+  // retained beyond the reward SMS. This matches CLAUDE.md §9 Phase 3
+  // anonymous mode intent without needing a separate backend
+  // endpoint.
+  const [searchParams] = useSearchParams();
+  const isAnon = searchParams.get('anon') === '1';
 
   const [step, setStep] = useState<Step>('phone');
   const [phone, setPhone] = useState('');
@@ -145,13 +153,21 @@ export function QuickStart() {
         </div>
 
         <header className="space-y-1.5">
-          <div className="eyebrow text-brand">{t('quick_start.title')}</div>
+          <div className="eyebrow text-brand">
+            {isAnon
+              ? t('quick_start.anon_eyebrow')
+              : t('quick_start.title')}
+          </div>
           <h1 className="display text-[34px] text-ink leading-tight">
-            {t('quick_start.title')}
+            {isAnon
+              ? t('quick_start.anon_title')
+              : t('quick_start.title')}
           </h1>
           <p className="text-[15px] text-muted leading-relaxed pt-1">
             {step === 'phone'
-              ? t('quick_start.blurb')
+              ? isAnon
+                ? t('quick_start.anon_blurb')
+                : t('quick_start.blurb')
               : t('quick_start.code_sent_to', { phone })}
           </p>
         </header>

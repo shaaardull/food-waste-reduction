@@ -127,6 +127,9 @@ export function ValidationDetail() {
       // Decision recorded — draft is no longer needed.
       drafts.clearDraft(sessionId);
       queryClient.invalidateQueries({ queryKey: ['pending'] });
+      // Drop the sidebar validation counter immediately so the rail
+      // reflects the decision without waiting on the 15s poll.
+      queryClient.invalidateQueries({ queryKey: ['dashboard-badges'] });
       navigate('/validations');
     },
     onError: (err: ApiException) => {

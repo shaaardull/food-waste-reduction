@@ -132,3 +132,72 @@ async def test_diner_cannot_redeem_their_own_reward(client, db, fake_s3, fake_sc
         headers={"Authorization": f"Bearer {diner_token}"},
     )
     assert res.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reward_payload_carries_issuing_restaurant(
+    client, db, fake_s3, fake_scoring
+):
+    """The diner-facing /rewards list and the staff /rewards/:code
+    lookup both echo `restaurant_id` + `restaurant_name` + `slug` so
+    the RewardPanel UI can render 'Redeemable at <name>'."""
+    restaurant, _, staff_token, diner_token, code = await _issue_reward(
+        client, db, fake_s3, fake_scoring, "restinfo"
+    )
+
+    # Diner list.
+    listing = await client.get(
+        "/api/v1/rewards", headers={"Authorization": f"Bearer {diner_token}"}
+    )
+    row = next(
+        r for r in listing.json() if r["redemption_code"] == code
+    )
+    assert row["restaurant_id"] == str(restaurant.id)
+    assert row["restaurant_name"] == restaurant.name
+    assert row["restaurant_slug"] == restaurant.slug
+
+    # Staff lookup.
+    lookup = await client.get(
+        f"/api/v1/rewards/{code}",
+        headers={"Authorization": f"Bearer {staff_token}"},
+    )
+    body = lookup.json()
+    assert body["reward"]["restaurant_id"] == str(restaurant.id)
+    assert body["reward"]["restaurant_name"] == restaurant.name
+
+
+@pytest.mark.asyncio
+async def test_wrong_restaurant_staff_gets_structured_403(
+    client, db, fake_s3, fake_scoring
+):
+    """A staff member at Restaurant B who tries to redeem a coupon
+    issued at Restaurant A gets a 403 whose `detail` carries the
+    issuing restaurant's name — so the frontend can render an
+    actionable error message rather than a generic 'not staff'."""
+    from tests.conftest import login, make_restaurant, make_staff
+
+    home, _, _, diner_token, code = await _issue_reward(
+        client, db, fake_s3, fake_scoring, "cross-lookup"
+    )
+    foreign, _, _ = make_restaurant(db, name="Foreign Redeem Spot")
+    foreign_staff = make_staff(db, foreign.id)
+    foreign_token = await login(client, foreign_staff.email)
+
+    # Lookup: should also fail (staff can't SEE cross-restaurant rewards
+    # either, otherwise they could enumerate diners' codes).
+    lookup = await client.get(
+        f"/api/v1/rewards/{code}",
+        headers={"Authorization": f"Bearer {foreign_token}"},
+    )
+    assert lookup.status_code == 403
+    body = lookup.json()
+    assert body["detail"]["code"] == "REWARD_WRONG_RESTAURANT"
+    assert body["detail"]["restaurant_name"] == home.name
+
+    # Redeem: same 403 with restaurant identity attached.
+    redeem = await client.post(
+        f"/api/v1/rewards/{code}/redeem",
+        headers={"Authorization": f"Bearer {foreign_token}"},
+    )
+    assert redeem.status_code == 403
+    assert redeem.json()["detail"]["code"] == "REWARD_WRONG_RESTAURANT"

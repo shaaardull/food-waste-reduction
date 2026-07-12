@@ -12,7 +12,11 @@ import {
   Trash2,
   Mail,
   Shield,
+  Lock,
+  AlertCircle,
+  ChevronDown,
 } from 'lucide-react';
+import { clsx } from 'clsx';
 import type { User } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
@@ -170,6 +174,9 @@ export function Profile() {
           </div>
         </div>
 
+        {/* Change password */}
+        <ChangePasswordCard token={token} />
+
         {/* Retention */}
         <div className="card p-4 flex flex-col gap-3">
           <div className="row gap-2 items-center">
@@ -204,6 +211,9 @@ export function Profile() {
             </div>
           )}
         </div>
+
+        {/* Disputes filed by this diner — open + resolved. */}
+        <MyDisputesCard token={token} />
 
         {error && (
           <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
@@ -372,5 +382,331 @@ function SustainabilityCard({ token }: { token: string | null }) {
         {sessionsText} · {t('profile.sustainability_blurb')}
       </p>
     </div>
+  );
+}
+
+/**
+ * ChangePasswordCard — signed-in password rotation surface.
+ *
+ * Kept collapsed by default because most sessions won't touch it —
+ * a "Change password" chip that expands into the three-field form
+ * (current, new, confirm) when tapped. The expand-in-place pattern
+ * avoids a full-screen modal for what should feel like a settings
+ * tweak.
+ *
+ * Client-side "confirm matches new" check runs before the API call
+ * so we don't waste an /auth/change-password round-trip on a typo.
+ */
+function ChangePasswordCard({ token }: { token: string | null }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  function reset() {
+    setCurrent('');
+    setNext('');
+    setConfirm('');
+    setError(null);
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (next.length < 8) {
+      setError(t('profile.password_too_short'));
+      return;
+    }
+    if (next !== confirm) {
+      setError(t('profile.password_mismatch'));
+      return;
+    }
+    if (next === current) {
+      setError(t('profile.password_same'));
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post(
+        '/auth/change-password',
+        { current_password: current, new_password: next },
+        token,
+      );
+      reset();
+      setSaved(true);
+      setOpen(false);
+      setTimeout(() => setSaved(false), 2_400);
+    } catch (err) {
+      if (err instanceof ApiException) setError(err.message);
+      else setError(t('profile.password_error_generic'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card p-4 flex flex-col gap-3">
+      <div className="row spread gap-2 items-center">
+        <div className="row gap-2 items-center">
+          <Lock size={16} className="text-brand" />
+          <div className="font-semibold text-[15px]">
+            {t('profile.password_label')}
+          </div>
+        </div>
+        {!open && (
+          <button
+            type="button"
+            onClick={() => {
+              reset();
+              setOpen(true);
+            }}
+            className="text-[12.5px] font-semibold text-brand hover:underline"
+          >
+            {t('profile.password_change')}
+          </button>
+        )}
+      </div>
+
+      {!open && (
+        <p className="text-[12.5px] text-muted leading-snug">
+          {saved
+            ? t('profile.password_saved')
+            : t('profile.password_blurb')}
+        </p>
+      )}
+
+      {open && (
+        <form onSubmit={submit} className="flex flex-col gap-2.5">
+          <label className="block">
+            <span className="text-xs text-muted font-medium">
+              {t('profile.password_current')}
+            </span>
+            <input
+              required
+              type="password"
+              autoFocus
+              value={current}
+              onChange={(e) => setCurrent(e.target.value)}
+              className="input"
+              autoComplete="current-password"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs text-muted font-medium">
+              {t('profile.password_new')}
+            </span>
+            <input
+              required
+              type="password"
+              minLength={8}
+              value={next}
+              onChange={(e) => setNext(e.target.value)}
+              className="input"
+              autoComplete="new-password"
+            />
+            <span className="text-[11.5px] text-faint mt-1 block">
+              {t('profile.password_new_hint')}
+            </span>
+          </label>
+          <label className="block">
+            <span className="text-xs text-muted font-medium">
+              {t('profile.password_confirm')}
+            </span>
+            <input
+              required
+              type="password"
+              minLength={8}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              className="input"
+              autoComplete="new-password"
+            />
+          </label>
+
+          {error && (
+            <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
+              {error}
+            </p>
+          )}
+
+          <div className="row gap-2 mt-1">
+            <button
+              type="button"
+              onClick={() => {
+                reset();
+                setOpen(false);
+              }}
+              className="btn btn-outline flex-1 min-h-[42px] text-[13.5px]"
+            >
+              {t('profile.password_cancel')}
+            </button>
+            <button
+              type="submit"
+              disabled={busy}
+              className="btn btn-primary flex-1 min-h-[42px] text-[13.5px] disabled:opacity-50"
+            >
+              {busy ? t('profile.password_saving') : t('profile.password_submit')}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+/**
+ * MyDisputesCard — the diner's own dispute history.
+ *
+ * Ethics rule 9 (diner recourse) says a diner can raise a dispute
+ * and the owner (or platform support) has to respond. This card
+ * closes the loop by showing them WHAT they filed and HOW it was
+ * resolved. Open disputes float to the top with an amber chip;
+ * resolved rows are collapsed under a toggle to keep the profile
+ * quiet for a diner who has filed many over time.
+ */
+interface MyDispute {
+  id: string;
+  meal_session_id: string;
+  table_code: string;
+  restaurant_name: string;
+  reason: string;
+  status:
+    | 'open'
+    | 'resolved_in_favor_diner'
+    | 'resolved_in_favor_restaurant'
+    | 'closed';
+  created_at: string;
+  resolved_at: string | null;
+  resolution_notes: string | null;
+}
+
+function MyDisputesCard({ token }: { token: string | null }) {
+  const { t } = useTranslation();
+  const [resolvedOpen, setResolvedOpen] = useState(false);
+  const { data, isLoading } = useQuery({
+    queryKey: ['my-disputes'],
+    queryFn: () => api.get<MyDispute[]>('/auth/me/disputes', token),
+    enabled: Boolean(token),
+  });
+
+  // Card is hidden entirely when the diner has never filed a dispute
+  // — no signal, no noise. Only appears once there's history to show.
+  if (isLoading || !data || data.length === 0) return null;
+
+  const open = data.filter((d) => d.status === 'open');
+  const resolved = data.filter((d) => d.status !== 'open');
+
+  return (
+    <div className="card p-4 flex flex-col gap-3">
+      <div className="row gap-2 items-center">
+        <AlertCircle size={16} className="text-brand" />
+        <div className="font-semibold text-[15px]">
+          {t('profile.disputes_label')}
+        </div>
+      </div>
+      <p className="text-[12.5px] text-muted leading-snug">
+        {t('profile.disputes_blurb')}
+      </p>
+
+      {open.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {open.map((d) => (
+            <DisputeRow key={d.id} dispute={d} />
+          ))}
+        </ul>
+      )}
+
+      {resolved.length > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setResolvedOpen((v) => !v)}
+            className="row spread items-center border border-line rounded-md px-3 py-2 hover:border-brand transition"
+            aria-expanded={resolvedOpen}
+          >
+            <span className="font-semibold text-[13px] text-ink">
+              {t('profile.disputes_resolved_toggle', {
+                count: resolved.length,
+              })}
+            </span>
+            <ChevronDown
+              size={14}
+              className={clsx(
+                'transition-transform text-muted',
+                resolvedOpen && 'rotate-180',
+              )}
+            />
+          </button>
+          {resolvedOpen && (
+            <ul className="flex flex-col gap-2">
+              {resolved.map((d) => (
+                <DisputeRow key={d.id} dispute={d} />
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function DisputeRow({ dispute: d }: { dispute: MyDispute }) {
+  const { t } = useTranslation();
+  const filed = new Date(d.created_at);
+  const resolved = d.resolved_at ? new Date(d.resolved_at) : null;
+  return (
+    <li className="rounded-md border border-line bg-paper p-3 flex flex-col gap-1.5">
+      <div className="row spread items-start gap-2">
+        <div className="flex flex-col min-w-0">
+          <div className="text-[12.5px] text-muted dev">
+            {t('profile.disputes_row_meta', {
+              restaurant: d.restaurant_name,
+              table: d.table_code,
+              date: filed.toLocaleDateString(),
+            })}
+          </div>
+          <div className="text-[13.5px] text-ink font-semibold leading-snug mt-0.5 line-clamp-3">
+            {d.reason}
+          </div>
+        </div>
+        <StatusChip status={d.status} />
+      </div>
+      {resolved && (
+        <div className="text-[12px] text-muted leading-snug">
+          {t('profile.disputes_resolved_at', {
+            date: resolved.toLocaleDateString(),
+          })}
+        </div>
+      )}
+      {d.resolution_notes && (
+        <div className="text-[12px] text-ink leading-snug bg-cream rounded px-2.5 py-1.5">
+          <span className="font-semibold">
+            {t('profile.disputes_owner_notes')}
+          </span>{' '}
+          {d.resolution_notes}
+        </div>
+      )}
+    </li>
+  );
+}
+
+function StatusChip({ status }: { status: MyDispute['status'] }) {
+  const { t } = useTranslation();
+  const cls =
+    status === 'open'
+      ? 'chip-amber'
+      : status === 'resolved_in_favor_diner'
+        ? 'chip-brand'
+        : status === 'resolved_in_favor_restaurant'
+          ? 'chip-muted'
+          : 'chip-muted';
+  return (
+    <span className={`chip ${cls} whitespace-nowrap`}>
+      {t(`profile.disputes_status.${status}`)}
+    </span>
   );
 }

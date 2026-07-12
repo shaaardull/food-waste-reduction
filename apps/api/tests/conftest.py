@@ -46,6 +46,12 @@ def make_email(local_part: str) -> str:
     return f"itest-{RUN_TAG}-{local_part}-{uuid.uuid4().hex[:6]}@example.com"
 
 
+def make_phone() -> str:
+    # E.164-ish Indian mobile with a unique-per-test 8-digit body — the
+    # +91 prefix keeps parsing consistent with the OTP endpoints.
+    return f"+919{uuid.uuid4().int % 10**9:09d}"
+
+
 def make_slug(name: str) -> str:
     return f"itest-{RUN_TAG}-{name}-{uuid.uuid4().hex[:6]}"
 
@@ -225,6 +231,31 @@ def cleanup_run_artifacts() -> Iterator[None]:
                 p=itest_slug
             )
         )
+        # QR tokens FK restaurants — wipe test-created ones by
+        # batch_label prefix so restaurant deletion doesn't cascade
+        # NULL them (which would then leak into other runs).
+        s.execute(
+            text(
+                "DELETE FROM qr_tokens WHERE batch_label LIKE :p "
+                "OR restaurant_id IN "
+                "(SELECT id FROM restaurants WHERE slug LIKE :p2)"
+            ).bindparams(p=f"itest-{RUN_TAG}-%", p2=f"itest-{RUN_TAG}-%")
+        )
+        # Bug reports FK users + restaurants — wipe test-owned rows
+        # before the users / restaurants delete lines below or the FK
+        # constraint fires. Match either FK to be thorough.
+        s.execute(
+            text(
+                "DELETE FROM bug_reports WHERE reported_by_user_id IN "
+                "(SELECT id FROM users WHERE email LIKE :p)"
+            ).bindparams(p=f"itest-{RUN_TAG}-%")
+        )
+        s.execute(
+            text(
+                "DELETE FROM bug_reports WHERE restaurant_id IN "
+                "(SELECT id FROM restaurants WHERE slug LIKE :p)"
+            ).bindparams(p=f"itest-{RUN_TAG}-%")
+        )
         s.execute(
             text("DELETE FROM restaurants WHERE slug LIKE :p").bindparams(
                 p=f"itest-{RUN_TAG}-%"
@@ -372,13 +403,24 @@ def png_bytes(size: int = 64, color: tuple[int, int, int] = (180, 90, 60)) -> by
     return buf.getvalue()
 
 
-async def register_diner(client_, *, label: str = "diner", password: str = "plate-clean-demo"):
-    """Async helper: call /auth/register and return (user_dict, token)."""
+async def register_diner(
+    client_,
+    *,
+    label: str = "diner",
+    password: str = "plate-clean-demo",
+    phone: str | None = None,
+):
+    """Async helper: call /auth/register and return (user_dict, token).
+
+    Phone is now required at signup (dual-channel sprint). Callers can
+    override it — most tests don't care and let the helper mint a
+    unique-per-run number."""
     email = make_email(label)
     res = await client_.post(
         "/api/v1/auth/register",
         json={
             "email": email,
+            "phone": phone or make_phone(),
             "password": password,
             "display_name": f"Test {label}",
             "is_adult": True,

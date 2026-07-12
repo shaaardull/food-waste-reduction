@@ -35,6 +35,17 @@ dependencies = [
     # saved, kg CO₂e avoided, tree-day equivalent, top dishes). Phase 3
     # bullet from CLAUDE.md §9.
     "reportlab>=4.2.0",
+    # QR code generator used by scripts/generate_qr_batch.py to turn
+    # pre-minted qr_tokens rows into printable sticker sheets for
+    # the restaurant onboarding inventory.
+    "qrcode[pil]>=7.4.0",
+    # Google's official ID-token verifier. Used by /auth/google to
+    # authenticate the Google Identity Services JWT the diner PWA
+    # + staff dashboard hand us. Includes the JWK-set fetcher and
+    # signature verification. `requests` is the transport `google-
+    # auth` uses to fetch Google's JWKs.
+    "google-auth>=2.35.0",
+    "requests>=2.32.0",
 ]
 
 [project.optional-dependencies]

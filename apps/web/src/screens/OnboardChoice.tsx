@@ -1,7 +1,8 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Phone, Mail, Leaf, ArrowLeft } from 'lucide-react';
+import { Phone, Mail, Leaf, ArrowLeft, UserX } from 'lucide-react';
 import { LangToggle } from '../components/LangToggle';
+import { GoogleSignInButton } from '../components/GoogleSignInButton';
 
 /**
  * OnboardChoice — the phone/email picker shown right after a QR scan
@@ -48,6 +49,20 @@ export function OnboardChoice() {
           </p>
         </div>
 
+        {/* Google above the three cards. It's not just another
+            equal card because the button widget is Google-owned
+            styling — it looks out of place shoehorned into our card
+            format. Above-the-fold placement respects that most
+            Indian diners already have a Gmail account. */}
+        <div className="flex flex-col gap-3 items-center">
+          <GoogleSignInButton redirectTo="/scan" />
+          <div className="row gap-2 items-center text-[11px] text-muted uppercase tracking-wide dev w-full">
+            <span className="flex-1 h-px bg-line" />
+            <span>{t('onboard_choice.or')}</span>
+            <span className="flex-1 h-px bg-line" />
+          </div>
+        </div>
+
         {/* two big option cards */}
         <div className="flex flex-col gap-3">
           <Link
@@ -85,6 +100,29 @@ export function OnboardChoice() {
               </div>
               <p className="text-[13px] text-muted mt-1 leading-snug">
                 {t('onboard_choice.email_blurb')}
+              </p>
+            </div>
+          </Link>
+
+          {/* Third option: "no account needed" — routes to /quick-start
+              with an ?anon=1 hint so QuickStart can show
+              ephemerality-honest copy ("we won't save your details
+              after this meal"). Deliberately visually lighter (muted
+              border, no coloured icon square) so it reads as the
+              fallback, not the recommended path. */}
+          <Link
+            to="/quick-start?anon=1"
+            className="card p-5 row gap-4 items-center border-dashed hover:border-brand transition group"
+          >
+            <div className="w-14 h-14 rounded-md bg-cream text-muted flex items-center justify-center flex-shrink-0">
+              <UserX size={22} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-[17px] text-ink">
+                {t('onboard_choice.no_account_title')}
+              </div>
+              <p className="text-[13px] text-muted mt-1 leading-snug">
+                {t('onboard_choice.no_account_blurb')}
               </p>
             </div>
           </Link>

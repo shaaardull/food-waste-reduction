@@ -31,11 +31,13 @@ from app.schemas.session import (
     DisputeOut,
     PerItemScoreOut,
     ScoreOut,
+    SessionCancelIn,
     SessionCreateIn,
     SessionCreateOut,
     SessionDetailOut,
     SessionItemOut,
     SessionItemsIn,
+    SessionItemsReplaceIn,
     SessionOut,
 )
 from app.security import get_current_user, haversine_m
@@ -76,6 +78,77 @@ async def create_session(
         expires_at=session.expires_at,
         before_capture_nonce=before_nonce,
     )
+
+
+@router.get("", response_model=list[dict])
+async def list_my_sessions(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Diner's own session inbox. Powers the "Sessions" screen on the
+    diner PWA — the screen a returning diner lands on when they
+    closed the tab mid-flow and need to pick up where they left off.
+
+    Returns newest-first, capped at 50 rows. Each row is a compact
+    summary — ID, restaurant name/slug, table code, status, timestamps,
+    item count, and whether a bill / reward already exists. The client
+    derives the "next action" (e.g. take before photo, capture after,
+    view reward) from the status alone."""
+    rows = await db.execute(
+        select(MealSession, Restaurant)
+        .join(Restaurant, Restaurant.id == MealSession.restaurant_id)
+        .where(MealSession.diner_user_id == user.id)
+        .order_by(MealSession.started_at.desc())
+        .limit(50)
+    )
+    session_restaurant_pairs = list(rows.all())
+    if not session_restaurant_pairs:
+        return []
+
+    session_ids = [s.id for s, _r in session_restaurant_pairs]
+
+    # Item counts in a single query — avoids N+1 as the list grows.
+    items_res = await db.execute(
+        select(MealSessionItem.meal_session_id, MealSessionItem.quantity).where(
+            MealSessionItem.meal_session_id.in_(session_ids)
+        )
+    )
+    item_counts: dict[UUID, int] = {}
+    for sid, qty in items_res.all():
+        item_counts[sid] = item_counts.get(sid, 0) + int(qty)
+
+    # Any bill / reward attached? Just booleans — the detail screen
+    # already surfaces the full objects.
+    bill_res = await db.execute(
+        select(Bill.meal_session_id).where(Bill.meal_session_id.in_(session_ids))
+    )
+    has_bill = {sid for (sid,) in bill_res.all()}
+    reward_res = await db.execute(
+        select(Reward.meal_session_id).where(
+            Reward.meal_session_id.in_(session_ids), Reward.voided_at.is_(None)
+        )
+    )
+    has_reward = {sid for (sid,) in reward_res.all()}
+
+    out: list[dict] = []
+    for s, r in session_restaurant_pairs:
+        out.append(
+            {
+                "id": str(s.id),
+                "restaurant_id": str(s.restaurant_id),
+                "restaurant_name": r.name,
+                "restaurant_slug": r.slug,
+                "table_code": s.table_code,
+                "status": s.status,
+                "started_at": s.started_at.isoformat(),
+                "expires_at": s.expires_at.isoformat(),
+                "cancelled_reason": s.cancelled_reason,
+                "item_count": item_counts.get(s.id, 0),
+                "has_bill": s.id in has_bill,
+                "has_reward": s.id in has_reward,
+            }
+        )
+    return out
 
 
 @router.post("/{session_id}/items", response_model=SessionOut)
@@ -341,6 +414,11 @@ async def get_session(
             current_value = reward.value_minor // 2
         else:
             current_value = reward.value_minor
+        # Look up the issuing restaurant so the diner's RewardPanel
+        # can render "Redeemable at <name>" — a diner with rewards
+        # from multiple restaurants needs to know which coupon works
+        # where.
+        reward_restaurant = await db.get(Restaurant, session.restaurant_id)
         reward_out = {
             "id": str(reward.id),
             "redemption_code": reward.redemption_code,
@@ -354,6 +432,15 @@ async def get_session(
             "redeemed_value_minor": reward.redeemed_value_minor,
             "voided_at": reward.voided_at.isoformat() if reward.voided_at else None,
             "voided_reason": reward.voided_reason,
+            "restaurant_id": (
+                str(reward_restaurant.id) if reward_restaurant else None
+            ),
+            "restaurant_name": (
+                reward_restaurant.name if reward_restaurant else None
+            ),
+            "restaurant_slug": (
+                reward_restaurant.slug if reward_restaurant else None
+            ),
             "allowed_reward_types": list(rule.allowed_reward_types or [])
             if rule is not None
             else ["menu_item", "bill_discount"],
@@ -557,6 +644,159 @@ async def kitchen_ack(
     }
 
 
+async def _require_staff_of_restaurant(
+    db: AsyncSession, user: User, restaurant_id: UUID
+) -> None:
+    """Raise 403 if the caller is not admin AND not on the staff of the
+    given restaurant. Cancel + edit endpoints share the same policy so
+    this is factored out from kitchen_ack."""
+    if user.role == "admin":
+        return
+    if user.role != "staff":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only restaurant staff can perform this action",
+        )
+    membership = await db.execute(
+        select(RestaurantStaff).where(
+            RestaurantStaff.user_id == user.id,
+            RestaurantStaff.restaurant_id == restaurant_id,
+        )
+    )
+    if membership.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not on the staff of this restaurant",
+        )
+
+
+@router.post("/{session_id}/cancel", response_model=SessionOut)
+async def cancel_session(
+    session_id: UUID,
+    payload: SessionCancelIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionOut:
+    """Staff cancels an in-flight order. Legal from any stage EXCEPT
+    the terminal states — once a bill is issued or a reward is granted
+    the money math has to stand.
+
+    Ethics rule 9 (diner recourse): the reason is stored and shown to
+    the diner on SessionStatus. We deliberately don't email the diner
+    because their phone is already polling the session, and a duplicate
+    channel would be noisy.
+
+    If a bill exists for this session we refuse — cancelling after
+    billing would break the immutable-invoice invariant. Staff can
+    still refund out-of-band; the bill stands.
+    """
+    session = await db.get(MealSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    await _require_staff_of_restaurant(db, user, session.restaurant_id)
+
+    # Refuse once the money-side has settled.
+    if session.status in ("rewarded", "expired", "cancelled"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "SESSION_NOT_CANCELLABLE",
+                "message": f"Session in terminal state '{session.status}' cannot be cancelled.",
+            },
+        )
+    bill_res = await db.execute(
+        select(Bill).where(Bill.meal_session_id == session.id)
+    )
+    if bill_res.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "BILL_ALREADY_ISSUED",
+                "message": "This session already has an issued bill and cannot be cancelled.",
+            },
+        )
+
+    now = datetime.now(UTC)
+    session.status = "cancelled"
+    session.cancelled_reason = payload.reason
+    session.cancelled_at = now
+    await db.commit()
+    await db.refresh(session)
+    return SessionOut.model_validate(session)
+
+
+@router.patch("/{session_id}/items", response_model=SessionOut)
+async def replace_session_items(
+    session_id: UUID,
+    payload: SessionItemsReplaceIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionOut:
+    """Staff replaces the entire item list on a pre-bill session — the
+    diner ordered wrong, or a dish is 86'd. Fails once a bill exists
+    because rewriting items would silently change the bill total.
+
+    Full-replace semantics rather than diff for simplicity: the client
+    sends the new list, we DELETE all existing rows, INSERT the new
+    ones. Kitchen might have already started cooking the old list,
+    which is a real-world problem — the staff dashboard should warn
+    them before firing this off. That warning lives in the frontend
+    (see Orders.tsx edit modal in E2)."""
+    session = await db.get(MealSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    await _require_staff_of_restaurant(db, user, session.restaurant_id)
+
+    if session.status in ("rewarded", "expired", "cancelled"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "SESSION_NOT_EDITABLE",
+                "message": f"Session in terminal state '{session.status}' cannot be edited.",
+            },
+        )
+    bill_res = await db.execute(
+        select(Bill).where(Bill.meal_session_id == session.id)
+    )
+    if bill_res.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "BILL_ALREADY_ISSUED",
+                "message": "This session already has an issued bill; items are frozen.",
+            },
+        )
+
+    # Validate every new item first so we don't half-apply.
+    for item in payload.items:
+        menu_item = await db.get(MenuItem, item.menu_item_id)
+        if menu_item is None or menu_item.restaurant_id != session.restaurant_id:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid menu_item_id: {item.menu_item_id}"
+            )
+
+    # Wipe the existing rows and insert the new list.
+    existing_res = await db.execute(
+        select(MealSessionItem).where(MealSessionItem.meal_session_id == session.id)
+    )
+    for row in existing_res.scalars().all():
+        await db.delete(row)
+
+    for item in payload.items:
+        db.add(
+            MealSessionItem(
+                meal_session_id=session.id,
+                menu_item_id=item.menu_item_id,
+                quantity=item.quantity,
+                portion_size=item.portion_size,
+                notes=item.notes,
+            )
+        )
+    await db.commit()
+    await db.refresh(session)
+    return SessionOut.model_validate(session)
+
+
 @router.post(
     "/{session_id}/dispute", response_model=DisputeOut, status_code=status.HTTP_201_CREATED
 )
@@ -577,6 +817,22 @@ async def file_dispute(
     session.status = "disputed"
     await db.commit()
     await db.refresh(dispute)
+
+    # Fire off the support-team notification email async. Imported
+    # inside the handler to avoid a circular import at module load
+    # time — same pattern as the scoring task in capture_after. A
+    # failure here is deliberately silent to the API caller: the
+    # dispute is already durable in Postgres and visible on the
+    # Disputes tab; the email is a courtesy heads-up.
+    try:
+        from app.tasks.deliver_dispute_email import deliver_dispute_email  # noqa: PLC0415
+
+        deliver_dispute_email.delay(str(dispute.id))
+    except Exception:  # noqa: BLE001 — never block the diner on this
+        # We don't have structlog wired inline here; the enqueue
+        # failure will surface in the celery-broker health checks.
+        pass
+
     return DisputeOut(dispute_id=dispute.id)
 
 

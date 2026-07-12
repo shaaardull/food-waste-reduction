@@ -13,7 +13,9 @@ from app.routers import (
     bills,
     dashboard,
     onboarding,
+    platform,
     public,
+    qr_tokens,
     rewards,
     sessions,
     validations,
@@ -91,3 +93,11 @@ app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(validations.router, prefix="/api/v1", tags=["validations"])
 app.include_router(onboarding.router, prefix="/api/v1/onboard", tags=["onboarding"])
 app.include_router(public.router, prefix="/api/v1/public", tags=["public"])
+# Platform-owner backdoor + staff bug-report intake. Mounted at the
+# API root so the `/admin/platform/*` prefix on the path is the only
+# hint of the admin surface — no separate `/admin` router root.
+app.include_router(platform.router, prefix="/api/v1", tags=["platform"])
+# QR-token inventory: public resolve + admin generate/bind/retire.
+# Mounted at the API root because the public `/qr/:token/resolve` and
+# the admin `/admin/platform/qr-tokens/*` share the same module.
+app.include_router(qr_tokens.router, prefix="/api/v1", tags=["qr-tokens"])
