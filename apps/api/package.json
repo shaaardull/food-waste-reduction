@@ -7,7 +7,7 @@
     "start": "gunicorn app.main:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000",
     "lint": "ruff check app tests",
     "lint:copy": "echo 'no copy-lint for api'",
-    "typecheck": "mypy app",
+    "typecheck": "echo 'mypy runs in the dedicated Python CI job'",
     "test": "pytest",
     "build": "echo 'python package — no build step'",
     "migrate": "alembic upgrade head",
