@@ -23,7 +23,6 @@ import pytest
 from tests.conftest import (
     login,
     make_email,
-    make_phone,
     make_restaurant,
     register_diner,
 )

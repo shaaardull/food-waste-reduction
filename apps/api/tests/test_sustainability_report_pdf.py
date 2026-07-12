@@ -35,7 +35,6 @@ from tests.conftest import (
     register_diner,
 )
 
-
 # ─── Pure-function tests ────────────────────────────────────────────────
 
 

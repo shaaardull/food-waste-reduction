@@ -19,7 +19,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-
 BugSeverity = Literal["low", "medium", "high", "critical"]
 BugStatus = Literal["open", "triaging", "in_progress", "resolved", "wont_fix"]
 

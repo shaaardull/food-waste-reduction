@@ -168,9 +168,9 @@ async def test_resolve_allowed_even_when_staff_made_original_call(client, db):
     restaurant, including one against a session they themselves
     validated. The restaurant is trusted to police its own team.
     """
+    import uuid as _uuid
     from datetime import UTC, datetime
     from decimal import Decimal
-    import uuid as _uuid
 
     from app.models.staff_validation import StaffValidation
 

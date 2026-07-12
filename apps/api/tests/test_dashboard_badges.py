@@ -13,7 +13,6 @@ import pytest
 
 from tests.conftest import (
     login,
-    make_email,
     make_restaurant,
     make_staff,
     make_table_code,

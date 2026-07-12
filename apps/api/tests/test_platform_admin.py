@@ -27,7 +27,6 @@ import pytest
 from tests.conftest import (
     login,
     make_email,
-    make_phone,
     make_restaurant,
     make_staff,
     make_table_code,
@@ -211,7 +210,7 @@ async def test_restaurant_drilldown_happy_path(client, db):
     verify the drill-down surfaces them."""
     from app.models.bill import Bill
     from app.models.meal_session import MealSession, MealSessionItem
-    from app.models.reward import Reward, RewardRule
+    from app.models.reward import Reward
     from app.models.staff_validation import StaffValidation
 
     restaurant, items, rule = make_restaurant(db, name="Drilldown Spot")

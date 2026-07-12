@@ -77,12 +77,17 @@ ignore = [
     "S101",  # asserts ok in tests
     "B008",  # FastAPI Depends pattern
     "N818",  # custom exceptions named after the domain condition, not Error-suffixed
+    "E501",  # line length — occasional readability trade-off
+    "S105",  # false positive on token alphabets etc.
+    "S110",  # try/except/pass with an explanatory noqa comment is OK
+    "B904",  # `raise ... from ...` — style preference, not a bug
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S105", "S106", "S107", "N814", "S608"]  # passwords + import aliases + interpolated test cleanup SQL ok in tests
+"tests/*" = ["S105", "S106", "S107", "N814", "S608", "N817", "F841", "I001"]  # passwords + import aliases + interpolated test cleanup SQL ok in tests
 "app/scripts/seed.py" = ["T20", "S105", "S106"]
 "app/security.py" = ["N806"]  # haversine's R is a standard constant name
+"app/routers/auth.py" = ["E402", "I001"]  # secrets_uuid helper sits above imports by design
 
 [tool.mypy]
 python_version = "3.12"

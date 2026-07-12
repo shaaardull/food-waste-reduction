@@ -40,7 +40,8 @@ from app.schemas.auth import (
     UserPatchIn,
 )
 from app.security import create_access_token, get_current_user, hash_password, verify_password
-from app.services import rate_limit, sustainability as sustainability_svc
+from app.services import rate_limit
+from app.services import sustainability as sustainability_svc
 from app.services.otp import request_otp, request_reset_otp, verify_otp, verify_reset_otp
 
 router = APIRouter()

@@ -8,12 +8,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.db.session import get_db
 from app.errors import NotRestaurantStaff
+from app.models.bill import Bill
 from app.models.consumption_score import ConsumptionScore
 from app.models.dispute import Dispute
 from app.models.fraud_signal import FraudSignal
-from app.models.bill import Bill
 from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
@@ -26,7 +27,6 @@ from app.security import get_current_user, new_redemption_code
 from app.services import storage
 from app.services import sustainability as sustainability_svc
 from app.services import sustainability_report as sustainability_report_svc
-from app.config import get_settings
 from app.tasks.staff_metrics import ALERT_MULTIPLIER, MIN_VALIDATIONS_FOR_ALERT
 
 

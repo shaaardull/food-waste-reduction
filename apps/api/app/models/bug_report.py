@@ -5,10 +5,9 @@ Small, flat shape. The lifecycle is deliberately linear
 transition — if something regresses, staff file a fresh report so the
 timeline stays clean per incident.
 """
-from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 

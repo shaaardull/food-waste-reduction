@@ -4,7 +4,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl
 
-
 # India GSTIN — 15 chars, format: 2 digit state code + 10 char PAN +
 # 1 entity code + 1 alphabet (default Z) + 1 checksum. We match on
 # the length + charset rather than the checksum to keep validation

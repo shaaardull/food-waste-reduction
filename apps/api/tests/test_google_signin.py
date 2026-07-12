@@ -24,7 +24,7 @@ from sqlalchemy import select
 from app.models.user import User as UserModel
 from app.services import google_auth
 from app.services.google_auth import GoogleClaims, InvalidGoogleToken
-from tests.conftest import login, make_email
+from tests.conftest import make_email
 
 
 def _fake_claims(email: str, sub: str, name: str | None = "Test Google User"):

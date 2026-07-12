@@ -30,7 +30,6 @@ from tests.conftest import (
     register_diner,
 )
 
-
 # ─── Bootstrap helper: same shape as tests/test_validations_endpoints.py ───
 
 
