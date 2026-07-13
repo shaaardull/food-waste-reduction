@@ -248,7 +248,7 @@
     "take_picture": "Take picture",
     "retake": "Retake",
     "sending": "Sending…",
-    "missing_nonce": "Missing capture token. Re-open the session from the kitchen flow.",
+    "missing_nonce": "This session was started in a different tab. Please start a new session from the QR screen.",
     "generic_error": "Could not upload. Try again."
   },
   "session_status": {

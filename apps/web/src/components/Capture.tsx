@@ -127,6 +127,7 @@ export function Capture({
 
     if (!nonce) {
       setError(t('capture.missing_nonce'));
+      window.setTimeout(() => navigate('/scan'), 2500);
       return;
     }
     const form = buildForm(nonce);
