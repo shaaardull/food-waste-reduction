@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { QrCode, Camera, Sprout, Leaf, User as UserIcon } from 'lucide-react';
 import { useAuthStore } from '../lib/auth';
 import { api } from '../lib/api';
+import { initialsFor } from '../lib/user';
 import { LangToggle } from '../components/LangToggle';
 
 interface PublicStats {
@@ -122,9 +123,7 @@ export function Landing() {
                 <span className="w-6 h-6 rounded-full bg-brand-wash text-brand flex items-center justify-center">
                   {user?.display_name || user?.email ? (
                     <span className="text-[11px] font-bold">
-                      {(user.display_name ?? user.email ?? '?')
-                        .slice(0, 2)
-                        .toUpperCase()}
+                      {initialsFor(user)}
                     </span>
                   ) : (
                     <UserIcon size={12} />
@@ -307,6 +306,14 @@ export function Landing() {
         <p className="text-[11.5px] text-faint leading-[1.5] mt-2.5">
           {t('landing.ethics_note')}
         </p>
+        <a
+          href="https://about.plateclean.in"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block mt-2 text-[11.5px] text-faint hover:text-muted underline underline-offset-2 decoration-line"
+        >
+          {t('landing.about_link')}
+        </a>
       </div>
     </div>
   );
