@@ -285,7 +285,7 @@ function QrCard({
   const url = `${DINER_BASE.replace(/\/$/, '')}/qr/${row.token}`;
   // Friendly URL rendered on the card as a branded footer. Decorative
   // only — the QR itself encodes the tokenised deep-link above.
-  const friendlyUrl = `plate-clean.app/t/${row.table_code ?? '—'}`;
+  const friendlyUrl = `plateclean.in/t/${row.table_code ?? '—'}`;
   return (
     <div className="qr-card">
       {/* ── Left: deep-green QR panel ───────────────────────────── */}

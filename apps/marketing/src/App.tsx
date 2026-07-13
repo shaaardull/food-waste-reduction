@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 /**
- * Marketing front door. Sits at the root of `plate-clean.app` (or
+ * Marketing front door. Sits at the root of `plateclean.in` (or
  * `superpositionlabs.co.in/plate-clean` — deploy target is a config
  * decision, not a code one). Job:
  *

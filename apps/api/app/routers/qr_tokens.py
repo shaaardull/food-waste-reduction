@@ -14,7 +14,7 @@ Two surfaces:
 
 Token format:
 - 10 chars from a URL-safe alphabet without ambiguous glyphs (0/O,
-  1/I/l dropped). Fits `plate-clean.app/qr/XXXXXXXXXX` inside a
+  1/I/l dropped). Fits `plateclean.in/qr/XXXXXXXXXX` inside a
   standard QR at a scanner-friendly module size (~29×29).
 - Uniqueness enforced by DB — 10 chars from a 32-symbol alphabet
   gives ~1e15 possibilities, essentially collision-free for a

@@ -3,7 +3,7 @@
 Workflow:
 
   1. Run `python scripts/generate_qr_batch.py --count 40 \\
-        --batch-label 2026-q3-a --out qr-batch.pdf --base-url https://plate-clean.app`
+        --batch-label 2026-q3-a --out qr-batch.pdf --base-url https://plateclean.in`
   2. The script inserts N unassigned `qr_tokens` rows and drops a
      multi-page A4 PDF with 20 QR stickers per page. Each sticker
      shows: the QR (encoding `{base_url}/qr/{token}`), the token in
@@ -206,7 +206,7 @@ def main() -> None:
         help=(
             "Domain the QR codes point at. In dev this defaults to the "
             "diner PWA on localhost:5173; in prod pass "
-            "https://plate-clean.app or your equivalent."
+            "https://plateclean.in or your equivalent."
         ),
     )
     ap.add_argument("--cols", type=int, default=4)
