@@ -6,6 +6,7 @@ import { Users, AlertTriangle, Check } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
+import { initialsFor } from '../lib/user';
 
 interface Snapshot {
   period_start: string;
@@ -89,7 +90,7 @@ export function StaffMetrics() {
           >
             <header className="row gap-3 items-center px-4 py-3 border-b border-s-line bg-s-bg/50">
               <div className="w-8 h-8 rounded-full bg-brand-wash text-brand flex items-center justify-center text-[11px] font-bold dev">
-                {(row.display_name ?? row.email).slice(0, 2).toUpperCase()}
+                {initialsFor(row)}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-[14px] text-s-ink truncate">

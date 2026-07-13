@@ -70,7 +70,9 @@ function darken(hex: string, pct: number): string {
 
 export function applyTheme(restaurant: Restaurant | null | undefined): void {
   const root = document.documentElement;
-  const primary = restaurant?.theme_primary_color ?? DEFAULT_PRIMARY;
+  // Per-restaurant theming removed by product decision — Plate-Clean brand
+  // is constant across all restaurants. `restaurant` arg kept for callers.
+  const primary = DEFAULT_PRIMARY;
 
   // ── New system: write the HSL contract. press = slightly darker, tint =
   // mid lightness for secondary text, wash = near-white fill, line = warm

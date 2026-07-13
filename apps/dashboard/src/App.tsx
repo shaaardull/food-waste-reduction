@@ -23,6 +23,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { Menu, X as CloseIcon } from 'lucide-react';
 import { useAuthStore } from './lib/auth';
+import { initialsFor } from './lib/user';
 import { useApplyTheme } from './lib/theme';
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES, type Language } from './lib/i18n';
 import { useToasts } from './lib/toasts';
@@ -417,7 +418,7 @@ function StaffRail({
         {user && (
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-[12px] font-semibold">
-              {(user.display_name ?? user.email).slice(0, 2).toUpperCase()}
+              {initialsFor(user)}
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[12.5px] font-semibold truncate">
