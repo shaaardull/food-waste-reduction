@@ -11,7 +11,7 @@ const products: Product[] = [
     name: 'plate-clean',
     description:
       'A PWA that rewards restaurant diners for finishing their plates. Cuts kitchen waste, brings diners back. Live pilot in Mumbai.',
-    href: 'https://plateclean.in',
+    href: 'https://about.plateclean.in',
   },
   {
     name: 'in the works',
