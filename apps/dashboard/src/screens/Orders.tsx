@@ -13,6 +13,9 @@ import {
   Pencil,
   XCircle,
   Eye,
+  Plus,
+  QrCode,
+  Users as UsersIcon,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useState } from 'react';
@@ -22,6 +25,8 @@ import { BillSendModal } from '../components/BillSendModal';
 import { BillViewModal } from '../components/BillViewModal';
 import { CancelOrderModal } from '../components/CancelOrderModal';
 import { EditItemsModal } from '../components/EditItemsModal';
+import { ChannelStrip } from '../components/ChannelStrip';
+import { OrderDetailDrawer } from '../components/OrderDetailDrawer';
 
 /**
  * Live orders — the kitchen visibility surface. Sits above Validation
@@ -42,7 +47,12 @@ type OrderStatus =
   | 'before_captured'
   | 'eating'
   | 'after_submitted'
-  | 'pending_staff_validation';
+  | 'pending_staff_validation'
+  | 'serving'
+  | 'served'
+  | 'billed';
+
+export type EntryChannel = 'qr' | 'walkin';
 
 interface OrderItem {
   menu_item_id: string;
@@ -52,10 +62,13 @@ interface OrderItem {
   notes: string | null;
 }
 
-interface Order {
+export interface Order {
   session_id: string;
   table_code: string;
   status: OrderStatus;
+  entry_channel: EntryChannel;
+  customer_email?: string | null;
+  customer_phone?: string | null;
   items: OrderItem[];
   started_at: string;
   started_seconds_ago: number;
@@ -67,6 +80,8 @@ interface Order {
   bill_total_minor: number | null;
   bill_sent_at: string | null;
 }
+
+type ChannelFilter = 'all' | 'qr' | 'walkin';
 
 interface OrdersResponse {
   orders: Order[];
@@ -99,6 +114,8 @@ export function Orders() {
   const [viewBillFor, setViewBillFor] = useState<Order | null>(null);
   const [cancelFor, setCancelFor] = useState<Order | null>(null);
   const [editFor, setEditFor] = useState<Order | null>(null);
+  const [drawerFor, setDrawerFor] = useState<Order | null>(null);
+  const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all');
 
   useEffect(() => {
     if (!token) navigate('/login');
@@ -134,7 +151,10 @@ export function Orders() {
     );
   }
 
-  const orders = data?.orders ?? [];
+  const allOrders = data?.orders ?? [];
+  const orders = allOrders.filter(
+    (o) => channelFilter === 'all' || o.entry_channel === channelFilter,
+  );
   const byColumn: Record<Column, Order[]> = {
     new: [],
     preparing: [],
@@ -145,16 +165,28 @@ export function Orders() {
 
   return (
     <section className="flex flex-col gap-4">
-      <header>
-        <div className="text-[12px] font-semibold text-s-muted dev uppercase tracking-wide">
-          {t('app.nav.orders')}
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="text-[12px] font-semibold text-s-muted dev uppercase tracking-wide">
+            {t('app.nav.orders')}
+          </div>
+          <h1 className="display text-[28px] text-s-ink leading-tight">
+            {t('orders.title')}
+          </h1>
+          <p className="text-[13px] text-s-muted mt-1 max-w-[54ch]">
+            {t('orders.blurb')}
+          </p>
         </div>
-        <h1 className="display text-[28px] text-s-ink leading-tight">
-          {t('orders.title')}
-        </h1>
-        <p className="text-[13px] text-s-muted mt-1 max-w-[54ch]">
-          {t('orders.blurb')}
-        </p>
+        <div className="flex items-center gap-3">
+          <ChannelFilterPill value={channelFilter} onChange={setChannelFilter} />
+          <Link
+            to="/orders/new-walkin"
+            className="h-11 px-5 rounded-lg bg-brand text-white font-semibold text-sm inline-flex items-center gap-2 shadow-sm hover:bg-brand-press active:scale-[.98] transition"
+          >
+            <Plus size={18} />
+            {t('walkin.new_order_cta')}
+          </Link>
+        </div>
       </header>
 
       {error && (
@@ -164,15 +196,15 @@ export function Orders() {
       )}
 
       {!isLoading && orders.length === 0 && (
-        <div className="empty rounded-lg border border-s-line bg-s-paper">
-          <div className="art">
-            <Utensils size={32} />
+        <div className="empty rounded-lg border border-s-line bg-s-paper flex flex-col items-center justify-center text-center py-20">
+          <div className="w-16 h-16 rounded-2xl bg-brand-wash text-brand flex items-center justify-center mb-4">
+            <Utensils size={28} />
           </div>
           <p className="text-[15px] font-semibold text-s-ink">
-            {t('orders.empty_title')}
+            {t('walkin.empty_title')}
           </p>
           <p className="text-[13px] text-s-muted mt-1.5 max-w-[42ch]">
-            {t('orders.empty_blurb')}
+            {t('walkin.empty_blurb')}
           </p>
         </div>
       )}
@@ -199,6 +231,7 @@ export function Orders() {
             onViewBill={setViewBillFor}
             onCancel={setCancelFor}
             onEdit={setEditFor}
+            onOpenDrawer={setDrawerFor}
             t={t}
           />
           <Column
@@ -211,6 +244,7 @@ export function Orders() {
             onViewBill={setViewBillFor}
             onCancel={setCancelFor}
             onEdit={setEditFor}
+            onOpenDrawer={setDrawerFor}
             t={t}
           />
           <Column
@@ -223,6 +257,7 @@ export function Orders() {
             onViewBill={setViewBillFor}
             onCancel={setCancelFor}
             onEdit={setEditFor}
+            onOpenDrawer={setDrawerFor}
             t={t}
           />
           <Column
@@ -244,6 +279,7 @@ export function Orders() {
             onViewBill={setViewBillFor}
             onCancel={setCancelFor}
             onEdit={setEditFor}
+            onOpenDrawer={setDrawerFor}
             t={t}
           />
         </div>
@@ -279,7 +315,59 @@ export function Orders() {
           onClose={() => setEditFor(null)}
         />
       )}
+      {drawerFor && (
+        <OrderDetailDrawer
+          order={drawerFor}
+          onClose={() => setDrawerFor(null)}
+        />
+      )}
     </section>
+  );
+}
+
+/**
+ * Segmented All/QR/Walk-in filter chip. Pill visual (white/press for
+ * active, transparent for inactive) matches the design prototype.
+ * Local component so Orders.tsx doesn't leak a filter primitive.
+ */
+function ChannelFilterPill({
+  value,
+  onChange,
+}: {
+  value: ChannelFilter;
+  onChange: (v: ChannelFilter) => void;
+}) {
+  const { t } = useTranslation();
+  const opts: Array<{ key: ChannelFilter; label: string }> = [
+    { key: 'all', label: t('walkin.filter_all') },
+    { key: 'qr', label: t('walkin.filter_qr') },
+    { key: 'walkin', label: t('walkin.filter_walkin') },
+  ];
+  return (
+    <div
+      role="tablist"
+      className="inline-flex gap-0.5 bg-s-line/70 p-1 rounded-lg"
+    >
+      {opts.map((o) => {
+        const active = value === o.key;
+        return (
+          <button
+            key={o.key}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(o.key)}
+            className={clsx(
+              'h-9 px-4 rounded-md text-sm font-semibold transition-colors',
+              active
+                ? 'bg-s-paper text-s-ink shadow-sm'
+                : 'text-s-muted hover:text-s-ink',
+            )}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -294,6 +382,7 @@ interface ColumnProps {
   onViewBill: (o: Order) => void;
   onCancel: (o: Order) => void;
   onEdit: (o: Order) => void;
+  onOpenDrawer: (o: Order) => void;
   t: ReturnType<typeof useTranslation>['t'];
 }
 
@@ -308,6 +397,7 @@ function Column({
   onViewBill,
   onCancel,
   onEdit,
+  onOpenDrawer,
   t,
 }: ColumnProps) {
   const accentText =
@@ -352,6 +442,7 @@ function Column({
               onViewBill={onViewBill}
               onCancel={onCancel}
               onEdit={onEdit}
+              onOpenDrawer={onOpenDrawer}
               t={t}
             />
           ))}
@@ -368,6 +459,7 @@ interface OrderCardProps {
   onViewBill: (o: Order) => void;
   onCancel: (o: Order) => void;
   onEdit: (o: Order) => void;
+  onOpenDrawer: (o: Order) => void;
   t: ReturnType<typeof useTranslation>['t'];
 }
 
@@ -378,6 +470,7 @@ function OrderCard({
   onViewBill,
   onCancel,
   onEdit,
+  onOpenDrawer,
   t,
 }: OrderCardProps) {
   const hasBill = order.bill_id !== null;
@@ -385,19 +478,40 @@ function OrderCard({
   // Rather than surface a 409, hide the buttons; staff who need to void
   // an issued bill do that out-of-band.
   const canModify = !hasBill;
+  const isWalkin = order.entry_channel === 'walkin';
 
   return (
-    <article className="rounded-lg border border-s-line bg-s-paper p-3 flex flex-col gap-2">
-      <div className="row spread items-center">
-        <span className="chip chip-brand">
-          {t('queue.table', { code: order.table_code })}
+    <article
+      // relative + pl-4 so the absolutely-positioned ChannelStrip has
+      // room to sit flush on the left edge without overlapping the
+      // header. Card body itself remains the existing shape.
+      className="relative rounded-lg border border-s-line bg-s-paper p-3 pl-4 flex flex-col gap-2 hover:shadow-sh-sm transition-shadow"
+    >
+      <ChannelStrip channel={order.entry_channel} />
+      <button
+        type="button"
+        onClick={() => onOpenDrawer(order)}
+        // Overlay that swallows clicks on the card background so
+        // tapping anywhere on the card opens the drawer, but the
+        // per-action buttons below still receive their own clicks
+        // (they sit above via z-index).
+        aria-label={t('walkin.open_order_details')}
+        className="absolute inset-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
+      />
+      <div className="row spread items-center relative z-10 pointer-events-none">
+        <span className="font-mono text-[15px] font-bold text-s-ink tabular-nums">
+          {order.table_code}
         </span>
         <span className="row gap-1 items-center text-[11.5px] text-s-muted">
           <Timer size={11} />
           {elapsed(order.started_seconds_ago)}
         </span>
       </div>
-      <ul className="flex flex-col gap-0.5 text-[13px] text-s-ink">
+      <div className="row gap-1.5 items-center text-[11px] font-semibold text-s-faint uppercase tracking-wide relative z-10 pointer-events-none">
+        {isWalkin ? <UsersIcon size={12} /> : <QrCode size={12} />}
+        {isWalkin ? t('walkin.channel_walkin') : t('walkin.channel_qr')}
+      </div>
+      <ul className="flex flex-col gap-0.5 text-[13px] text-s-ink relative z-10 pointer-events-none">
         {order.items.map((it) => (
           <li key={it.menu_item_id} className="row gap-2 items-baseline">
             <span className="tnum font-bold w-6 text-right">
@@ -410,14 +524,16 @@ function OrderCard({
           </li>
         ))}
       </ul>
-      <BillLine
-        order={order}
-        onSendBill={onSendBill}
-        onViewBill={onViewBill}
-        t={t}
-      />
+      <div className="relative z-10">
+        <BillLine
+          order={order}
+          onSendBill={onSendBill}
+          onViewBill={onViewBill}
+          t={t}
+        />
+      </div>
       {canModify && (
-        <div className="row gap-1 pt-1 border-t border-s-line/60">
+        <div className="row gap-1 pt-1 border-t border-s-line/60 relative z-10">
           <button
             type="button"
             onClick={() => onEdit(order)}
@@ -437,7 +553,7 @@ function OrderCard({
           </button>
         </div>
       )}
-      {action && <div>{action}</div>}
+      {action && <div className="relative z-10">{action}</div>}
     </article>
   );
 }

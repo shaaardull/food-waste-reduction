@@ -19,6 +19,7 @@ import { QrPrintSheet } from './screens/QrPrintSheet';
 import { Menu } from './screens/Menu';
 import { Onboard } from './screens/Onboard';
 import { Orders } from './screens/Orders';
+import { NewWalkinOrder } from './screens/NewWalkinOrder';
 import { PastOrders } from './screens/PastOrders';
 import { Redeem } from './screens/Redeem';
 import { Settings } from './screens/Settings';
@@ -41,6 +42,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="login" element={<Login />} />
             <Route path="forgot-password" element={<ForgotPassword />} />
             <Route path="orders" element={<Orders />} />
+            <Route path="orders/new-walkin" element={<NewWalkinOrder />} />
             <Route path="orders/past" element={<PastOrders />} />
             <Route path="validations" element={<ValidationQueue />} />
             <Route path="validations/:sessionId" element={<ValidationDetail />} />

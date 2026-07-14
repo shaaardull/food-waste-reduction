@@ -66,3 +66,8 @@ ls-tasks*.json
 ls-export*.json
 
 apps/**/.env.production
+
+# Design-handoff scratch (prototype JSX + annotated HTML). Reference
+# only — the spec + design decisions are in the PR description /
+# tickets, not here.
+design-handoff/
