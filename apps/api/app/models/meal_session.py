@@ -20,6 +20,12 @@ VALID_STATUSES = (
     "expired",
     "disputed",
     "cancelled",
+    # Walk-in additions (migration 0016)
+    "voided",
+    "serving",
+    "served",
+    "billed",
+    "paid",
 )
 
 
@@ -30,8 +36,13 @@ class MealSession(Base, UUIDPKMixin, TimestampMixin):
             "status IN ("
             "'open','before_captured','eating','after_submitted','scored',"
             "'pending_staff_validation','staff_approved','staff_rejected',"
-            "'rewarded','expired','disputed','cancelled')",
+            "'rewarded','expired','disputed','cancelled','voided','serving',"
+            "'served','billed','paid')",
             name="meal_sessions_status_check",
+        ),
+        CheckConstraint(
+            "entry_channel IN ('qr','walkin')",
+            name="meal_sessions_entry_channel_check",
         ),
         Index("ix_meal_sessions_diner_started", "diner_user_id", "started_at"),
         Index("ix_meal_sessions_restaurant_status_started", "restaurant_id", "status", "started_at"),
@@ -43,14 +54,21 @@ class MealSession(Base, UUIDPKMixin, TimestampMixin):
         ),
     )
 
-    diner_user_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    # Nullable since migration 0016 — walk-in sessions have no diner
+    # account; staff enter them at the counter.
+    diner_user_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
     restaurant_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("restaurants.id"), nullable=False
     )
     table_code: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default="open")
+    # 'qr' for diner-scanned sessions, 'walkin' for staff-entered ones.
+    # Walk-ins are billed but never receive rewards.
+    entry_channel: Mapped[str] = mapped_column(
+        String, nullable=False, default="qr", server_default="qr"
+    )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     client_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -70,6 +88,21 @@ class MealSession(Base, UUIDPKMixin, TimestampMixin):
     # simply carry NULL/NULL.
     cancelled_reason: Mapped[str | None] = mapped_column(String, nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Walk-in additions (migration 0016). Optional paperless-bill
+    # contact captured on Step 3 of the walk-in flow; audit trail for
+    # void/paid actions.
+    customer_email: Mapped[str | None] = mapped_column(String, nullable=True)
+    customer_phone: Mapped[str | None] = mapped_column(String, nullable=True)
+    voided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    voided_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    voided_by_user_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    paid_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 

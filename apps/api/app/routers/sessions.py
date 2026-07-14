@@ -39,6 +39,8 @@ from app.schemas.session import (
     SessionItemsIn,
     SessionItemsReplaceIn,
     SessionOut,
+    WalkinSessionCreateIn,
+    WalkinVoidIn,
 )
 from app.security import get_current_user, haversine_m
 from app.services import billing, fraud, nonce, rate_limit, storage
@@ -158,9 +160,26 @@ async def add_items(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SessionOut:
-    session = await _load_session(db, session_id, owner_user_id=user.id)
-    if session.status != "open":
-        raise WrongSessionStatus("open", session.status)
+    session = await db.get(MealSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Auth split by channel:
+    #   - QR session → must be the owning diner.
+    #   - Walk-in    → must be staff of the owning restaurant (staff
+    #     entered the order in the first place, so they also add to it
+    #     from the drawer).
+    if session.entry_channel == "walkin":
+        await _require_staff_of_restaurant(db, user, session.restaurant_id)
+    else:
+        if session.diner_user_id != user.id:
+            raise HTTPException(status_code=403, detail="Not your session")
+
+    # Walk-ins live in 'open' or 'serving' before billing — allow items
+    # to be added at both. QR sessions still gate on 'open'.
+    allowed_statuses = {"open", "serving"} if session.entry_channel == "walkin" else {"open"}
+    if session.status not in allowed_statuses:
+        raise WrongSessionStatus(sorted(allowed_statuses), session.status)
 
     for item in payload.items:
         menu_item = await db.get(MenuItem, item.menu_item_id)
@@ -198,6 +217,7 @@ async def capture_before(
     await rate_limit.check_captures_per_hour(user.id)
     session = await _load_session(db, session_id, owner_user_id=user.id)
     _ensure_session_alive(session)
+    _reject_walkin_reward_path(session)
     if session.status != "open":
         raise WrongSessionStatus("open", session.status)
 
@@ -273,6 +293,7 @@ async def capture_after(
     await rate_limit.check_captures_per_hour(user.id)
     session = await _load_session(db, session_id, owner_user_id=user.id)
     _ensure_session_alive(session)
+    _reject_walkin_reward_path(session)
     if session.status not in ("before_captured", "eating"):
         raise WrongSessionStatus(["before_captured", "eating"], session.status)
 
@@ -836,7 +857,156 @@ async def file_dispute(
     return DisputeOut(dispute_id=dispute.id)
 
 
+# -- walk-in endpoints ------------------------------------------------------
+
+
+@router.post(
+    "/walkin",
+    response_model=SessionOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_walkin_session(
+    payload: WalkinSessionCreateIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionOut:
+    """Staff-entered walk-in order — no diner account, no QR scan.
+
+    Walk-ins bypass the entire reward machinery: no nonce is issued,
+    no captures are allowed (the /captures/* endpoints reject
+    entry_channel='walkin'), and no reward can be minted for the
+    session even if a validation somehow reached it. The status
+    machine is a simple linear track (open → serving → served →
+    billed → paid) driven by staff actions.
+    """
+    await _require_staff_of_restaurant(db, user, payload.restaurant_id)
+    restaurant = await db.get(Restaurant, payload.restaurant_id)
+    if restaurant is None or not restaurant.is_active:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    now = datetime.now(UTC)
+    session = MealSession(
+        diner_user_id=None,
+        restaurant_id=restaurant.id,
+        table_code=payload.table_code,
+        status="open",
+        entry_channel="walkin",
+        started_at=now,
+        expires_at=now + timedelta(hours=settings.SESSION_TTL_HOURS),
+        customer_email=payload.customer_email,
+        customer_phone=payload.customer_phone,
+    )
+    db.add(session)
+    await db.commit()
+    await db.refresh(session)
+    return SessionOut.model_validate(session)
+
+
+# Statuses that indicate the money side has already settled — void is
+# refused on these.
+_WALKIN_VOID_TERMINAL = (
+    "rewarded",
+    "paid",
+    "expired",
+    "voided",
+    "staff_rejected",
+    "cancelled",
+)
+
+
+@router.post("/{session_id}/void", response_model=SessionOut)
+async def void_session(
+    session_id: UUID,
+    payload: WalkinVoidIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionOut:
+    """Void a session with a staff-supplied reason. Terminal — cannot
+    be un-voided. Used from the drawer's "Void order" link on walk-in
+    orders; the QR-side has its own /cancel endpoint with different
+    semantics (diner recourse), so this stays walk-in-first but does
+    not hard-refuse QR channel calls in case a staff needs the escape
+    hatch.
+    """
+    session = await db.get(MealSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    await _require_staff_of_restaurant(db, user, session.restaurant_id)
+
+    if session.status in _WALKIN_VOID_TERMINAL:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "SESSION_NOT_VOIDABLE",
+                "message": f"Session in terminal state '{session.status}' cannot be voided.",
+            },
+        )
+
+    now = datetime.now(UTC)
+    session.status = "voided"
+    session.voided_at = now
+    session.voided_reason = payload.reason
+    session.voided_by_user_id = user.id
+    await db.commit()
+    await db.refresh(session)
+    return SessionOut.model_validate(session)
+
+
+@router.post("/{session_id}/mark-paid", response_model=SessionOut)
+async def mark_walkin_paid(
+    session_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionOut:
+    """Mark a walk-in order as paid. Idempotent same-state call is a
+    no-op; anything else in a terminal state 409s. QR sessions have
+    their own money path (rewards + bills) and cannot use this."""
+    session = await db.get(MealSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    await _require_staff_of_restaurant(db, user, session.restaurant_id)
+
+    if session.entry_channel != "walkin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "WALKIN_ONLY",
+                "message": "mark-paid is only valid for walk-in sessions.",
+            },
+        )
+    if session.status == "paid":
+        return SessionOut.model_validate(session)
+    if session.status not in ("open", "serving", "served", "billed"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "WRONG_SESSION_STATUS",
+                "message": f"Cannot mark paid from status '{session.status}'.",
+            },
+        )
+
+    session.status = "paid"
+    session.paid_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(session)
+    return SessionOut.model_validate(session)
+
+
 # -- helpers ----------------------------------------------------------------
+
+
+def _reject_walkin_reward_path(session: MealSession) -> None:
+    """Raise a structured 400 if the caller is trying to run a reward-path
+    action (capture, validation, reward-issue) on a walk-in session.
+    Walk-ins are billed only; they cannot earn rewards."""
+    if session.entry_channel == "walkin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "WALKIN_NOT_REWARD_ELIGIBLE",
+                "message": "Walk-in orders cannot receive rewards.",
+            },
+        )
 
 
 async def _load_session(

@@ -112,6 +112,18 @@ async def submit_validation(
         raise HTTPException(status_code=404, detail="Session not found")
     await _require_staff_at(db, user, session.restaurant_id)
 
+    # Walk-ins bypass the reward path — refuse loudly rather than
+    # silently letting a validation land against a session that will
+    # never issue a reward.
+    if session.entry_channel == "walkin":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "WALKIN_NOT_REWARD_ELIGIBLE",
+                "message": "Walk-in orders cannot receive rewards.",
+            },
+        )
+
     # Ethics rule 8: staff cannot validate their own diner sessions.
     if session.diner_user_id == user.id:
         raise HTTPException(
@@ -359,7 +371,7 @@ def _session_dict(s: MealSession) -> dict[str, Any]:
         "id": str(s.id),
         "status": s.status,
         "restaurant_id": str(s.restaurant_id),
-        "diner_user_id": str(s.diner_user_id),
+        "diner_user_id": str(s.diner_user_id) if s.diner_user_id else None,
         "started_at": s.started_at.isoformat(),
         "expires_at": s.expires_at.isoformat(),
     }

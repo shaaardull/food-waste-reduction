@@ -33,10 +33,12 @@ class SessionItemOut(BaseModel):
 
 class SessionOut(BaseModel):
     id: UUID
-    diner_user_id: UUID
+    # Nullable since migration 0016 — walk-in sessions carry no diner.
+    diner_user_id: UUID | None = None
     restaurant_id: UUID
     table_code: str
     status: str
+    entry_channel: str = "qr"
     started_at: datetime
     expires_at: datetime
     # E1 additions — nullable everywhere so pre-migration sessions
@@ -44,6 +46,12 @@ class SessionOut(BaseModel):
     # to render the "Your order was cancelled" banner.
     cancelled_reason: str | None = None
     cancelled_at: datetime | None = None
+    # Walk-in additions (migration 0016).
+    customer_email: str | None = None
+    customer_phone: str | None = None
+    voided_at: datetime | None = None
+    voided_reason: str | None = None
+    paid_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -111,3 +119,24 @@ class DisputeIn(BaseModel):
 
 class DisputeOut(BaseModel):
     dispute_id: UUID
+
+
+class WalkinSessionCreateIn(BaseModel):
+    """Body for POST /sessions/walkin. Staff-only; the current-user
+    dependency provides the staff identity, so nothing about the diner
+    is captured — walk-ins are anonymous by design."""
+
+    restaurant_id: UUID
+    table_code: str = Field(min_length=1, max_length=64)
+    # Optional paperless-bill delivery collected on Step 3 of the flow.
+    # Both fields can be null (most walk-ins decline).
+    customer_email: str | None = Field(default=None, max_length=254)
+    customer_phone: str | None = Field(default=None, max_length=32)
+
+
+class WalkinVoidIn(BaseModel):
+    """Required staff reason for voiding an order (walk-in or QR).
+    Same minimum length as SessionCancelIn so the diner-visible /
+    audit-visible strings stay consistent."""
+
+    reason: str = Field(min_length=4, max_length=500)

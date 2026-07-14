@@ -186,6 +186,9 @@ async def list_live_orders(
                 "session_id": str(s.id),
                 "table_code": s.table_code,
                 "status": s.status,
+                "entry_channel": s.entry_channel,
+                "customer_email": s.customer_email,
+                "customer_phone": s.customer_phone,
                 "items": items,
                 "started_at": s.started_at.isoformat(),
                 "started_seconds_ago": int(
@@ -218,6 +221,9 @@ _PAST_ORDER_STATUSES = (
     "expired",
     "disputed",
     "cancelled",
+    # Walk-in terminal states (migration 0016).
+    "voided",
+    "paid",
 )
 
 
