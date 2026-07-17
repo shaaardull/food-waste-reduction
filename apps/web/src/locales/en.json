@@ -194,6 +194,7 @@
     "unknown_body": "Double-check you scanned a Plate-Clean sticker. If it looks correct, ask staff to reprint.",
     "error_title": "Couldn't reach the server",
     "error_generic": "Try refreshing this page.",
+    "session_expired": "Your sign-in expired. Please sign in again.",
     "back_home": "← Back to home"
   },
   "scan": {

@@ -194,6 +194,7 @@
     "unknown_body": "जाँच करें कि आपने Plate-Clean स्टिकर स्कैन किया। सही है तो स्टाफ से रीप्रिंट कहें।",
     "error_title": "सर्वर तक नहीं पहुँच सके",
     "error_generic": "पेज रीफ़्रेश करें।",
+    "session_expired": "Your sign-in expired. Please sign in again.",
     "back_home": "← होम पर वापस"
   },
   "scan": {

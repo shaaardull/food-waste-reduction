@@ -45,7 +45,8 @@ def decode_token(token: str) -> dict[str, Any]:
         return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
     except JWTError as exc:  # noqa: BLE001
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired — please sign in again.",
         ) from exc
 
 
@@ -58,12 +59,16 @@ async def get_current_user(
     payload = decode_token(creds.credentials)
     user_id_raw = payload.get("sub")
     if not user_id_raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired — please sign in again.",
+        )
     try:
         user_id = UUID(user_id_raw)
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired — please sign in again.",
         ) from exc
 
     result = await db.execute(select(User).where(User.id == user_id, User.deleted_at.is_(None)))

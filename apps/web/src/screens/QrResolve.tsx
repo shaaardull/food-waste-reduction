@@ -46,6 +46,7 @@ export function QrResolve() {
   const { token: qrToken = '' } = useParams();
   const token = useAuthStore((s) => s.token);
   const setActiveRestaurant = useAuthStore((s) => s.setActiveRestaurant);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
   const [status, setStatus] = useState<
     'resolving' | 'creating' | 'unassigned' | 'retired' | 'unknown' | 'error'
   >('resolving');
@@ -117,6 +118,13 @@ export function QrResolve() {
         if (cancelled) return;
         if (err instanceof ApiException && err.status === 404) {
           setStatus('unknown');
+          return;
+        }
+        if (err instanceof ApiException && err.status === 401) {
+          // JWT expired mid-flow. qr-context is already stashed above,
+          // so sign-in resumes session creation on the far side.
+          clearAuth();
+          if (!cancelled) navigate('/onboard-choice');
           return;
         }
         setStatus('error');
