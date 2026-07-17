@@ -193,6 +193,24 @@ async def _mint_bound_token(
     (restaurant, table_code). Retries on the ludicrously unlikely
     token-uniqueness clash. Matches qr_tokens.py's admin_generate_batch
     retry budget."""
+    # Retire any pre-existing assigned token for (restaurant, table_code)
+    # so we're free to insert the new binding. Handles legacy tokens
+    # created via the platform-admin sticker inventory flow that predate
+    # the restaurant_tables self-serve registry — otherwise the partial
+    # unique index on (restaurant_id, table_code) WHERE state='assigned'
+    # rejects every retry.
+    pre_existing = await db.execute(
+        select(QRToken).where(
+            QRToken.restaurant_id == restaurant_id,
+            QRToken.table_code == table_code,
+            QRToken.state == "assigned",
+        )
+    )
+    for stale in pre_existing.scalars().all():
+        stale.state = "retired"
+        stale.table_code = None
+    await db.flush()
+
     for attempt in range(5):
         row = QRToken(
             token=_mint_token(),
@@ -249,6 +267,32 @@ async def list_tables(
         q = q.where(RestaurantTable.is_active.is_(True))
     q = q.order_by(RestaurantTable.display_order.asc(), RestaurantTable.table_code.asc())
     rows = list((await db.execute(q)).scalars().all())
+
+    # Backfilled rows have qr_token_id=NULL but there may be a legacy
+    # platform-admin token in state='assigned' already holding the slot
+    # (restaurant, table_code). Link the FK so regenerate/delete calls
+    # see it. Idempotent — once linked, this loop skips the row.
+    unlinked_codes = [r.table_code for r in rows if r.qr_token_id is None]
+    linked_any = False
+    if unlinked_codes:
+        legacy_res = await db.execute(
+            select(QRToken).where(
+                QRToken.restaurant_id == restaurant_id,
+                QRToken.table_code.in_(unlinked_codes),
+                QRToken.state == "assigned",
+            )
+        )
+        legacy_by_code: dict[str, QRToken] = {}
+        for legacy in legacy_res.scalars().all():
+            if legacy.table_code is not None:
+                legacy_by_code.setdefault(legacy.table_code, legacy)
+        for r in rows:
+            if r.qr_token_id is None and r.table_code in legacy_by_code:
+                r.qr_token_id = legacy_by_code[r.table_code].id
+                linked_any = True
+    if linked_any:
+        await db.commit()
+
     token_ids = {r.qr_token_id for r in rows if r.qr_token_id}
     tokens: dict[UUID, QRToken] = {}
     if token_ids:

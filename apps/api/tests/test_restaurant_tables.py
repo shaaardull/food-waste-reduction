@@ -19,10 +19,13 @@ Coverage:
 """
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.orm import Session
+
+from tests.conftest import RUN_TAG
 
 from app.models.meal_session import MealSession
 from app.models.qr_token import QRToken
@@ -397,6 +400,145 @@ async def test_regenerate_qr_retires_old_and_binds_fresh(client, db):
     new_row = db.query(QRToken).filter(QRToken.token == new_qr_str).one()
     assert new_row.state == "assigned"
     assert new_row.table_code == "T-30"
+
+
+# ── Legacy sticker-inventory collision ──────────────────────────────
+#
+# Pilot restaurants were seeded with qr_tokens rows in state='assigned'
+# via the platform-admin sticker-inventory flow BEFORE the self-serve
+# restaurant_tables registry existed. The migration that added
+# restaurant_tables backfilled T-01..T-08 with qr_token_id=NULL. Any
+# operation that mints a new token for the same (restaurant, table_code)
+# used to collide with the legacy row on the partial unique index and
+# 500 with "Failed to mint a unique token after retries".
+
+
+def _make_legacy_assigned_token(
+    db: Session, restaurant_id, table_code: str
+) -> QRToken:
+    row = QRToken(
+        token=f"L{uuid.uuid4().hex[:15]}",
+        batch_label=f"itest-{RUN_TAG}-legacy",
+        state="assigned",
+        restaurant_id=restaurant_id,
+        table_code=table_code,
+        assigned_at=datetime.now(UTC),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@pytest.mark.asyncio
+async def test_regenerate_qr_when_legacy_assigned_token_exists(client, db):
+    restaurant, _, _ = make_restaurant(db, name="Regen Legacy")
+    # restaurant_tables row exists with qr_token_id=NULL (mimics the
+    # backfill from migration 001x).
+    seeded = _seed_tables(db, restaurant.id, count=1)  # T-01
+    table_id = seeded[0].id
+    # Legacy platform-admin sticker in state='assigned' for the same slot.
+    legacy = _make_legacy_assigned_token(db, restaurant.id, "T-01")
+    legacy_id = legacy.id
+
+    manager = make_staff(db, restaurant.id)
+    tok = await login(client, manager.email)
+
+    # Regenerate — used to 500 before the fix.
+    regen = await client.post(
+        f"/api/v1/restaurants/{restaurant.id}/tables/{table_id}/regenerate-qr",
+        headers={"Authorization": f"Bearer {tok}"},
+    )
+    assert regen.status_code == 200, regen.text
+    body = regen.json()
+    new_qr_str = body["qr_token"]["token"]
+    assert body["qr_token"]["state"] == "assigned"
+
+    db.expire_all()
+    legacy_after = db.query(QRToken).filter(QRToken.id == legacy_id).one()
+    assert legacy_after.state == "retired"
+    assert legacy_after.table_code is None
+
+    new_row = db.query(QRToken).filter(QRToken.token == new_qr_str).one()
+    assert new_row.state == "assigned"
+    assert new_row.table_code == "T-01"
+    assert new_row.restaurant_id == restaurant.id
+
+    table_after = db.query(RestaurantTable).filter(
+        RestaurantTable.id == table_id
+    ).one()
+    assert table_after.qr_token_id == new_row.id
+
+
+@pytest.mark.asyncio
+async def test_create_table_when_legacy_assigned_token_exists(client, db):
+    restaurant, _, _ = make_restaurant(db, name="Create Legacy")
+    legacy = _make_legacy_assigned_token(db, restaurant.id, "T-01")
+    legacy_id = legacy.id
+
+    manager = make_staff(db, restaurant.id)
+    tok = await login(client, manager.email)
+
+    res = await client.post(
+        f"/api/v1/restaurants/{restaurant.id}/tables",
+        json={"table_code": "T-01", "auto_generate_qr": True},
+        headers={"Authorization": f"Bearer {tok}"},
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["table_code"] == "T-01"
+    assert body["qr_token"] is not None
+    new_qr_str = body["qr_token"]["token"]
+    assert body["qr_token"]["state"] == "assigned"
+
+    db.expire_all()
+    legacy_after = db.query(QRToken).filter(QRToken.id == legacy_id).one()
+    assert legacy_after.state == "retired"
+    assert legacy_after.table_code is None
+
+    new_row = db.query(QRToken).filter(QRToken.token == new_qr_str).one()
+    assert new_row.state == "assigned"
+    assert new_row.table_code == "T-01"
+    assert new_row.restaurant_id == restaurant.id
+
+
+@pytest.mark.asyncio
+async def test_list_tables_links_legacy_tokens_on_read(client, db):
+    restaurant, _, _ = make_restaurant(db, name="List Links Legacy")
+    seeded = _seed_tables(db, restaurant.id, count=1)  # T-01, qr_token_id=NULL
+    table_id = seeded[0].id
+    legacy = _make_legacy_assigned_token(db, restaurant.id, "T-01")
+    legacy_id = legacy.id
+    legacy_token_str = legacy.token
+
+    manager = make_staff(db, restaurant.id)
+    tok = await login(client, manager.email)
+
+    first = await client.get(
+        f"/api/v1/restaurants/{restaurant.id}/tables",
+        headers={"Authorization": f"Bearer {tok}"},
+    )
+    assert first.status_code == 200, first.text
+    row = next(r for r in first.json() if r["table_code"] == "T-01")
+    assert row["qr_token"] is not None
+    assert row["qr_token"]["token"] == legacy_token_str
+    assert row["qr_token"]["state"] == "assigned"
+
+    # FK was persisted on read.
+    db.expire_all()
+    table_after = db.query(RestaurantTable).filter(
+        RestaurantTable.id == table_id
+    ).one()
+    assert table_after.qr_token_id == legacy_id
+
+    # Second GET is stable and idempotent.
+    second = await client.get(
+        f"/api/v1/restaurants/{restaurant.id}/tables",
+        headers={"Authorization": f"Bearer {tok}"},
+    )
+    assert second.status_code == 200
+    row2 = next(r for r in second.json() if r["table_code"] == "T-01")
+    assert row2["qr_token"]["token"] == legacy_token_str
 
 
 # ── Auth guards ──────────────────────────────────────────────────────
