@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, String
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -104,6 +104,11 @@ class MealSession(Base, UUIDPKMixin, TimestampMixin):
     )
     paid_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    # Takeaway walk-ins (migration 0017). Sub-flavor of walk-in: no
+    # physical table, so create synthesises a TAKEAWAY-XXXXXX code.
+    is_takeaway: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
     )
 
 

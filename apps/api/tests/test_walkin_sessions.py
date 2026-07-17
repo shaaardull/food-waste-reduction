@@ -24,10 +24,15 @@ from tests.conftest import (
 
 
 async def _create_walkin(client, staff_token, restaurant_id, table_code=None, **extra):
-    body = {
-        "restaurant_id": str(restaurant_id),
-        "table_code": table_code or make_table_code("walkin"),
-    }
+    body: dict = {"restaurant_id": str(restaurant_id)}
+    # A takeaway request must omit table_code — let callers opt in by
+    # passing is_takeaway=True without a table_code.
+    if not extra.get("is_takeaway"):
+        body["table_code"] = table_code or make_table_code("walkin")
+    elif table_code is not None:
+        # Takeaway + explicit table_code is deliberately allowed here
+        # so the mutual-exclusion test can construct the bad body.
+        body["table_code"] = table_code
     body.update(extra)
     res = await client.post(
         "/api/v1/sessions/walkin",
@@ -223,6 +228,72 @@ async def test_mark_paid_walkin(client, db):
         headers={"Authorization": f"Bearer {staff_token}"},
     )
     assert again.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_create_takeaway_walkin_without_table_code(client, db):
+    """A takeaway is a walk-in without a physical table. The server
+    synthesises a distinguishable TAKEAWAY-XXXXXX code so reports can
+    still tell two takeaways apart."""
+    restaurant, _items, _rule = make_restaurant(db, name="Takeaway Spot")
+    staff = make_staff(db, restaurant.id)
+    staff_token = await login(client, staff.email)
+
+    res = await _create_walkin(
+        client,
+        staff_token,
+        restaurant.id,
+        is_takeaway=True,
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["entry_channel"] == "walkin"
+    assert body["is_takeaway"] is True
+    assert body["diner_user_id"] is None
+    assert body["status"] == "open"
+    assert body["table_code"].startswith("TAKEAWAY-")
+    # secrets.token_hex(3) → 6 hex chars, uppercased.
+    suffix = body["table_code"].removeprefix("TAKEAWAY-")
+    assert len(suffix) == 6
+    assert suffix == suffix.upper()
+    assert all(c in "0123456789ABCDEF" for c in suffix)
+
+
+@pytest.mark.asyncio
+async def test_takeaway_with_table_code_rejected(client, db):
+    """is_takeaway=true + table_code in the same body is ambiguous —
+    the server must reject with 400 rather than silently discard one
+    of the two."""
+    restaurant, _items, _rule = make_restaurant(db, name="Takeaway Conflict Spot")
+    staff = make_staff(db, restaurant.id)
+    staff_token = await login(client, staff.email)
+
+    res = await _create_walkin(
+        client,
+        staff_token,
+        restaurant.id,
+        table_code="T-01",
+        is_takeaway=True,
+    )
+    assert res.status_code == 400, res.text
+    body = res.json()
+    code = body.get("detail", {}).get("code") or body.get("error", {}).get("code")
+    assert code == "TAKEAWAY_TABLE_CODE_CONFLICT", body
+
+
+@pytest.mark.asyncio
+async def test_regular_walkin_still_defaults_to_non_takeaway(client, db):
+    """Regression: a plain walk-in body (no is_takeaway) must still
+    persist is_takeaway=False and keep its table_code intact."""
+    restaurant, _items, _rule = make_restaurant(db, name="Plain Walkin Spot")
+    staff = make_staff(db, restaurant.id)
+    staff_token = await login(client, staff.email)
+
+    res = await _create_walkin(client, staff_token, restaurant.id, table_code="T-42")
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["is_takeaway"] is False
+    assert body["table_code"] == "T-42"
 
 
 @pytest.mark.asyncio

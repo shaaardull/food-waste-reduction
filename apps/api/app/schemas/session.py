@@ -52,6 +52,8 @@ class SessionOut(BaseModel):
     voided_at: datetime | None = None
     voided_reason: str | None = None
     paid_at: datetime | None = None
+    # Takeaway walk-in (migration 0017). Sub-flavor of walk-in.
+    is_takeaway: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -124,10 +126,22 @@ class DisputeOut(BaseModel):
 class WalkinSessionCreateIn(BaseModel):
     """Body for POST /sessions/walkin. Staff-only; the current-user
     dependency provides the staff identity, so nothing about the diner
-    is captured — walk-ins are anonymous by design."""
+    is captured — walk-ins are anonymous by design.
+
+    Takeaway sub-flavor: pass ``is_takeaway=true`` and omit
+    ``table_code``. The server synthesises a TAKEAWAY-XXXXXX code so
+    each takeaway is still distinguishable in reports. Passing both
+    ``is_takeaway=true`` and a ``table_code`` is rejected with 400 to
+    avoid ambiguity about the intent of the record.
+    """
 
     restaurant_id: UUID
-    table_code: str = Field(min_length=1, max_length=64)
+    # Optional now — required only when is_takeaway=False. The
+    # required-when / forbidden-when rule is enforced in the endpoint
+    # so the error status is 400 (clearer than Pydantic's 422 for a
+    # caller-driven ambiguity).
+    table_code: str | None = Field(default=None, min_length=1, max_length=64)
+    is_takeaway: bool = False
     # Optional paperless-bill delivery collected on Step 3 of the flow.
     # Both fields can be null (most walk-ins decline).
     customer_email: str | None = Field(default=None, max_length=254)

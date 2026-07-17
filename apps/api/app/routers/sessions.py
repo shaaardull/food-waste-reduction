@@ -1,3 +1,4 @@
+import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -879,13 +880,45 @@ async def create_walkin_session(
     if restaurant is None or not restaurant.is_active:
         raise HTTPException(status_code=404, detail="Restaurant not found")
 
+    # Takeaway ⊕ table_code — mutually exclusive. A takeaway has no
+    # physical table, so accepting a caller-supplied table_code here
+    # would produce an ambiguous record (was this a table order that
+    # got tagged takeaway by mistake?). Reject the pair with 400.
+    if payload.is_takeaway and payload.table_code is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "TAKEAWAY_TABLE_CODE_CONFLICT",
+                "message": (
+                    "table_code must be omitted when is_takeaway=true; "
+                    "the server assigns a synthetic TAKEAWAY code."
+                ),
+            },
+        )
+    if not payload.is_takeaway and payload.table_code is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "WALKIN_TABLE_CODE_REQUIRED",
+                "message": "table_code is required for non-takeaway walk-ins.",
+            },
+        )
+
+    if payload.is_takeaway:
+        # Synthetic distinguishable identifier per takeaway so reports
+        # can tell two takeaways apart without a caller-provided code.
+        table_code = f"TAKEAWAY-{secrets.token_hex(3).upper()}"
+    else:
+        table_code = payload.table_code  # type: ignore[assignment]
+
     now = datetime.now(UTC)
     session = MealSession(
         diner_user_id=None,
         restaurant_id=restaurant.id,
-        table_code=payload.table_code,
+        table_code=table_code,
         status="open",
         entry_channel="walkin",
+        is_takeaway=payload.is_takeaway,
         started_at=now,
         expires_at=now + timedelta(hours=settings.SESSION_TTL_HOURS),
         customer_email=payload.customer_email,
