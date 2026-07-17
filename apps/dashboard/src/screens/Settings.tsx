@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Settings as SettingsIcon, Check, Receipt } from 'lucide-react';
+import { Settings as SettingsIcon, Check, Receipt, Gift } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Restaurant } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
@@ -274,6 +274,216 @@ export function Settings() {
           )}
         </div>
       </form>
+
+      <RewardRulesSection />
     </section>
+  );
+}
+
+interface RewardRuleRow {
+  id: string;
+  restaurant_id: string;
+  name: string;
+  consumption_threshold: string | number;
+  reward_menu_item_id: string;
+  daily_redemption_cap_per_user: number;
+  is_active: boolean;
+  allowed_reward_types: string[];
+  bill_discount_minor: number | null;
+  reward_value_minor: number | null;
+}
+
+interface MenuItemRow {
+  id: string;
+  name: string;
+  price_minor: number;
+}
+
+/**
+ * RewardRulesSection — lets the restaurant override the rupee value
+ * for each of its reward rules. Blank input clears the override
+ * (falls back to the linked menu item's price); a positive integer
+ * sets it. Existing reward codes are unaffected — the value is
+ * snapshotted at issuance time.
+ */
+function RewardRulesSection() {
+  const { t } = useTranslation();
+  const { token, restaurantId } = useAuthStore();
+  const qc = useQueryClient();
+
+  const { data: rules, isLoading: rulesLoading } = useQuery<RewardRuleRow[]>({
+    queryKey: ['reward-rules', restaurantId],
+    queryFn: () =>
+      api.get<RewardRuleRow[]>(
+        `/restaurants/${restaurantId}/reward-rules`,
+        token,
+      ),
+    enabled: Boolean(restaurantId && token),
+  });
+
+  // The menu is the source of truth for the fallback price rendered in
+  // the helper text. GET /restaurants/:id/menu is public — fine to
+  // fetch without a token, but we pass it anyway for consistency.
+  const { data: menu } = useQuery<MenuItemRow[]>({
+    queryKey: ['restaurant-menu', restaurantId],
+    queryFn: () =>
+      api.get<MenuItemRow[]>(`/restaurants/${restaurantId}/menu`, token),
+    enabled: Boolean(restaurantId),
+  });
+
+  if (rulesLoading) {
+    return (
+      <div className="rounded-lg border border-s-line bg-s-paper p-5 text-sm text-s-muted">
+        {t('reward_rules_settings.loading')}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-s-line bg-s-paper p-5 flex flex-col gap-4">
+      <div className="row gap-2 items-center pb-3 border-b border-s-line/60">
+        <Gift size={16} className="text-brand" />
+        <h2 className="display text-[18px] text-s-ink">
+          {t('reward_rules_settings.section_heading')}
+        </h2>
+      </div>
+
+      {(!rules || rules.length === 0) && (
+        <p className="text-sm text-s-muted">
+          {t('reward_rules_settings.no_rules')}
+        </p>
+      )}
+
+      {rules?.map((rule) => (
+        <RewardRuleRowForm
+          key={rule.id}
+          rule={rule}
+          menuItem={menu?.find((m) => m.id === rule.reward_menu_item_id)}
+          onSaved={() =>
+            qc.invalidateQueries({ queryKey: ['reward-rules', restaurantId] })
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+function RewardRuleRowForm({
+  rule,
+  menuItem,
+  onSaved,
+}: {
+  rule: RewardRuleRow;
+  menuItem: MenuItemRow | undefined;
+  onSaved: () => void;
+}) {
+  const { t } = useTranslation();
+  const { token, restaurantId } = useAuthStore();
+  // Rupee-denominated input string. Empty string means "clear the
+  // override"; a numeric string is multiplied by 100 to get paise
+  // before send.
+  const initialValue =
+    rule.reward_value_minor != null ? String(rule.reward_value_minor / 100) : '';
+  const [input, setInput] = useState<string>(initialValue);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const trimmed = input.trim();
+      let reward_value_minor: number | null;
+      if (trimmed === '') {
+        reward_value_minor = null;
+      } else {
+        const rupees = Number(trimmed);
+        if (!Number.isFinite(rupees) || rupees <= 0) {
+          throw new ApiException(400, 'INVALID_VALUE', 'Enter a positive rupee value.');
+        }
+        reward_value_minor = Math.round(rupees * 100);
+      }
+      return await api.patch<RewardRuleRow>(
+        `/restaurants/${restaurantId}/reward-rules/${rule.id}`,
+        { reward_value_minor },
+        token,
+      );
+    },
+    onSuccess: () => {
+      onSaved();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    },
+    onError: (err: ApiException) => {
+      const msg =
+        (err.details as { message?: string } | undefined)?.message ??
+        err.message ??
+        'Save failed';
+      setSaveError(msg);
+    },
+  });
+
+  const helper =
+    menuItem != null
+      ? t('reward_rules_settings.value_helper_menu', {
+          price: (menuItem.price_minor / 100).toFixed(2),
+          name: menuItem.name,
+        })
+      : t('reward_rules_settings.value_helper_none');
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="text-[13px] font-semibold text-s-ink">
+        {t('reward_rules_settings.rule_row_label', {
+          name: rule.name,
+          menu_name: menuItem?.name ?? '—',
+        })}
+      </div>
+      <label className="flex flex-col gap-1.5">
+        <span className="text-[12.5px] font-semibold text-s-ink">
+          {t('reward_rules_settings.value_label')}
+        </span>
+        <div className="row gap-2 items-center">
+          <span className="text-sm text-s-muted">₹</span>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              setSaveError(null);
+            }}
+            placeholder={t('reward_rules_settings.value_placeholder')}
+            className="input mt-0 max-w-[180px]"
+          />
+        </div>
+        <span className="text-[11.5px] text-s-muted leading-snug">{helper}</span>
+      </label>
+      {saveError && (
+        <p className="text-xs text-danger bg-danger-wash border border-danger/20 rounded-md px-2 py-1.5">
+          {saveError}
+        </p>
+      )}
+      <div className="row gap-2 items-center">
+        <button
+          type="button"
+          onClick={() => {
+            setSaveError(null);
+            save.mutate();
+          }}
+          disabled={save.isPending}
+          className="btn btn-outline min-h-[38px] text-[13px] px-4 disabled:opacity-55"
+        >
+          {save.isPending
+            ? t('reward_rules_settings.saving')
+            : t('reward_rules_settings.save')}
+        </button>
+        {saved && (
+          <span className="row gap-1.5 items-center text-[13px] text-sage font-semibold">
+            <Check size={14} />
+            {t('reward_rules_settings.saved')}
+          </span>
+        )}
+      </div>
+    </div>
   );
 }

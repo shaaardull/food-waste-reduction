@@ -64,6 +64,23 @@ interface OrderItem {
   notes: string | null;
 }
 
+export interface OrderReward {
+  id: string;
+  redemption_code: string;
+  value_minor: number;
+  status: 'issued' | 'redeemed' | 'voided';
+  issued_at: string;
+  redeemed_at: string | null;
+  voided_at: string | null;
+  voided_reason: string | null;
+}
+
+export interface OrderRewardOutcome {
+  reason: 'below_threshold' | 'rejected' | 'walkin_not_eligible';
+  score?: number;
+  threshold?: number;
+}
+
 export interface Order {
   session_id: string;
   table_code: string;
@@ -85,6 +102,13 @@ export interface Order {
   bill_delivery_status: 'pending' | 'sent' | 'failed' | null;
   bill_total_minor: number | null;
   bill_sent_at: string | null;
+  // Reward info for terminal-decision sessions. Both null (or absent)
+  // for open/serving sessions — the drawer skips the section in that
+  // case. `reward` present ⇒ a reward was issued; `reward_outcome`
+  // present with `reward=null` ⇒ terminal state, no reward, and the
+  // reason field explains why.
+  reward: OrderReward | null;
+  reward_outcome: OrderRewardOutcome | null;
 }
 
 type ChannelFilter = 'all' | 'qr' | 'walkin';

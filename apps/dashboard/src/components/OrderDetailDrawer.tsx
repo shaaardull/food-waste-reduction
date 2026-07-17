@@ -8,6 +8,10 @@ import {
   Printer,
   Mail,
   Banknote,
+  Gift,
+  Info,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api } from '../lib/api';
@@ -192,6 +196,8 @@ export function OrderDetailDrawer({ order, onClose }: Props) {
                 </span>
               </div>
             )}
+            <RewardSection order={order} />
+
 
             {isWalkin ? (
               <>
@@ -295,5 +301,124 @@ export function OrderDetailDrawer({ order, onClose }: Props) {
         />
       )}
     </>
+  );
+}
+
+/**
+ * RewardSection — the "Reward" block that sits above the action row
+ * on the drawer. Renders one of three shapes:
+ *  • Sage pill + code + value when a reward was issued.
+ *  • Muted "no reward, here's why" row when the session reached a
+ *    terminal decision but no reward was issued (below-threshold,
+ *    rejected, walk-in).
+ *  • Nothing at all for still-open / serving sessions — keeps the
+ *    drawer clean until a decision has actually been made.
+ */
+function RewardSection({ order }: { order: Order }) {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+  const reward = order.reward;
+  const outcome = order.reward_outcome;
+
+  if (!reward && !outcome) return null;
+
+  const copyCode = async () => {
+    if (!reward) return;
+    try {
+      await navigator.clipboard.writeText(reward.redemption_code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // Clipboard permissions denied — silent; the code is still
+      // selectable inline so the staff can copy by hand.
+    }
+  };
+
+  const heading = (
+    <div className="text-[11px] font-bold tracking-widest uppercase text-s-faint mb-2">
+      {t('walkin.reward_heading')}
+    </div>
+  );
+
+  if (reward) {
+    const statusLabelKey =
+      reward.status === 'redeemed'
+        ? 'walkin.reward_status_redeemed'
+        : reward.status === 'voided'
+          ? 'walkin.reward_status_voided'
+          : 'walkin.reward_status_issued';
+    const statusChipClass =
+      reward.status === 'redeemed'
+        ? 'bg-sage-wash text-sage'
+        : reward.status === 'voided'
+          ? 'bg-danger-wash text-danger'
+          : 'bg-brand-wash text-brand';
+    return (
+      <div className="border-t border-s-line pt-4 mb-4">
+        {heading}
+        <div className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-sage-wash text-sage text-xs font-semibold">
+          <Gift size={13} />
+          {t('walkin.reward_issued')}
+        </div>
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={copyCode}
+            aria-label={t('walkin.reward_copy_code')}
+            className="inline-flex items-center gap-1.5 font-mono text-[16px] font-bold text-s-ink hover:text-brand transition"
+          >
+            {reward.redemption_code}
+            {copied ? (
+              <Check size={14} className="text-sage" />
+            ) : (
+              <Copy size={14} className="opacity-60" />
+            )}
+          </button>
+          <span
+            className={clsx(
+              'inline-flex items-center h-5 px-2 rounded-full text-[10px] font-bold uppercase tracking-wider',
+              statusChipClass,
+            )}
+          >
+            {t(statusLabelKey)}
+          </span>
+        </div>
+        <div className="mt-1 text-sm text-s-muted">
+          ₹{(reward.value_minor / 100).toFixed(2)}
+        </div>
+        {reward.status === 'voided' && reward.voided_reason && (
+          <div className="mt-1 text-xs italic text-s-muted">
+            {t('walkin.reward_voided_reason', { reason: reward.voided_reason })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // outcome present, no reward
+  const copy = (() => {
+    switch (outcome!.reason) {
+      case 'below_threshold':
+        return t('walkin.reward_none_below_threshold', {
+          score: Math.round((outcome!.score ?? 0) * 100),
+          threshold: Math.round((outcome!.threshold ?? 0) * 100),
+        });
+      case 'rejected':
+        return t('walkin.reward_none_rejected');
+      case 'walkin_not_eligible':
+        return t('walkin.reward_none_walkin');
+      default:
+        return null;
+    }
+  })();
+  if (!copy) return null;
+  return (
+    <div className="border-t border-s-line pt-4 mb-4">
+      {heading}
+      <div className="flex items-start gap-2 rounded-lg bg-s-bg px-3 py-2.5 text-sm text-s-muted">
+        <Info size={16} className="shrink-0 mt-0.5 opacity-70" />
+        <span>{copy}</span>
+      </div>
+    </div>
   );
 }

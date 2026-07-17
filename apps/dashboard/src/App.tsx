@@ -20,6 +20,7 @@ import {
   History,
   Bug,
   Grid3x3,
+  Gift,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Menu, X as CloseIcon } from 'lucide-react';
@@ -287,6 +288,7 @@ function StaffRail({
     { to: '/menu', label: t('app.nav.menu'), icon: <Utensils size={16} /> },
     { to: '/redeem', label: t('app.nav.redeem'), icon: <Receipt size={16} /> },
     { to: '/analytics', label: t('app.nav.analytics'), icon: <TrendingUp size={16} /> },
+    { to: '/rewards', label: t('app.nav.rewards'), icon: <Gift size={16} /> },
     { to: '/staff-metrics', label: t('app.nav.staff_metrics'), icon: <Users size={16} /> },
     {
       to: '/disputes',

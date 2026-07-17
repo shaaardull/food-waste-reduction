@@ -23,6 +23,7 @@ import { Orders } from './screens/Orders';
 import { NewWalkinOrder } from './screens/NewWalkinOrder';
 import { PastOrders } from './screens/PastOrders';
 import { Redeem } from './screens/Redeem';
+import { Rewards } from './screens/Rewards';
 import { Settings } from './screens/Settings';
 import { SettingsTables } from './screens/SettingsTables';
 import { StaffMetrics } from './screens/StaffMetrics';
@@ -52,6 +53,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="redeem" element={<Redeem />} />
             <Route path="staff-metrics" element={<StaffMetrics />} />
             <Route path="analytics" element={<Analytics />} />
+            <Route path="rewards" element={<Rewards />} />
             <Route path="disputes" element={<Disputes />} />
             <Route path="disputes/:id" element={<DisputeDetail />} />
             <Route path="settings" element={<Settings />} />
