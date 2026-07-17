@@ -16,6 +16,7 @@ from app.routers import (
     platform,
     public,
     qr_tokens,
+    restaurant_tables,
     rewards,
     sessions,
     validations,
@@ -86,6 +87,11 @@ async def health() -> dict[str, str]:
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(restaurants_router.router, prefix="/api/v1/restaurants", tags=["restaurants"])
+app.include_router(
+    restaurant_tables.router,
+    prefix="/api/v1/restaurants",
+    tags=["restaurant-tables"],
+)
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["sessions"])
 app.include_router(rewards.router, prefix="/api/v1/rewards", tags=["rewards"])
 app.include_router(bills.router, prefix="/api/v1/bills", tags=["bills"])

@@ -8,6 +8,7 @@ from app.models.menu_extraction import MenuExtraction
 from app.models.menu_item import MenuItem
 from app.models.plate_capture import PlateCapture
 from app.models.restaurant import Restaurant, RestaurantStaff
+from app.models.restaurant_table import RestaurantTable
 from app.models.reward import Reward, RewardRule
 from app.models.staff_metrics import StaffMetricsSnapshot
 from app.models.staff_validation import StaffValidation
@@ -18,6 +19,7 @@ __all__ = [
     "User",
     "Restaurant",
     "RestaurantStaff",
+    "RestaurantTable",
     "MenuItem",
     "MenuExtraction",
     "RewardRule",
