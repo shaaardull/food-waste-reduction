@@ -52,6 +52,14 @@ interface ActiveSession {
   table_code: string;
 }
 
+interface RestaurantTable {
+  id: string;
+  table_code: string;
+  seat_count: number;
+  is_active: boolean;
+  display_order: number;
+}
+
 interface CartLine {
   quantity: number;
   notes: string;
@@ -60,11 +68,6 @@ interface CartLine {
 type CartMap = Record<string, CartLine>;
 
 const NOTE_MAX = 140;
-
-// A pilot restaurant has ~12 tables. Generate T-01..T-12 client-side;
-// the tables endpoint isn't a thing yet and the spec explicitly
-// permits a static grid for v1 (occupied ones come from live sessions).
-const DEFAULT_TABLES = Array.from({ length: 12 }, (_, i) => `T-${String(i + 1).padStart(2, '0')}`);
 
 export function NewWalkinOrder() {
   const { t } = useTranslation();
@@ -88,9 +91,24 @@ export function NewWalkinOrder() {
     if (!token) navigate('/login');
   }, [token, navigate]);
 
-  // Which tables are already occupied (any active session). Used to
-  // grey them out on Step 1 so a walk-in can't be entered against a
-  // seated diner's table.
+  // Step 1 grid: source of truth is the tables API. Owners curate
+  // this from Settings → Tables, so the grid reflects what's actually
+  // in the dining room instead of a hard-coded T-01..T-12.
+  const tablesQuery = useQuery<RestaurantTable[]>({
+    queryKey: ['walkin-tables', restaurantId],
+    queryFn: () =>
+      api.get<RestaurantTable[]>(
+        `/restaurants/${restaurantId}/tables?include_inactive=false`,
+        token,
+      ),
+    enabled: Boolean(restaurantId && token),
+  });
+
+  // Active sessions still drive which tables read "Occupied". Grid
+  // itself is table-driven; occupancy is session-driven — the two
+  // concerns stay independent so a table with no active session
+  // still shows, and a session on a code that no longer exists
+  // still marks whatever it maps to.
   const activeQuery = useQuery<ActiveSession[]>({
     queryKey: ['active-sessions-for-tables', restaurantId],
     queryFn: () =>
@@ -212,7 +230,8 @@ export function NewWalkinOrder() {
       />
       {step === 1 && (
         <Step1TablePick
-          tables={DEFAULT_TABLES}
+          tables={tablesQuery.data ?? []}
+          tablesLoading={tablesQuery.isLoading}
           occupied={occupiedTableCodes}
           activeSessions={activeQuery.data ?? []}
           selected={tableCode}
@@ -342,6 +361,7 @@ function FlowHeader({
 
 function Step1TablePick({
   tables,
+  tablesLoading,
   occupied,
   activeSessions,
   selected,
@@ -349,7 +369,8 @@ function Step1TablePick({
   onNext,
   onTakeaway,
 }: {
-  tables: string[];
+  tables: RestaurantTable[];
+  tablesLoading: boolean;
   occupied: Set<string>;
   activeSessions: ActiveSession[];
   selected: string | null;
@@ -358,16 +379,11 @@ function Step1TablePick({
   onTakeaway: () => void;
 }) {
   const { t } = useTranslation();
-  // Session → channel map (we can't tell from the sessions endpoint
-  // yet — treat all occupied as QR for the badge since walk-ins in
-  // 'open' also appear here. The badge is informational only.)
   const badgeFor = (code: string) => {
     if (!occupied.has(code)) return null;
-    // Best-effort: if any active session for this table has 'walkin'
-    // in the table_code prefix we display WALK-IN; otherwise QR. The
-    // real data would flow via a joined tables endpoint.
     return activeSessions.find((s) => s.table_code === code) ? 'occupied' : null;
   };
+  const noTables = !tablesLoading && tables.length === 0;
 
   return (
     <>
@@ -402,56 +418,63 @@ function Step1TablePick({
             </span>
             <ChevronRight size={18} className="ml-auto text-saffron-deep shrink-0" />
           </button>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {tables.map((code) => {
-              const disabled = occupied.has(code);
-              const isSelected = selected === code;
-              const badge = badgeFor(code);
-              return (
-                <button
-                  key={code}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onSelect(code)}
-                  className={clsx(
-                    'relative rounded-xl border-2 flex flex-col items-center justify-center gap-2 aspect-square transition min-h-[200px]',
-                    disabled
-                      ? 'bg-s-bg border-s-line cursor-not-allowed opacity-70'
-                      : isSelected
-                        ? 'bg-brand-wash border-brand shadow-sm'
-                        : 'bg-s-paper border-s-line hover:border-brand-line',
-                  )}
-                >
-                  {badge && (
-                    <span className="absolute top-2 right-2 inline-flex items-center h-5 px-2 rounded-full bg-s-line text-s-muted font-mono text-[10px] font-bold tracking-wider">
-                      OCCUPIED
-                    </span>
-                  )}
-                  <span
+          {noTables ? (
+            <p className="text-[13px] text-s-muted italic bg-s-bg border border-s-line rounded-md px-4 py-3">
+              {t('walkin.no_tables_hint')}
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {tables.map((row) => {
+                const code = row.table_code;
+                const disabled = occupied.has(code);
+                const isSelected = selected === code;
+                const badge = badgeFor(code);
+                return (
+                  <button
+                    key={row.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onSelect(code)}
                     className={clsx(
-                      'font-mono text-3xl font-bold',
+                      'relative rounded-xl border-2 flex flex-col items-center justify-center gap-2 aspect-square transition min-h-[200px]',
                       disabled
-                        ? 'text-s-faint'
+                        ? 'bg-s-bg border-s-line cursor-not-allowed opacity-70'
                         : isSelected
-                          ? 'text-brand'
-                          : 'text-s-ink',
+                          ? 'bg-brand-wash border-brand shadow-sm'
+                          : 'bg-s-paper border-s-line hover:border-brand-line',
                     )}
                   >
-                    {code.replace('T-', '')}
-                  </span>
-                  <span className="flex items-center gap-1 text-xs text-s-muted">
-                    <UsersIcon size={12} />
-                    {t('walkin.seats', { count: 4 })}
-                  </span>
-                  {disabled && (
-                    <span className="text-[11px] font-semibold text-s-faint">
-                      {t('walkin.occupied')}
+                    {badge && (
+                      <span className="absolute top-2 right-2 inline-flex items-center h-5 px-2 rounded-full bg-s-line text-s-muted font-mono text-[10px] font-bold tracking-wider">
+                        OCCUPIED
+                      </span>
+                    )}
+                    <span
+                      className={clsx(
+                        'font-mono text-3xl font-bold',
+                        disabled
+                          ? 'text-s-faint'
+                          : isSelected
+                            ? 'text-brand'
+                            : 'text-s-ink',
+                      )}
+                    >
+                      {code.replace('T-', '')}
                     </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                    <span className="flex items-center gap-1 text-xs text-s-muted">
+                      <UsersIcon size={12} />
+                      {t('walkin.seats', { count: row.seat_count })}
+                    </span>
+                    {disabled && (
+                      <span className="text-[11px] font-semibold text-s-faint">
+                        {t('walkin.occupied')}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
       <footer className="border-t border-s-line bg-s-paper px-8 py-4 flex justify-end shrink-0">

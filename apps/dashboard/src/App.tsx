@@ -19,6 +19,7 @@ import {
   Settings as SettingsIcon,
   History,
   Bug,
+  Grid3x3,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Menu, X as CloseIcon } from 'lucide-react';
@@ -295,6 +296,7 @@ function StaffRail({
       countTone: 'alert',
     },
     { to: '/settings', label: t('app.nav.settings'), icon: <SettingsIcon size={16} /> },
+    { to: '/settings/tables', label: t('app.nav.tables'), icon: <Grid3x3 size={16} /> },
     { to: '/report-bug', label: t('app.nav.report_bug'), icon: <Bug size={16} /> },
     {
       to: '/admin/restaurants/new',
