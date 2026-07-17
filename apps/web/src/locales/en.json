@@ -462,5 +462,12 @@
     "sustainability_sessions_counted": "across {{count}} meal",
     "sustainability_sessions_counted_plural": "across {{count}} meals",
     "sustainability_blurb": "We compare how much you ate to a typical restaurant baseline — anything above is food that didn't get thrown out."
+  },
+  "notes": {
+    "add_cta": "Add a note",
+    "label": "Note for the kitchen",
+    "placeholder": "e.g. less sugar, warm please, no onions",
+    "clear": "Clear note",
+    "has_notes_aria": "This order has notes for the kitchen"
   }
 }

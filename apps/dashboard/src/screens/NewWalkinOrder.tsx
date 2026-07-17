@@ -11,6 +11,8 @@ import {
   Plus,
   Users as UsersIcon,
   QrCode,
+  MessageSquare,
+  Trash2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api } from '../lib/api';
@@ -48,7 +50,14 @@ interface ActiveSession {
   table_code: string;
 }
 
-type CartMap = Record<string, number>;
+interface CartLine {
+  quantity: number;
+  notes: string;
+}
+
+type CartMap = Record<string, CartLine>;
+
+const NOTE_MAX = 140;
 
 // A pilot restaurant has ~12 tables. Generate T-01..T-12 client-side;
 // the tables endpoint isn't a thing yet and the spec explicitly
@@ -114,12 +123,12 @@ export function NewWalkinOrder() {
   const totalMinor = useMemo(() => {
     let sum = 0;
     for (const m of menuQuery.data ?? []) {
-      sum += (cart[m.id] ?? 0) * m.price_minor;
+      sum += (cart[m.id]?.quantity ?? 0) * m.price_minor;
     }
     return sum;
   }, [menuQuery.data, cart]);
   const itemCount = useMemo(
-    () => Object.values(cart).reduce((a, b) => a + b, 0),
+    () => Object.values(cart).reduce((a, b) => a + b.quantity, 0),
     [cart],
   );
 
@@ -136,12 +145,16 @@ export function NewWalkinOrder() {
         token,
       );
       const items = Object.entries(cart)
-        .filter(([, qty]) => qty > 0)
-        .map(([menu_item_id, quantity]) => ({
-          menu_item_id,
-          quantity,
-          portion_size: 'regular',
-        }));
+        .filter(([, line]) => line.quantity > 0)
+        .map(([menu_item_id, line]) => {
+          const note = line.notes.trim();
+          return {
+            menu_item_id,
+            quantity: line.quantity,
+            portion_size: 'regular',
+            ...(note ? { notes: note } : {}),
+          };
+        });
       if (items.length) {
         await api.post(`/sessions/${created.id}/items`, { items }, token);
       }
@@ -441,8 +454,16 @@ function Step2Menu({
     setCart((prev) => {
       const next = { ...prev };
       if (qty <= 0) delete next[id];
-      else next[id] = qty;
+      else next[id] = { quantity: qty, notes: prev[id]?.notes ?? '' };
       return next;
+    });
+  };
+
+  const setNote = (id: string, notes: string) => {
+    setCart((prev) => {
+      const line = prev[id];
+      if (!line) return prev;
+      return { ...prev, [id]: { ...line, notes } };
     });
   };
 
@@ -492,27 +513,37 @@ function Step2Menu({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {filtered.map((m) => {
-              const qty = cart[m.id] ?? 0;
+              const line = cart[m.id];
+              const qty = line?.quantity ?? 0;
+              const notes = line?.notes ?? '';
               const isInCart = qty > 0;
               return (
                 <div
                   key={m.id}
                   className={clsx(
-                    'flex items-center justify-between gap-3 p-3 rounded-lg border',
+                    'flex flex-col gap-2 p-3 rounded-lg border',
                     isInCart
                       ? 'border-brand-line bg-brand-wash/40'
                       : 'border-s-line bg-s-paper',
                   )}
                 >
-                  <div className="min-w-0">
-                    <div className="font-semibold text-sm text-s-ink truncate">
-                      {m.name}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-sm text-s-ink truncate">
+                        {m.name}
+                      </div>
+                      <div className="text-xs text-s-muted">
+                        ₹{(m.price_minor / 100).toFixed(2)}
+                      </div>
                     </div>
-                    <div className="text-xs text-s-muted">
-                      ₹{(m.price_minor / 100).toFixed(2)}
-                    </div>
+                    <QtyStepper qty={qty} onChange={(v) => setQty(m.id, v)} />
                   </div>
-                  <QtyStepper qty={qty} onChange={(v) => setQty(m.id, v)} />
+                  {isInCart && (
+                    <NoteField
+                      value={notes}
+                      onChange={(v) => setNote(m.id, v)}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -577,6 +608,58 @@ function QtyStepper({
         className="w-9 h-9 flex items-center justify-center bg-brand text-white hover:bg-brand-press"
       >
         <Plus size={15} />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Optional per-item note affordance. Same collapsed/expanded pattern
+ * as the diner PWA — an inline text input so the staff never leaves
+ * the menu picker context to jot down "half boiled" or "no onions".
+ */
+function NoteField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(Boolean(value));
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="row gap-1.5 items-center text-xs font-semibold text-s-muted hover:text-brand transition self-start"
+      >
+        <MessageSquare size={12} />
+        {t('notes.add_cta')}
+      </button>
+    );
+  }
+  return (
+    <div className="row gap-2 items-start">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        maxLength={NOTE_MAX}
+        placeholder={t('notes.placeholder')}
+        aria-label={t('notes.label')}
+        className="flex-1 h-9 px-3 rounded-md border border-s-line bg-s-paper text-[13px] focus:outline-none focus:border-brand-line focus:ring-2 focus:ring-brand-wash transition"
+      />
+      <button
+        type="button"
+        onClick={() => {
+          onChange('');
+          setExpanded(false);
+        }}
+        className="w-9 h-9 rounded-md border border-s-line text-s-muted hover:text-danger hover:border-danger transition flex items-center justify-center flex-shrink-0"
+        aria-label={t('notes.clear')}
+      >
+        <Trash2 size={13} />
       </button>
     </div>
   );

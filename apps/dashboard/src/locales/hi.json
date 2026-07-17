@@ -881,5 +881,12 @@
       "resolved_in_favor_restaurant": "रेस्टोरेंट के पक्ष में हल",
       "closed": "बंद"
     }
+  },
+  "notes": {
+    "add_cta": "Add a note [TODO hi]",
+    "label": "Note for the kitchen [TODO hi]",
+    "placeholder": "e.g. less sugar, warm please, no onions [TODO hi]",
+    "clear": "Clear note [TODO hi]",
+    "has_notes_aria": "This order has notes for the kitchen [TODO hi]"
   }
 }

@@ -880,5 +880,12 @@
       "resolved_in_favor_restaurant": "resolved in favour of restaurant",
       "closed": "closed"
     }
+  },
+  "notes": {
+    "add_cta": "Add a note",
+    "label": "Note for the kitchen",
+    "placeholder": "e.g. less sugar, warm please, no onions",
+    "clear": "Clear note",
+    "has_notes_aria": "This order has notes for the kitchen"
   }
 }

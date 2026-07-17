@@ -462,5 +462,12 @@
     "sustainability_sessions_counted": "{{count}} भोजन में",
     "sustainability_sessions_counted_plural": "{{count}} भोजनों में",
     "sustainability_blurb": "हम तुलना करते हैं कि आपने कितना खाया बनाम एक सामान्य रेस्टोरेंट औसत — उसके ऊपर जो भी है, वही खाना कूड़े से बच गया।"
+  },
+  "notes": {
+    "add_cta": "Add a note [TODO hi]",
+    "label": "Note for the kitchen [TODO hi]",
+    "placeholder": "e.g. less sugar, warm please, no onions [TODO hi]",
+    "clear": "Clear note [TODO hi]",
+    "has_notes_aria": "This order has notes for the kitchen [TODO hi]"
   }
 }

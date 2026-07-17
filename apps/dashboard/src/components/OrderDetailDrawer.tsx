@@ -151,7 +151,7 @@ export function OrderDetailDrawer({ order, onClose }: Props) {
                         {it.name}
                       </div>
                       {it.notes && (
-                        <div className="text-xs text-s-muted truncate">
+                        <div className="text-xs italic text-s-muted truncate">
                           {it.notes}
                         </div>
                       )}

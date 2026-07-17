@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Leaf, Plus, Minus, Utensils, QrCode, ChevronDown } from 'lucide-react';
+import {
+  Leaf,
+  Plus,
+  Minus,
+  Utensils,
+  QrCode,
+  ChevronDown,
+  MessageSquare,
+  Trash2,
+} from 'lucide-react';
 import { clsx } from 'clsx';
 import type { MenuItem, PortionSize } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
@@ -21,7 +30,10 @@ interface Line {
   menu_item_id: string;
   quantity: number;
   portion_size: PortionSize;
+  notes?: string;
 }
+
+const NOTE_MAX = 140;
 
 /**
  * Order screen — picks dishes + portion sizes for the meal session.
@@ -168,13 +180,32 @@ export function Order() {
     );
   }
 
+  function setNote(itemId: string, note: string) {
+    setLines((prev) =>
+      prev[itemId]
+        ? { ...prev, [itemId]: { ...prev[itemId], notes: note } }
+        : prev,
+    );
+  }
+
   async function submit() {
     setError(null);
     setBusy(true);
     try {
+      // Trim whitespace + omit empty notes so the server sees a real
+      // string or null. The schema allows null/omitted.
+      const payloadItems = Object.values(lines).map((line) => {
+        const note = line.notes?.trim();
+        return {
+          menu_item_id: line.menu_item_id,
+          quantity: line.quantity,
+          portion_size: line.portion_size,
+          ...(note ? { notes: note } : {}),
+        };
+      });
       await api.post(
         `/sessions/${sessionId}/items`,
-        { items: Object.values(lines) },
+        { items: payloadItems },
         token,
       );
       // Don't force the camera open — the diner hasn't eaten yet.
@@ -325,6 +356,12 @@ export function Order() {
                             })}
                           </div>
                         )}
+                        {qty > 0 && (
+                          <NoteField
+                            value={line?.notes ?? ''}
+                            onChange={(v) => setNote(item.id, v)}
+                          />
+                        )}
                       </div>
                     );
                   })}
@@ -411,6 +448,60 @@ function Stepper({ qty, onChange }: StepperProps) {
       >
         <Plus size={16} />
       </button>
+    </div>
+  );
+}
+
+interface NoteFieldProps {
+  value: string;
+  onChange: (v: string) => void;
+}
+
+/**
+ * Optional per-item note. Collapsed to a chip-style "Add a note" link
+ * until tapped; expands inline into a text input so the diner never
+ * leaves the menu context. Ethics-neutral copy (no "special
+ * instructions" ambiguity that could nudge upsells).
+ */
+function NoteField({ value, onChange }: NoteFieldProps) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(Boolean(value));
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="mt-2.5 row gap-1.5 items-center text-[12.5px] font-semibold text-muted hover:text-brand transition self-start"
+      >
+        <MessageSquare size={12} />
+        {t('notes.add_cta')}
+      </button>
+    );
+  }
+  return (
+    <div className="mt-2.5 flex flex-col gap-1">
+      <div className="row gap-2 items-start">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          maxLength={NOTE_MAX}
+          placeholder={t('notes.placeholder')}
+          aria-label={t('notes.label')}
+          className="flex-1 h-10 px-3 rounded-md border-2 border-line bg-paper text-[13.5px] focus:outline-none focus:border-brand transition"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            onChange('');
+            setExpanded(false);
+          }}
+          className="w-10 h-10 rounded-md border-2 border-line text-muted hover:text-danger hover:border-danger transition flex items-center justify-center flex-shrink-0"
+          aria-label={t('notes.clear')}
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
     </div>
   );
 }

@@ -16,6 +16,7 @@ import {
   Plus,
   QrCode,
   Users as UsersIcon,
+  MessageSquare,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useState } from 'react';
@@ -507,9 +508,19 @@ function OrderCard({
           {elapsed(order.started_seconds_ago)}
         </span>
       </div>
-      <div className="row gap-1.5 items-center text-[11px] font-semibold text-s-faint uppercase tracking-wide relative z-10 pointer-events-none">
-        {isWalkin ? <UsersIcon size={12} /> : <QrCode size={12} />}
-        {isWalkin ? t('walkin.channel_walkin') : t('walkin.channel_qr')}
+      <div className="row spread gap-1.5 items-center text-[11px] font-semibold text-s-faint uppercase tracking-wide relative z-10 pointer-events-none">
+        <span className="row gap-1.5 items-center">
+          {isWalkin ? <UsersIcon size={12} /> : <QrCode size={12} />}
+          {isWalkin ? t('walkin.channel_walkin') : t('walkin.channel_qr')}
+        </span>
+        {order.items.some((it) => it.notes && it.notes.trim()) && (
+          <span
+            className="row gap-1 items-center text-s-muted normal-case tracking-normal"
+            title={t('notes.has_notes_aria')}
+          >
+            <MessageSquare size={12} />
+          </span>
+        )}
       </div>
       <ul className="flex flex-col gap-0.5 text-[13px] text-s-ink relative z-10 pointer-events-none">
         {order.items.map((it) => (

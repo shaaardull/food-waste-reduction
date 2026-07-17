@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { X, Plus, Trash2, Pencil, AlertTriangle } from 'lucide-react';
+import { X, Plus, Trash2, Pencil, AlertTriangle, MessageSquare } from 'lucide-react';
 import { api } from '../lib/api';
 import type { ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
@@ -36,6 +36,7 @@ interface EditRow {
   name: string;
   quantity: number;
   portion_size: 'small' | 'regular' | 'large' | null;
+  notes: string;
 }
 
 interface OrderItemFromApi {
@@ -43,7 +44,10 @@ interface OrderItemFromApi {
   name: string;
   quantity: number;
   portion_size: string | null;
+  notes?: string | null;
 }
+
+const NOTE_MAX = 140;
 
 interface Props {
   sessionId: string;
@@ -77,6 +81,7 @@ export function EditItemsModal({
         it.portion_size === 'large'
           ? it.portion_size
           : null,
+      notes: it.notes ?? '',
     })),
   );
   const [addingOpen, setAddingOpen] = useState(false);
@@ -103,11 +108,15 @@ export function EditItemsModal({
       api.patch(
         `/sessions/${sessionId}/items`,
         {
-          items: rows.map((r) => ({
-            menu_item_id: r.menu_item_id,
-            quantity: r.quantity,
-            portion_size: r.portion_size,
-          })),
+          items: rows.map((r) => {
+            const note = r.notes.trim();
+            return {
+              menu_item_id: r.menu_item_id,
+              quantity: r.quantity,
+              portion_size: r.portion_size,
+              ...(note ? { notes: note } : {}),
+            };
+          }),
         },
         token,
       ),
@@ -167,10 +176,17 @@ export function EditItemsModal({
           name: m.name,
           quantity: 1,
           portion_size: 'regular' as const,
+          notes: '',
         },
       ];
     });
     setAddingOpen(false);
+  }
+
+  function setNote(i: number, notes: string) {
+    setRows((prev) =>
+      prev.map((r, idx) => (idx === i ? { ...r, notes } : r)),
+    );
   }
 
   return (
@@ -215,47 +231,53 @@ export function EditItemsModal({
               {rows.map((r, i) => (
                 <div
                   key={`${r.menu_item_id}-${i}`}
-                  className="row gap-3 items-center rounded-md border border-s-line bg-s-paper px-3 py-2"
+                  className="flex flex-col gap-2 rounded-md border border-s-line bg-s-paper px-3 py-2"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-[13.5px] text-s-ink truncate">
-                      {r.name}
-                    </div>
-                    {r.portion_size && r.portion_size !== 'regular' && (
-                      <div className="text-[11px] text-s-muted capitalize">
-                        {r.portion_size}
+                  <div className="row gap-3 items-center">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-[13.5px] text-s-ink truncate">
+                        {r.name}
                       </div>
-                    )}
-                  </div>
-                  <div className="row gap-0 items-center border border-s-line rounded-md overflow-hidden">
+                      {r.portion_size && r.portion_size !== 'regular' && (
+                        <div className="text-[11px] text-s-muted capitalize">
+                          {r.portion_size}
+                        </div>
+                      )}
+                    </div>
+                    <div className="row gap-0 items-center border border-s-line rounded-md overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => updateQty(i, -1)}
+                        className="px-2 py-1 text-s-muted hover:bg-s-bg font-bold"
+                        aria-label="−"
+                      >
+                        −
+                      </button>
+                      <span className="tnum w-8 text-center font-semibold text-[13px]">
+                        {r.quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateQty(i, 1)}
+                        className="px-2 py-1 text-s-muted hover:bg-s-bg font-bold"
+                        aria-label="+"
+                      >
+                        +
+                      </button>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => updateQty(i, -1)}
-                      className="px-2 py-1 text-s-muted hover:bg-s-bg font-bold"
-                      aria-label="−"
+                      onClick={() => removeRow(i)}
+                      className="w-8 h-8 rounded-md hover:bg-danger-wash text-s-muted hover:text-danger flex items-center justify-center transition"
+                      aria-label={t('edit_items.remove')}
                     >
-                      −
-                    </button>
-                    <span className="tnum w-8 text-center font-semibold text-[13px]">
-                      {r.quantity}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateQty(i, 1)}
-                      className="px-2 py-1 text-s-muted hover:bg-s-bg font-bold"
-                      aria-label="+"
-                    >
-                      +
+                      <Trash2 size={14} />
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeRow(i)}
-                    className="w-8 h-8 rounded-md hover:bg-danger-wash text-s-muted hover:text-danger flex items-center justify-center transition"
-                    aria-label={t('edit_items.remove')}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <EditNoteField
+                    value={r.notes}
+                    onChange={(v) => setNote(i, v)}
+                  />
                 </div>
               ))}
             </div>
@@ -335,6 +357,57 @@ export function EditItemsModal({
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Optional per-item note. Collapsed by default until staff taps
+ * "Add note"; expands to an inline input (140 char cap).
+ */
+function EditNoteField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(Boolean(value));
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="row gap-1.5 items-center text-[11.5px] font-semibold text-s-muted hover:text-brand transition self-start"
+      >
+        <MessageSquare size={11} />
+        {t('notes.add_cta')}
+      </button>
+    );
+  }
+  return (
+    <div className="row gap-2 items-start">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        maxLength={NOTE_MAX}
+        placeholder={t('notes.placeholder')}
+        aria-label={t('notes.label')}
+        className="flex-1 h-9 px-3 rounded-md border border-s-line bg-s-paper text-[12.5px] focus:outline-none focus:border-brand-line focus:ring-2 focus:ring-brand-wash transition"
+      />
+      <button
+        type="button"
+        onClick={() => {
+          onChange('');
+          setExpanded(false);
+        }}
+        className="w-9 h-9 rounded-md border border-s-line text-s-muted hover:text-danger hover:border-danger transition flex items-center justify-center flex-shrink-0"
+        aria-label={t('notes.clear')}
+      >
+        <Trash2 size={13} />
+      </button>
     </div>
   );
 }
