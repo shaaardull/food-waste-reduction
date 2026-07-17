@@ -747,7 +747,7 @@ function RegenerateModal({
     <ConfirmModal
       eyebrow={t('settings.tables.regen_eyebrow')}
       title={t('settings.tables.regen_title', { code: row.table_code })}
-      body={t('settings.tables.regen_body')}
+      message={t('settings.tables.regen_body')}
       confirmLabel={
         mut.isPending
           ? t('settings.tables.working')
@@ -786,7 +786,7 @@ function RemoveModal({
     <ConfirmModal
       eyebrow={t('settings.tables.remove_eyebrow')}
       title={t('settings.tables.remove_title', { code: row.table_code })}
-      body={t('settings.tables.remove_body')}
+      message={t('settings.tables.remove_body')}
       confirmLabel={
         mut.isPending
           ? t('settings.tables.working')
@@ -806,7 +806,7 @@ function RemoveModal({
 function ConfirmModal({
   eyebrow,
   title,
-  body,
+  message,
   confirmLabel,
   confirmTone,
   err,
@@ -816,7 +816,7 @@ function ConfirmModal({
 }: {
   eyebrow: string;
   title: string;
-  body: string;
+  message: string;
   confirmLabel: string;
   confirmTone: 'danger' | 'saffron';
   err: string | null;
@@ -841,7 +841,7 @@ function ConfirmModal({
           </h2>
         </div>
         <div className="p-5 flex flex-col gap-4">
-          <p className="text-[13.5px] text-s-muted leading-normal">{body}</p>
+          <p className="text-[13.5px] text-s-muted leading-normal">{message}</p>
           {err && (
             <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
               {err}
