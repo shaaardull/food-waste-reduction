@@ -28,6 +28,7 @@ import { CancelOrderModal } from '../components/CancelOrderModal';
 import { EditItemsModal } from '../components/EditItemsModal';
 import { ChannelStrip } from '../components/ChannelStrip';
 import { OrderDetailDrawer } from '../components/OrderDetailDrawer';
+import { TakeawayPill } from '../components/TakeawayPill';
 
 /**
  * Live orders — the kitchen visibility surface. Sits above Validation
@@ -68,6 +69,10 @@ export interface Order {
   table_code: string;
   status: OrderStatus;
   entry_channel: EntryChannel;
+  // Sub-flavor of walk-in with no physical table. When true the
+  // synthetic `table_code` is TAKEAWAY-XXXXXX; UI shows a saffron
+  // TAKEAWAY pill instead of the code.
+  is_takeaway: boolean;
   customer_email?: string | null;
   customer_phone?: string | null;
   items: OrderItem[];
@@ -500,9 +505,13 @@ function OrderCard({
         className="absolute inset-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
       />
       <div className="row spread items-center relative z-10 pointer-events-none">
-        <span className="font-mono text-[15px] font-bold text-s-ink tabular-nums">
-          {order.table_code}
-        </span>
+        {order.is_takeaway ? (
+          <TakeawayPill />
+        ) : (
+          <span className="font-mono text-[15px] font-bold text-s-ink tabular-nums">
+            {order.table_code}
+          </span>
+        )}
         <span className="row gap-1 items-center text-[11.5px] text-s-muted">
           <Timer size={11} />
           {elapsed(order.started_seconds_ago)}

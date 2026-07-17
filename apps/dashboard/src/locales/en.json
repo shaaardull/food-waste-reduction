@@ -276,7 +276,14 @@
     "working": "Working…",
     "toast_created_title": "Order added",
     "toast_created_body": "Walk-in order created for {{table}}.",
-    "toast_bill_sent": "Bill sent to {{email}}"
+    "toast_bill_sent": "Bill sent to {{email}}",
+    "takeaway": {
+      "tile_label": "Takeaway",
+      "tile_subtext": "No table — for pickup / to-go orders",
+      "tile_aria": "Start a takeaway order",
+      "header_eyebrow": "New takeaway order",
+      "pill_label": "TAKEAWAY"
+    }
   },
   "past_orders": {
     "title": "Past orders",

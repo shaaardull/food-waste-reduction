@@ -12,6 +12,7 @@ import {
   Users as UsersIcon,
   QrCode,
   MessageSquare,
+  ShoppingBag,
   Trash2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -74,6 +75,10 @@ export function NewWalkinOrder() {
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [tableCode, setTableCode] = useState<string | null>(null);
+  // Takeaway = walk-in with no physical table. Step 1's Takeaway tile
+  // flips this on and jumps straight to Step 2; the create call omits
+  // table_code and the server synthesises a TAKEAWAY-XXXXXX identifier.
+  const [isTakeaway, setIsTakeaway] = useState(false);
   const [cart, setCart] = useState<CartMap>({});
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -135,14 +140,22 @@ export function NewWalkinOrder() {
 
   const submit = useMutation({
     mutationFn: async () => {
+      // Takeaway omits table_code entirely — passing both is a 400
+      // (TAKEAWAY_TABLE_CODE_CONFLICT). The server assigns a
+      // TAKEAWAY-XXXXXX identifier so the record stays distinguishable.
+      const createBody: Record<string, unknown> = {
+        restaurant_id: restaurantId,
+        customer_email: email.trim() || null,
+        customer_phone: phone.trim() ? `+91${phone.trim()}` : null,
+      };
+      if (isTakeaway) {
+        createBody.is_takeaway = true;
+      } else {
+        createBody.table_code = tableCode;
+      }
       const created = await api.post<{ id: string }>(
         `/sessions/walkin`,
-        {
-          restaurant_id: restaurantId,
-          table_code: tableCode,
-          customer_email: email.trim() || null,
-          customer_phone: phone.trim() ? `+91${phone.trim()}` : null,
-        },
+        createBody,
         token,
       );
       const items = Object.entries(cart)
@@ -166,7 +179,12 @@ export function NewWalkinOrder() {
       pushToast({
         tone: 'sage',
         title: t('walkin.toast_created_title'),
-        body: t('walkin.toast_created_body', { table: tableCode ?? '' }),
+        // Takeaway toasts have no table binding; show the label so the
+        // toast still reads sensibly ("Takeaway order created for
+        // Takeaway.") instead of an empty-string trailing.
+        body: t('walkin.toast_created_body', {
+          table: isTakeaway ? t('walkin.takeaway.tile_label') : (tableCode ?? ''),
+        }),
       });
       navigate('/orders');
     },
@@ -178,9 +196,18 @@ export function NewWalkinOrder() {
       <FlowHeader
         step={step}
         tableCode={tableCode}
-        onBack={() =>
-          step === 1 ? navigate('/orders') : setStep(((step as number) - 1) as 1 | 2 | 3)
-        }
+        isTakeaway={isTakeaway}
+        onBack={() => {
+          if (step === 1) {
+            navigate('/orders');
+            return;
+          }
+          // Going back from Step 2 on a takeaway drops the takeaway
+          // flag — Step 1 renders normally again and the staff can
+          // pick a table or re-select Takeaway.
+          if (step === 2 && isTakeaway) setIsTakeaway(false);
+          setStep(((step as number) - 1) as 1 | 2 | 3);
+        }}
         onCancel={() => navigate('/orders')}
       />
       {step === 1 && (
@@ -191,6 +218,11 @@ export function NewWalkinOrder() {
           selected={tableCode}
           onSelect={setTableCode}
           onNext={() => setStep(2)}
+          onTakeaway={() => {
+            setIsTakeaway(true);
+            setTableCode(null);
+            setStep(2);
+          }}
         />
       )}
       {step === 2 && (
@@ -207,7 +239,8 @@ export function NewWalkinOrder() {
       )}
       {step === 3 && (
         <Step3Contact
-          tableCode={tableCode!}
+          tableCode={tableCode}
+          isTakeaway={isTakeaway}
           totalMinor={totalMinor}
           email={email}
           phone={phone}
@@ -234,16 +267,26 @@ export function NewWalkinOrder() {
 function FlowHeader({
   step,
   tableCode,
+  isTakeaway,
   onBack,
   onCancel,
 }: {
   step: 1 | 2 | 3;
   tableCode: string | null;
+  isTakeaway: boolean;
   onBack: () => void;
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
   const labels = [t('walkin.step_table'), t('walkin.step_menu'), t('walkin.step_contact')];
+  // Takeaway suppresses the table code in the eyebrow entirely — the
+  // synthetic TAKEAWAY-XXXXXX isn't picked yet at this point (created
+  // on submit) and would be visual noise if it were.
+  const eyebrow = isTakeaway
+    ? t('walkin.takeaway.header_eyebrow')
+    : tableCode
+      ? t('walkin.header_eyebrow_with_table', { table: tableCode })
+      : t('walkin.header_eyebrow');
   return (
     <header className="flex items-center justify-between px-6 py-4 border-b border-s-line bg-s-paper shrink-0">
       <div className="flex items-center gap-3 min-w-0">
@@ -257,9 +300,7 @@ function FlowHeader({
         </button>
         <div className="min-w-0">
           <div className="text-[11px] font-bold tracking-widest uppercase text-s-faint">
-            {tableCode
-              ? t('walkin.header_eyebrow_with_table', { table: tableCode })
-              : t('walkin.header_eyebrow')}
+            {eyebrow}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             {labels.map((label, i) => {
@@ -306,6 +347,7 @@ function Step1TablePick({
   selected,
   onSelect,
   onNext,
+  onTakeaway,
 }: {
   tables: string[];
   occupied: Set<string>;
@@ -313,6 +355,7 @@ function Step1TablePick({
   selected: string | null;
   onSelect: (t: string) => void;
   onNext: () => void;
+  onTakeaway: () => void;
 }) {
   const { t } = useTranslation();
   // Session → channel map (we can't tell from the sessions endpoint
@@ -336,6 +379,29 @@ function Step1TablePick({
           <p className="text-sm text-s-muted mb-6">
             {t('walkin.step1_blurb')}
           </p>
+          {/* Takeaway tile: full-width shortcut that bypasses table
+              selection entirely. Distinct from the table grid so the
+              two paths read as sibling choices, not a "one of the
+              tables". */}
+          <button
+            type="button"
+            onClick={onTakeaway}
+            aria-label={t('walkin.takeaway.tile_aria')}
+            className="w-full mb-4 rounded-lg border border-saffron bg-saffron/10 text-saffron-deep px-4 py-4 flex items-center gap-4 hover:bg-saffron/15 active:scale-[.995] transition text-left"
+          >
+            <span className="w-11 h-11 rounded-lg bg-saffron/20 flex items-center justify-center shrink-0">
+              <ShoppingBag size={22} />
+            </span>
+            <span className="flex flex-col min-w-0">
+              <span className="font-sans font-bold text-base leading-tight">
+                {t('walkin.takeaway.tile_label')}
+              </span>
+              <span className="text-xs text-s-muted mt-0.5">
+                {t('walkin.takeaway.tile_subtext')}
+              </span>
+            </span>
+            <ChevronRight size={18} className="ml-auto text-saffron-deep shrink-0" />
+          </button>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {tables.map((code) => {
               const disabled = occupied.has(code);
@@ -675,6 +741,7 @@ function NoteField({
 
 function Step3Contact({
   tableCode,
+  isTakeaway,
   totalMinor,
   email,
   phone,
@@ -685,7 +752,8 @@ function Step3Contact({
   onSkip,
   onConfirm,
 }: {
-  tableCode: string;
+  tableCode: string | null;
+  isTakeaway: boolean;
   totalMinor: number;
   email: string;
   phone: string;
@@ -697,6 +765,12 @@ function Step3Contact({
   onConfirm: () => void;
 }) {
   const { t } = useTranslation();
+  // Takeaway has no physical table — reuse the same "order total for
+  // {table}" line but substitute the Takeaway label so the summary
+  // still makes sense.
+  const totalTargetLabel = isTakeaway
+    ? t('walkin.takeaway.tile_label')
+    : (tableCode ?? '');
   return (
     <div className="flex-1 flex items-center justify-center p-8 overflow-auto">
       <div className="w-full max-w-md bg-s-paper border border-s-line rounded-xl p-7">
@@ -749,7 +823,7 @@ function Step3Contact({
 
         <div className="flex items-center justify-between bg-s-bg rounded-lg px-4 py-3 mb-6">
           <span className="text-sm text-s-muted">
-            {t('walkin.order_total_for_table', { table: tableCode })}
+            {t('walkin.order_total_for_table', { table: totalTargetLabel })}
           </span>
           <span className="font-mono text-lg font-bold text-s-ink">
             ₹{(totalMinor / 100).toFixed(2)}

@@ -13,6 +13,7 @@ import { clsx } from 'clsx';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import { StatePill } from './StatePill';
+import { TakeawayPill } from './TakeawayPill';
 import { VoidOrderModal } from './VoidOrderModal';
 import { BillSendModal } from './BillSendModal';
 import { BillViewModal } from './BillViewModal';
@@ -98,9 +99,13 @@ export function OrderDetailDrawer({ order, onClose }: Props) {
           <div className="px-6 pt-6 pb-4 border-b border-s-line">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="font-mono text-2xl font-bold text-s-ink truncate">
-                  {order.table_code}
-                </span>
+                {order.is_takeaway ? (
+                  <TakeawayPill className="text-sm px-3 py-1" />
+                ) : (
+                  <span className="font-mono text-2xl font-bold text-s-ink truncate">
+                    {order.table_code}
+                  </span>
+                )}
                 <span
                   className={clsx(
                     'inline-flex items-center h-5 px-2 rounded-full font-mono text-[10px] font-bold tracking-wider',
