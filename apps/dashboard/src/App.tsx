@@ -23,6 +23,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { Menu, X as CloseIcon } from 'lucide-react';
 import { useAuthStore } from './lib/auth';
+import { useNotStaffStore } from './lib/notStaff';
 import { initialsFor } from './lib/user';
 import { useApplyTheme } from './lib/theme';
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES, type Language } from './lib/i18n';
@@ -55,6 +56,7 @@ const FRONT_DOOR = new Set([
 
 export function App() {
   const loc = useLocation();
+  const navigate = useNavigate();
   const { user, activeRestaurant } = useAuthStore();
   useApplyTheme(activeRestaurant);
   const { t } = useTranslation();
@@ -64,6 +66,17 @@ export function App() {
   useEffect(() => {
     setDrawerOpen(false);
   }, [loc.pathname]);
+
+  // Global NOT_RESTAURANT_STAFF redirect: api.ts trips the store when
+  // any 403 with that code (or the legacy NOT_ON_STAFF) fires, and we
+  // route to the dedicated screen. Guarded on pathname so a repeat
+  // trigger while already on the screen doesn't re-navigate.
+  const notStaffActive = useNotStaffStore((s) => s.active);
+  useEffect(() => {
+    if (notStaffActive && loc.pathname !== '/not-on-staff') {
+      navigate('/not-on-staff');
+    }
+  }, [notStaffActive, loc.pathname, navigate]);
 
   const isFrontDoor = FRONT_DOOR.has(loc.pathname);
 

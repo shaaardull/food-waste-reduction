@@ -144,10 +144,7 @@ async def _require_any_restaurant_staff(
         )
     )
     if res.scalar_one_or_none() is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not on the staff of this restaurant",
-        )
+        raise NotRestaurantStaff()
 
 
 @router.patch("/{restaurant_id}", response_model=RestaurantOut)

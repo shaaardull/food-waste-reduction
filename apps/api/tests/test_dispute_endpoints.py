@@ -157,8 +157,8 @@ async def test_resolve_forbidden_for_non_staff(client, db):
     )
     assert res.status_code == 403
     body = res.json()
-    # Structured detail so the frontend can render a friendly copy.
-    assert body["detail"]["code"] == "NOT_ON_STAFF"
+    # Envelope shape per CLAUDE.md §5.7 — frontend routes on error.code.
+    assert body["error"]["code"] == "NOT_RESTAURANT_STAFF"
 
 
 @pytest.mark.asyncio

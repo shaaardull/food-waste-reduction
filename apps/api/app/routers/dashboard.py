@@ -81,13 +81,7 @@ async def _ensure_can_resolve_dispute(
         )
     )
     if membership.scalar_one_or_none() is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "code": "NOT_ON_STAFF",
-                "message": "You are not on the staff of this restaurant.",
-            },
-        )
+        raise NotRestaurantStaff()
 
 
 # Statuses that qualify a session as "still in progress" for the

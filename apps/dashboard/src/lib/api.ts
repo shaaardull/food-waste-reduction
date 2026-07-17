@@ -1,3 +1,6 @@
+import { useNotStaffStore } from './notStaff';
+import { useAuthStore } from './auth';
+
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
 
 export class ApiException extends Error {
@@ -54,12 +57,23 @@ async function request<T>(
         message = payload.detail.message;
       }
     }
-    throw new ApiException(
+    const exc = new ApiException(
       res.status,
       code ?? `HTTP_${res.status}`,
       message ?? res.statusText,
       details,
     );
+    // Global handling for the "staff hit a restaurant they aren't on"
+    // case. Both codes are accepted while the backend normalisation
+    // rolls out and any stale caches drain.
+    if (res.status === 403 && (exc.code === 'NOT_RESTAURANT_STAFF' || exc.code === 'NOT_ON_STAFF')) {
+      const active = useAuthStore.getState().activeRestaurant;
+      useNotStaffStore.getState().trigger({
+        restaurantSlug: active?.slug ?? null,
+        restaurantId: active?.id ?? null,
+      });
+    }
+    throw exc;
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

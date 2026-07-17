@@ -12,6 +12,7 @@ from app.errors import (
     GeofenceViolation,
     ImageInvalid,
     InvalidNonce,
+    NotRestaurantStaff,
     SessionExpired,
     WrongSessionStatus,
 )
@@ -651,10 +652,7 @@ async def kitchen_ack(
             )
         )
         if membership.scalar_one_or_none() is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not on the staff of this restaurant",
-            )
+            raise NotRestaurantStaff()
     if session.kitchen_ack_at is None:
         session.kitchen_ack_at = datetime.now(UTC)
         await db.commit()
@@ -685,10 +683,7 @@ async def _require_staff_of_restaurant(
         )
     )
     if membership.scalar_one_or_none() is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not on the staff of this restaurant",
-        )
+        raise NotRestaurantStaff()
 
 
 @router.post("/{session_id}/cancel", response_model=SessionOut)

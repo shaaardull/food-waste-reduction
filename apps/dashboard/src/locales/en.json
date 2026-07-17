@@ -881,6 +881,18 @@
       "closed": "closed"
     }
   },
+  "errors": {
+    "not_on_staff": {
+      "heading": "You're not on the staff of this restaurant",
+      "body": "Ask the restaurant owner to add you to the staff list, then sign back in. If this is your restaurant, contact hello@plateclean.in and we'll help sort it out.",
+      "sign_out": "Sign out",
+      "contact_support": "Contact support",
+      "support_subject": "Staff access issue",
+      "support_body": "Hi Plate-Clean team,\n\nI'm getting a \"not on staff\" error when signing in to the dashboard. Can you help?\n\nThanks,",
+      "support_body_with_context": "Hi Plate-Clean team,\n\nI'm getting a \"not on staff\" error when trying to access restaurant: {{context}}. Can you help?\n\nThanks,",
+      "context_line": "Attempted restaurant: {{context}}"
+    }
+  },
   "notes": {
     "add_cta": "Add a note",
     "label": "Note for the kitchen",

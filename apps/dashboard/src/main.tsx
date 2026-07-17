@@ -17,6 +17,7 @@ import { PlatformCommandCenter } from './screens/PlatformCommandCenter';
 import { PlatformQrTokens } from './screens/PlatformQrTokens';
 import { QrPrintSheet } from './screens/QrPrintSheet';
 import { Menu } from './screens/Menu';
+import { NotStaffOfRestaurant } from './screens/NotStaffOfRestaurant';
 import { Onboard } from './screens/Onboard';
 import { Orders } from './screens/Orders';
 import { NewWalkinOrder } from './screens/NewWalkinOrder';
@@ -54,6 +55,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="disputes/:id" element={<DisputeDetail />} />
             <Route path="settings" element={<Settings />} />
             <Route path="report-bug" element={<BugReport />} />
+            <Route path="not-on-staff" element={<NotStaffOfRestaurant />} />
             {/* Backdoor: no left-rail item, the URL prefix `/-/` is
                 the "hidden" surface. Backend also 404s non-admin JWTs
                 so a stray curl by staff can't confirm it exists. */}

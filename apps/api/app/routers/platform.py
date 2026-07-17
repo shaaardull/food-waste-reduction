@@ -33,6 +33,7 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.errors import NotRestaurantStaff
 from app.models.bill import Bill
 from app.models.bug_report import BugReport
 from app.models.dispute import Dispute
@@ -152,10 +153,7 @@ async def create_bug_report(
         if user.role != "admin":
             memberships = await _staff_restaurant_ids(db, user)
             if restaurant_id not in memberships:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You are not on the staff of that restaurant",
-                )
+                raise NotRestaurantStaff()
     elif user.role == "staff":
         # Auto-attach first membership.
         memberships = await _staff_restaurant_ids(db, user)
