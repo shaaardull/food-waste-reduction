@@ -41,6 +41,7 @@ interface MenuItem {
   name: string;
   price_minor: number;
   category: string | null;
+  description: string | null;
   is_active: boolean;
 }
 
@@ -532,6 +533,11 @@ function Step2Menu({
                       <div className="font-semibold text-sm text-s-ink truncate">
                         {m.name}
                       </div>
+                      {m.description && (
+                        <div className="text-xs text-s-muted italic mt-0.5 line-clamp-2">
+                          {m.description}
+                        </div>
+                      )}
                       <div className="text-xs text-s-muted">
                         ₹{(m.price_minor / 100).toFixed(2)}
                       </div>

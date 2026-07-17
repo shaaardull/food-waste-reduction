@@ -23,6 +23,7 @@ interface MenuItemForm {
   price_minor: number;
   category: 'starter' | 'main' | 'side' | 'bread' | 'drink' | 'dessert';
   is_reward_eligible: boolean;
+  description: string;
 }
 
 interface CreatedMenuItem {
@@ -39,10 +40,10 @@ interface CreatedRewardRule {
 }
 
 const DEFAULT_MENU: MenuItemForm[] = [
-  { name: 'Signature Main', price_minor: 30000, category: 'main', is_reward_eligible: true },
-  { name: 'Side', price_minor: 8000, category: 'side', is_reward_eligible: false },
-  { name: 'Drink', price_minor: 12000, category: 'drink', is_reward_eligible: false },
-  { name: 'House Dessert', price_minor: 10000, category: 'dessert', is_reward_eligible: true },
+  { name: 'Signature Main', price_minor: 30000, category: 'main', is_reward_eligible: true, description: '' },
+  { name: 'Side', price_minor: 8000, category: 'side', is_reward_eligible: false, description: '' },
+  { name: 'Drink', price_minor: 12000, category: 'drink', is_reward_eligible: false, description: '' },
+  { name: 'House Dessert', price_minor: 10000, category: 'dessert', is_reward_eligible: true, description: '' },
 ];
 
 export function AdminOnboard() {
@@ -181,7 +182,12 @@ export function AdminOnboard() {
     try {
       const created = await api.post<CreatedMenuItem[]>(
         `/restaurants/${restaurant.id}/menu-items`,
-        { items },
+        {
+          items: items.map((line) => ({
+            ...line,
+            description: line.description.trim() || null,
+          })),
+        },
         token,
       );
       setCreatedMenu(created);
@@ -458,50 +464,64 @@ export function AdminOnboard() {
               </button>
             </div>
           )}
-          <div className="space-y-2">
+          <div className="space-y-3">
             {items.map((it, idx) => (
-              <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                <input
-                  value={it.name}
-                  onChange={(e) => updateItem(items, idx, { name: e.target.value }, setItems)}
-                  className="col-span-5 input mt-0 py-1 text-[13px]"
-                />
-                <input
-                  type="number"
-                  value={it.price_minor}
-                  onChange={(e) =>
-                    updateItem(items, idx, { price_minor: Number(e.target.value) }, setItems)
-                  }
-                  className="col-span-3 input mt-0 py-1 text-[13px]"
-                />
-                <select
-                  value={it.category}
-                  onChange={(e) =>
-                    updateItem(
-                      items,
-                      idx,
-                      { category: e.target.value as MenuItemForm['category'] },
-                      setItems,
-                    )
-                  }
-                  className="col-span-2 input mt-0 py-1 text-[13px]"
-                >
-                  <option value="starter">{t('admin.menu.category.starter')}</option>
-                  <option value="main">{t('admin.menu.category.main')}</option>
-                  <option value="side">{t('admin.menu.category.side')}</option>
-                  <option value="bread">{t('admin.menu.category.bread')}</option>
-                  <option value="drink">{t('admin.menu.category.drink')}</option>
-                  <option value="dessert">{t('admin.menu.category.dessert')}</option>
-                </select>
-                <label className="col-span-2 text-xs flex items-center gap-1">
+              <div key={idx} className="space-y-1.5">
+                <div className="grid grid-cols-12 gap-2 items-center">
                   <input
-                    type="checkbox"
-                    checked={it.is_reward_eligible}
-                    onChange={(e) =>
-                      updateItem(items, idx, { is_reward_eligible: e.target.checked }, setItems)
-                    }
+                    value={it.name}
+                    onChange={(e) => updateItem(items, idx, { name: e.target.value }, setItems)}
+                    className="col-span-5 input mt-0 py-1 text-[13px]"
                   />
-                  {t('admin.menu.reward_label')}
+                  <input
+                    type="number"
+                    value={it.price_minor}
+                    onChange={(e) =>
+                      updateItem(items, idx, { price_minor: Number(e.target.value) }, setItems)
+                    }
+                    className="col-span-3 input mt-0 py-1 text-[13px]"
+                  />
+                  <select
+                    value={it.category}
+                    onChange={(e) =>
+                      updateItem(
+                        items,
+                        idx,
+                        { category: e.target.value as MenuItemForm['category'] },
+                        setItems,
+                      )
+                    }
+                    className="col-span-2 input mt-0 py-1 text-[13px]"
+                  >
+                    <option value="starter">{t('admin.menu.category.starter')}</option>
+                    <option value="main">{t('admin.menu.category.main')}</option>
+                    <option value="side">{t('admin.menu.category.side')}</option>
+                    <option value="bread">{t('admin.menu.category.bread')}</option>
+                    <option value="drink">{t('admin.menu.category.drink')}</option>
+                    <option value="dessert">{t('admin.menu.category.dessert')}</option>
+                  </select>
+                  <label className="col-span-2 text-xs flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      checked={it.is_reward_eligible}
+                      onChange={(e) =>
+                        updateItem(items, idx, { is_reward_eligible: e.target.checked }, setItems)
+                      }
+                    />
+                    {t('admin.menu.reward_label')}
+                  </label>
+                </div>
+                <label className="block text-[11px] text-s-muted pl-0.5">
+                  <span className="sr-only">{t('admin.menu.field_description')}</span>
+                  <input
+                    value={it.description}
+                    onChange={(e) =>
+                      updateItem(items, idx, { description: e.target.value }, setItems)
+                    }
+                    maxLength={140}
+                    placeholder={t('admin.menu.field_description_placeholder')}
+                    className="w-full border border-s-line/70 rounded-md bg-s-paper px-2 py-1 text-[12.5px] text-s-ink placeholder:text-s-muted/70 focus:outline-none focus:border-brand-line focus:ring-1 focus:ring-brand-wash transition"
+                  />
                 </label>
               </div>
             ))}
@@ -511,7 +531,7 @@ export function AdminOnboard() {
               onClick={() =>
                 setItems([
                   ...items,
-                  { name: '', price_minor: 0, category: 'main', is_reward_eligible: false },
+                  { name: '', price_minor: 0, category: 'main', is_reward_eligible: false, description: '' },
                 ])
               }
               className="btn btn-outline text-[14px] min-h-[36px] px-3"
@@ -543,6 +563,7 @@ export function AdminOnboard() {
                   category:
                     (p.category as MenuItemForm['category']) ?? 'main',
                   is_reward_eligible: false,
+                  description: '',
                 }));
                 setItems([...cleaned, ...additions]);
                 setScanMenuOpen(false);

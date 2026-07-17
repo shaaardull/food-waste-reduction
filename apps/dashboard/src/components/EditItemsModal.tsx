@@ -28,6 +28,7 @@ interface MenuItem {
   name: string;
   price_minor: number;
   category: string | null;
+  description: string | null;
   is_active: boolean;
 }
 
@@ -304,12 +305,19 @@ export function EditItemsModal({
                         key={m.id}
                         type="button"
                         onClick={() => addFromMenu(m)}
-                        className="row spread items-center px-2 py-1.5 rounded-md hover:bg-s-paper text-left"
+                        className="row spread items-start px-2 py-1.5 rounded-md hover:bg-s-paper text-left gap-2"
                       >
-                        <span className="text-[13px] text-s-ink truncate flex-1">
-                          {m.name}
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[13px] text-s-ink truncate">
+                            {m.name}
+                          </span>
+                          {m.description && (
+                            <span className="block text-[11px] text-s-muted italic mt-0.5 line-clamp-2">
+                              {m.description}
+                            </span>
+                          )}
                         </span>
-                        <span className="tnum text-[12px] text-s-muted">
+                        <span className="tnum text-[12px] text-s-muted shrink-0 mt-0.5">
                           ₹{(m.price_minor / 100).toFixed(0)}
                         </span>
                       </button>

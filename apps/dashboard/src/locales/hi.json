@@ -709,6 +709,8 @@
       "save_n": "{{count}} आइटम सेव करें",
       "saving": "सेव हो रहा है…",
       "reward_label": "रिवॉर्ड",
+      "field_description": "Description (optional) [TODO hi]",
+      "field_description_placeholder": "Optional short description (e.g. slow-cooked, house special) [TODO hi]",
       "category": {
         "starter": "स्टार्टर",
         "main": "मुख्य",
