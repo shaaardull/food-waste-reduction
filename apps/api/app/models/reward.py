@@ -20,6 +20,10 @@ class RewardRule(Base, UUIDPKMixin, TimestampMixin):
             "consumption_threshold BETWEEN 0.50 AND 0.95",
             name="reward_rules_threshold_ethics_check",
         ),
+        CheckConstraint(
+            "reward_value_minor IS NULL OR reward_value_minor > 0",
+            name="reward_rules_reward_value_minor_positive",
+        ),
     )
 
     restaurant_id: Mapped[UUID] = mapped_column(
@@ -45,6 +49,11 @@ class RewardRule(Base, UUIDPKMixin, TimestampMixin):
     # When type=bill_discount, this is the discount value applied to the next bill at the
     # same restaurant. Null means "match the menu item's price".
     bill_discount_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Override for the reward's rupee value at issuance. When NULL, the reward-mint
+    # path uses the linked menu item's price_minor as the base value (existing
+    # behavior). When set, this override is used verbatim — lets a restaurant raise
+    # or lower the payout without editing the linked menu item.
+    reward_value_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class Reward(Base, UUIDPKMixin, TimestampMixin):

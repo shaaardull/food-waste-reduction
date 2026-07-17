@@ -203,13 +203,16 @@ async def submit_validation(
                 # Cap hit → approve but don't issue another reward this day.
                 session.status = "staff_approved"
             else:
-                # Look up the menu item so we can record its price as the
-                # reward's base value. If the diner later switches to
-                # bill_discount, we'll re-anchor on the rule's
+                # Reward's base value. Precedence: the rule's explicit
+                # reward_value_minor override (if set), else fall back to
+                # the linked menu item's price. If the diner later switches
+                # to bill_discount, we'll re-anchor on the rule's
                 # bill_discount_minor (or fall back to this).
                 reward_item = await db.get(MenuItem, rule.reward_menu_item_id)
                 menu_value = (
-                    reward_item.price_minor if reward_item is not None else 0
+                    rule.reward_value_minor
+                    if rule.reward_value_minor is not None
+                    else (reward_item.price_minor if reward_item is not None else 0)
                 )
                 half_value_at = now + timedelta(days=settings.REWARD_FULL_VALUE_DAYS)
                 expires_at = now + timedelta(days=settings.REWARD_EXPIRY_DAYS)

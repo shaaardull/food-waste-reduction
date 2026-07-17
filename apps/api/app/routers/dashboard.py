@@ -96,6 +96,130 @@ _ACTIVE_ORDER_STATUSES = (
 )
 
 
+# Statuses where a reward decision has been made (or was moot). Used by
+# the OrderDetailDrawer to decide whether to render the "Reward" section.
+# A session in one of these states has either a linked reward row or a
+# structured `reward_outcome` explaining why there isn't one.
+_TERMINAL_REWARD_DECISION_STATUSES = (
+    "rewarded",
+    "staff_approved",
+    "staff_rejected",
+    "paid",
+    "billed",
+    "voided",
+    "expired",
+)
+
+
+async def _load_reward_context(
+    db: AsyncSession,
+    sessions: list[MealSession],
+) -> tuple[dict[UUID, Reward], dict[UUID, Decimal], dict[UUID, Decimal]]:
+    """Fetch every reward + final-score + threshold row keyed by session id.
+
+    Batched so the orders-list endpoints don't fan out one query per row.
+    Returns (rewards_by_session, final_score_by_session, threshold_by_session).
+    threshold is taken from the reward rule that applied to the session's
+    validation (defaulted from the restaurant's currently-active rule for
+    sessions that were rejected before any rule lookup).
+    """
+    session_ids = [s.id for s in sessions]
+    if not session_ids:
+        return {}, {}, {}
+
+    rewards_res = await db.execute(
+        select(Reward).where(Reward.meal_session_id.in_(session_ids))
+    )
+    rewards_by_session: dict[UUID, Reward] = {
+        r.meal_session_id: r for r in rewards_res.scalars().all()
+    }
+
+    validation_res = await db.execute(
+        select(StaffValidation.meal_session_id, StaffValidation.final_score).where(
+            StaffValidation.meal_session_id.in_(session_ids)
+        )
+    )
+    final_score_by_session: dict[UUID, Decimal] = {
+        sid: score for sid, score in validation_res.all()
+    }
+
+    restaurant_ids = {s.restaurant_id for s in sessions}
+    rule_res = await db.execute(
+        select(RewardRule).where(
+            RewardRule.restaurant_id.in_(restaurant_ids),
+            RewardRule.is_active.is_(True),
+        )
+    )
+    threshold_by_restaurant: dict[UUID, Decimal] = {}
+    for rule in rule_res.scalars().all():
+        threshold_by_restaurant.setdefault(rule.restaurant_id, rule.consumption_threshold)
+    threshold_by_session: dict[UUID, Decimal] = {}
+    for s in sessions:
+        threshold = threshold_by_restaurant.get(s.restaurant_id)
+        if threshold is not None:
+            threshold_by_session[s.id] = threshold
+    return rewards_by_session, final_score_by_session, threshold_by_session
+
+
+def _reward_and_outcome_for_session(
+    session: MealSession,
+    reward: Reward | None,
+    final_score: Decimal | None,
+    threshold: Decimal | None,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Compute the (reward, reward_outcome) pair for a single session.
+
+    Both fields are null when the session isn't in a terminal
+    reward-decision state — the drawer skips the section entirely in
+    that case. Walk-in sessions in a terminal state always land on the
+    `walkin_not_eligible` outcome, since the reward pipeline only runs
+    for QR sessions.
+    """
+    if session.status not in _TERMINAL_REWARD_DECISION_STATUSES:
+        return None, None
+
+    if reward is not None:
+        status = "issued"
+        if reward.voided_at is not None:
+            status = "voided"
+        elif reward.redeemed_at is not None:
+            status = "redeemed"
+        return (
+            {
+                "id": str(reward.id),
+                "redemption_code": reward.redemption_code,
+                "value_minor": int(reward.value_minor),
+                "status": status,
+                "issued_at": reward.issued_at.isoformat(),
+                "redeemed_at": (
+                    reward.redeemed_at.isoformat() if reward.redeemed_at else None
+                ),
+                "voided_at": (
+                    reward.voided_at.isoformat() if reward.voided_at else None
+                ),
+                "voided_reason": reward.voided_reason,
+            },
+            None,
+        )
+
+    if session.entry_channel == "walkin":
+        return None, {"reason": "walkin_not_eligible"}
+
+    if session.status == "staff_rejected":
+        return None, {"reason": "rejected"}
+
+    if final_score is not None and threshold is not None:
+        return None, {
+            "reason": "below_threshold",
+            "score": float(final_score),
+            "threshold": float(threshold),
+        }
+
+    # Terminal but no reward, no validation, no rule — degenerate case
+    # (e.g. session expired before any decision). Skip the section.
+    return None, None
+
+
 @router.get("/restaurants/{restaurant_id}/dashboard/orders")
 async def list_live_orders(
     restaurant_id: UUID,
@@ -166,6 +290,10 @@ async def list_live_orders(
     for b in bills_res.scalars().all():
         bills_by_session[b.meal_session_id] = b
 
+    rewards_by_session, final_score_by_session, threshold_by_session = (
+        await _load_reward_context(db, sessions)
+    )
+
     now = datetime.now(UTC)
     out: list[dict[str, Any]] = []
     for s in sessions:
@@ -175,6 +303,12 @@ async def list_live_orders(
         if s.status == "open" and not items:
             continue
         bill = bills_by_session.get(s.id)
+        reward_dict, outcome_dict = _reward_and_outcome_for_session(
+            s,
+            rewards_by_session.get(s.id),
+            final_score_by_session.get(s.id),
+            threshold_by_session.get(s.id),
+        )
         out.append(
             {
                 "session_id": str(s.id),
@@ -199,6 +333,8 @@ async def list_live_orders(
                 "bill_sent_at": (
                     bill.sent_at.isoformat() if bill and bill.sent_at else None
                 ),
+                "reward": reward_dict,
+                "reward_outcome": outcome_dict,
             }
         )
     return {"orders": out}
@@ -361,10 +497,20 @@ async def list_past_orders(
         b.meal_session_id: b for b in bills_res.scalars().all()
     }
 
+    rewards_by_session, final_score_by_session, threshold_by_session = (
+        await _load_reward_context(db, sessions)
+    )
+
     now = datetime.now(UTC)
     out: list[dict[str, Any]] = []
     for s in sessions:
         bill = bills_by_session.get(s.id)
+        reward_dict, outcome_dict = _reward_and_outcome_for_session(
+            s,
+            rewards_by_session.get(s.id),
+            final_score_by_session.get(s.id),
+            threshold_by_session.get(s.id),
+        )
         out.append(
             {
                 "session_id": str(s.id),
@@ -394,6 +540,8 @@ async def list_past_orders(
                 ),
                 "bill_delivery_email": bill.delivery_email if bill else None,
                 "bill_delivery_phone": bill.delivery_phone if bill else None,
+                "reward": reward_dict,
+                "reward_outcome": outcome_dict,
             }
         )
     return {"orders": out}
@@ -864,6 +1012,173 @@ async def list_sessions(
     ]
 
 
+@router.get("/restaurants/{restaurant_id}/dashboard/rewards-summary")
+async def rewards_summary(
+    restaurant_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Reward-count + value totals for three fixed windows (today,
+    last 7 days, last 30 days) plus a 14-day daily-count sparkline
+    for the Rewards analytics screen's stat cards.
+
+    Only counts rewards issued (Reward rows) — voided rewards are
+    included since staff want to see the throughput signal that led
+    to a voided code. The `value_minor` totals sum
+    `rewards.value_minor` (issuance-time value), NOT
+    `redeemed_value_minor`, so the number matches what was originally
+    granted regardless of half-value expiry.
+    """
+    await _ensure_staff(db, user, restaurant_id)
+    if (await db.get(Restaurant, restaurant_id)) is None:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    now = datetime.now(UTC)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=6)  # today + 6 prior = 7 days
+    month_start = today_start - timedelta(days=29)  # today + 29 prior = 30 days
+    sparkline_start = today_start - timedelta(days=13)  # 14 days incl. today
+
+    async def _window_totals(since: datetime) -> tuple[int, int]:
+        row = (
+            await db.execute(
+                select(
+                    func.count(Reward.id),
+                    func.coalesce(func.sum(Reward.value_minor), 0),
+                )
+                .join(MealSession, MealSession.id == Reward.meal_session_id)
+                .where(
+                    MealSession.restaurant_id == restaurant_id,
+                    Reward.issued_at >= since,
+                )
+            )
+        ).one()
+        count, total = row
+        return int(count or 0), int(total or 0)
+
+    today_count, today_value = await _window_totals(today_start)
+    week_count, week_value = await _window_totals(week_start)
+    month_count, month_value = await _window_totals(month_start)
+
+    # 14-day daily-count sparkline. One query, bucketed in Python so
+    # the same code works on postgres and sqlite (used in the pytest
+    # suite). Same array is returned for all three cards — the task's
+    # response shape carries it per-card, but a single 14-day window
+    # is what the design shows.
+    sparkline_rows = await db.execute(
+        select(Reward.issued_at)
+        .join(MealSession, MealSession.id == Reward.meal_session_id)
+        .where(
+            MealSession.restaurant_id == restaurant_id,
+            Reward.issued_at >= sparkline_start,
+        )
+    )
+    buckets = [0] * 14
+    for (issued_at,) in sparkline_rows.all():
+        # Guard against naive datetimes coming back from sqlite — the
+        # column is TIMESTAMPTZ in postgres but sqlite drops tzinfo,
+        # so re-attach UTC before doing arithmetic against `now`.
+        if issued_at.tzinfo is None:
+            issued_at = issued_at.replace(tzinfo=UTC)
+        idx = 13 - (today_start - issued_at.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )).days
+        if 0 <= idx < 14:
+            buckets[idx] += 1
+
+    card = lambda count, value: {  # noqa: E731
+        "count": count,
+        "value_minor": value,
+        "sparkline": buckets,
+    }
+    return {
+        "today": card(today_count, today_value),
+        "week": card(week_count, week_value),
+        "month": card(month_count, month_value),
+    }
+
+
+@router.get("/restaurants/{restaurant_id}/dashboard/rewards-list")
+async def rewards_list(
+    restaurant_id: UUID,
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = Query(default=None),
+    status_filter: Literal["issued", "redeemed", "voided", "all"] = Query(
+        default="all", alias="status"
+    ),
+    limit: int = Query(default=50, ge=1, le=200),
+    cursor: datetime | None = Query(default=None),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Paginated rewards list for the Rewards analytics table.
+
+    Rows are sorted by `issued_at DESC`. `cursor` is the `issued_at` of
+    the last row of the previous page (exclusive); pass it verbatim to
+    load the next page. `next_cursor` is null when there are no more
+    rows.
+
+    `status` semantics:
+      • `issued` — active, not redeemed, not voided
+      • `redeemed` — has a redeemed_at
+      • `voided` — has a voided_at
+      • `all` — no status filter
+    """
+    await _ensure_staff(db, user, restaurant_id)
+    if (await db.get(Restaurant, restaurant_id)) is None:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    q = (
+        select(Reward, MealSession.table_code)
+        .join(MealSession, MealSession.id == Reward.meal_session_id)
+        .where(MealSession.restaurant_id == restaurant_id)
+    )
+    if from_ is not None:
+        q = q.where(Reward.issued_at >= from_)
+    if to is not None:
+        q = q.where(Reward.issued_at < to)
+    if status_filter == "issued":
+        q = q.where(Reward.redeemed_at.is_(None), Reward.voided_at.is_(None))
+    elif status_filter == "redeemed":
+        q = q.where(Reward.redeemed_at.is_not(None))
+    elif status_filter == "voided":
+        q = q.where(Reward.voided_at.is_not(None))
+    if cursor is not None:
+        q = q.where(Reward.issued_at < cursor)
+
+    q = q.order_by(Reward.issued_at.desc()).limit(limit + 1)
+    rows = list((await db.execute(q)).all())
+
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+
+    def _row(reward: Reward, table_code: str) -> dict[str, Any]:
+        if reward.voided_at is not None:
+            status = "voided"
+        elif reward.redeemed_at is not None:
+            status = "redeemed"
+        else:
+            status = "issued"
+        return {
+            "id": str(reward.id),
+            "redemption_code": reward.redemption_code,
+            "table_code": table_code,
+            "value_minor": int(reward.value_minor),
+            "status": status,
+            "issued_at": reward.issued_at.isoformat(),
+            "redeemed_at": (
+                reward.redeemed_at.isoformat() if reward.redeemed_at else None
+            ),
+            "voided_at": (
+                reward.voided_at.isoformat() if reward.voided_at else None
+            ),
+        }
+
+    out_rows = [_row(reward, table_code) for reward, table_code in rows]
+    next_cursor = rows[-1][0].issued_at.isoformat() if has_more and rows else None
+    return {"rows": out_rows, "next_cursor": next_cursor}
+
+
 @router.get("/restaurants/{restaurant_id}/dashboard/disputes")
 async def list_disputes(
     restaurant_id: UUID,
@@ -1152,7 +1467,9 @@ async def resolve_dispute(
             if rule is not None:
                 reward_item = await db.get(MenuItem, rule.reward_menu_item_id)
                 menu_value = (
-                    reward_item.price_minor if reward_item is not None else 0
+                    rule.reward_value_minor
+                    if rule.reward_value_minor is not None
+                    else (reward_item.price_minor if reward_item is not None else 0)
                 )
                 settings = get_settings()
                 half_value_at = now + timedelta(

@@ -180,6 +180,32 @@ class RewardRuleIn(BaseModel):
         default_factory=lambda: ["menu_item", "bill_discount"], min_length=1
     )
     bill_discount_minor: int | None = Field(default=None, ge=0, le=1_000_000_00)
+    # Override the rupee value the reward mints at. Null → fall back to the
+    # linked menu item's price. Must be strictly positive when set — a
+    # zero-value reward is meaningless.
+    reward_value_minor: int | None = Field(default=None, gt=0, le=1_000_000_00)
+
+
+class RewardRulePatch(BaseModel):
+    """Partial update for a reward rule. Fields left absent stay as-is.
+
+    `reward_value_minor` is tri-state: absent = don't touch, null = clear
+    the override, positive int = set the override.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    consumption_threshold: Decimal | None = Field(
+        default=None, ge=Decimal("0.50"), le=Decimal("0.95")
+    )
+    daily_redemption_cap_per_user: int | None = Field(default=None, ge=1, le=10)
+    is_active: bool | None = None
+    allowed_reward_types: list[Literal["menu_item", "bill_discount"]] | None = Field(
+        default=None, min_length=1
+    )
+    bill_discount_minor: int | None = Field(default=None, ge=0, le=1_000_000_00)
+    reward_value_minor: int | None = Field(default=None, gt=0, le=1_000_000_00)
 
 
 class RewardRuleOut(BaseModel):
@@ -192,6 +218,7 @@ class RewardRuleOut(BaseModel):
     is_active: bool
     allowed_reward_types: list[str]
     bill_discount_minor: int | None = None
+    reward_value_minor: int | None = None
 
     model_config = {"from_attributes": True}
 

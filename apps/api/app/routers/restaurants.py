@@ -25,6 +25,7 @@ from app.schemas.restaurant import (
     RestaurantPatchIn,
     RewardRuleIn,
     RewardRuleOut,
+    RewardRulePatch,
     StaffInviteIn,
     StaffInviteOut,
 )
@@ -433,8 +434,83 @@ async def add_reward_rule(
         is_active=True,
         allowed_reward_types=payload.allowed_reward_types,
         bill_discount_minor=payload.bill_discount_minor,
+        reward_value_minor=payload.reward_value_minor,
     )
     db.add(rule)
+    await db.commit()
+    await db.refresh(rule)
+    return RewardRuleOut.model_validate(rule)
+
+
+@router.get(
+    "/{restaurant_id}/reward-rules",
+    response_model=list[RewardRuleOut],
+)
+async def list_reward_rules(
+    restaurant_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[RewardRuleOut]:
+    """List reward rules for a restaurant. Any staff of the restaurant
+    (owner / manager / server) can read them — the dashboard's rules
+    editor and analytics screen both need to render them."""
+    await _require_any_restaurant_staff(db, user, restaurant_id)
+    if (await db.get(Restaurant, restaurant_id)) is None:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+    result = await db.execute(
+        select(RewardRule)
+        .where(RewardRule.restaurant_id == restaurant_id)
+        .order_by(RewardRule.created_at.asc())
+    )
+    return [RewardRuleOut.model_validate(r) for r in result.scalars().all()]
+
+
+@router.patch(
+    "/{restaurant_id}/reward-rules/{rule_id}",
+    response_model=RewardRuleOut,
+)
+async def patch_reward_rule(
+    restaurant_id: UUID,
+    rule_id: UUID,
+    payload: RewardRulePatch,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> RewardRuleOut:
+    """Partial update to a reward rule.
+
+    Tri-state fields:
+      • `reward_value_minor` — omit to leave untouched, null to clear the
+        override (fall back to the linked menu item's price), or a
+        positive int to set a new override.
+
+    Applies only to rewards issued after this change. Existing
+    `rewards.redeemed_value_minor` snapshots are not rewritten.
+    """
+    await _require_owner_or_admin(db, user, restaurant_id)
+    rule = await db.get(RewardRule, rule_id)
+    if rule is None or rule.restaurant_id != restaurant_id:
+        raise HTTPException(status_code=404, detail="Reward rule not found")
+
+    fields_set = payload.model_fields_set
+    if "name" in fields_set and payload.name is not None:
+        rule.name = payload.name
+    if "consumption_threshold" in fields_set and payload.consumption_threshold is not None:
+        rule.consumption_threshold = Decimal(str(payload.consumption_threshold))
+    if (
+        "daily_redemption_cap_per_user" in fields_set
+        and payload.daily_redemption_cap_per_user is not None
+    ):
+        rule.daily_redemption_cap_per_user = payload.daily_redemption_cap_per_user
+    if "is_active" in fields_set and payload.is_active is not None:
+        rule.is_active = payload.is_active
+    if "allowed_reward_types" in fields_set and payload.allowed_reward_types is not None:
+        rule.allowed_reward_types = list(payload.allowed_reward_types)
+    if "bill_discount_minor" in fields_set:
+        rule.bill_discount_minor = payload.bill_discount_minor
+    if "reward_value_minor" in fields_set:
+        # Explicit null clears the override; a positive int sets it.
+        rule.reward_value_minor = payload.reward_value_minor
+
     await db.commit()
     await db.refresh(rule)
     return RewardRuleOut.model_validate(rule)
