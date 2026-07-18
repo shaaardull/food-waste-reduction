@@ -11,6 +11,7 @@ from app.logging import configure_logging, get_logger
 from app.routers import (
     auth,
     bills,
+    bills_dashboard,
     dashboard,
     onboarding,
     platform,
@@ -95,6 +96,15 @@ app.include_router(
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["sessions"])
 app.include_router(rewards.router, prefix="/api/v1/rewards", tags=["rewards"])
 app.include_router(bills.router, prefix="/api/v1/bills", tags=["bills"])
+# Restaurant-scoped bills list + CA-facing monthly xlsx export. Shares
+# the /api/v1/restaurants prefix with the main restaurants router —
+# FastAPI's registration order is fine because the paths are distinct
+# (`/{restaurant_id}/bills` and `/{restaurant_id}/bills/export`).
+app.include_router(
+    bills_dashboard.router,
+    prefix="/api/v1/restaurants",
+    tags=["bills-dashboard"],
+)
 app.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
 app.include_router(validations.router, prefix="/api/v1", tags=["validations"])
 app.include_router(onboarding.router, prefix="/api/v1/onboard", tags=["onboarding"])

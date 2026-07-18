@@ -46,6 +46,11 @@ dependencies = [
     # auth` uses to fetch Google's JWKs.
     "google-auth>=2.35.0",
     "requests>=2.32.0",
+    # Streaming xlsx generation for the CA-facing monthly bill export
+    # (dashboard Bills screen). CGST/SGST split, formatted currency
+    # cells, and a live SUM total row so the CA can edit inline and
+    # see totals recompute.
+    "openpyxl>=3.1.5",
 ]
 
 [project.optional-dependencies]
