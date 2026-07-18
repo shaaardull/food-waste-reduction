@@ -22,6 +22,7 @@ import { VoidOrderModal } from './VoidOrderModal';
 import { BillSendModal } from './BillSendModal';
 import { BillViewModal } from './BillViewModal';
 import { EditItemsModal } from './EditItemsModal';
+import { LoyaltyBadge } from './LoyaltyBadge';
 import type { Order } from '../screens/Orders';
 
 /**
@@ -120,6 +121,7 @@ export function OrderDetailDrawer({ order, onClose }: Props) {
                 >
                   {isWalkin ? 'WALK-IN' : 'QR'}
                 </span>
+                <LoyaltyBadge score={order.loyalty_score} t={t} />
               </div>
               <button
                 type="button"

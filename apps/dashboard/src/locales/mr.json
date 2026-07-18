@@ -1064,5 +1064,8 @@
     "placeholder": "e.g. less sugar, warm please, no onions [TODO mr]",
     "clear": "Clear note [TODO mr]",
     "has_notes_aria": "This order has notes for the kitchen [TODO mr]"
+  },
+  "live_orders": {
+    "loyalty_aria": "Repeat visit score {{n}} of 10 [TODO mr]"
   }
 }

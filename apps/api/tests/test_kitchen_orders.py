@@ -323,3 +323,261 @@ async def test_kitchen_ack_404_for_missing_session(client, db):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert res.status_code == 404
+
+
+# ── Loyalty score on GET /dashboard/orders ───────────────────────────
+
+
+def _seed_priors(
+    db: Session,
+    *,
+    diner_id,
+    restaurant_id,
+    count: int,
+    status: str = "rewarded",
+    started_ago_days: int = 10,
+) -> None:
+    """Insert `count` prior meal sessions for `diner_id` at `restaurant_id`.
+
+    Used to drive the loyalty-score tier assertions. Uses the RUN_TAG
+    prefix so the cleanup fixture removes them.
+    """
+    from datetime import timedelta as _td
+
+    for _ in range(count):
+        started = datetime.now(UTC) - _td(days=started_ago_days)
+        s = MealSession(
+            diner_user_id=diner_id,
+            restaurant_id=restaurant_id,
+            table_code=make_table_code("prior"),
+            status=status,
+            started_at=started,
+            expires_at=started + _td(hours=4),
+        )
+        db.add(s)
+    db.commit()
+
+
+def _make_session_for_diner(
+    db: Session,
+    *,
+    restaurant_id,
+    diner_id,
+    menu_items,
+    status: str = "open",
+) -> MealSession:
+    """Like _make_session_with_items but binds to a caller-supplied diner
+    so priors line up with the current session."""
+    started = datetime.now(UTC) - timedelta(seconds=30)
+    session = MealSession(
+        diner_user_id=diner_id,
+        restaurant_id=restaurant_id,
+        table_code=make_table_code("live-loy"),
+        status=status,
+        started_at=started,
+        expires_at=started + timedelta(hours=4),
+    )
+    db.add(session)
+    db.flush()
+    for m in menu_items:
+        db.add(
+            MealSessionItem(
+                meal_session_id=session.id,
+                menu_item_id=m.id,
+                quantity=1,
+                portion_size="small",
+            )
+        )
+    db.commit()
+    return session
+
+
+async def _fetch_orders(client, restaurant_id, token) -> list[dict]:
+    res = await client.get(
+        f"/api/v1/restaurants/{restaurant_id}/dashboard/orders",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    return res.json()["orders"]
+
+
+@pytest.mark.asyncio
+async def test_loyalty_fresh_diner_scores_one(client, db):
+    """No priors → floor 1, so a first-time diner still sees a badge."""
+    restaurant, items, _ = make_restaurant(db, name="Loyalty Fresh")
+    diner_id = _diner_row(db)
+    _make_session_for_diner(
+        db,
+        restaurant_id=restaurant.id,
+        diner_id=diner_id,
+        menu_items=items[:1],
+        status="open",
+    )
+    manager = make_staff(db, restaurant.id)
+    token = await login(client, manager.email)
+    rows = await _fetch_orders(client, restaurant.id, token)
+    assert len(rows) == 1
+    assert rows[0]["loyalty_score"] == 1
+
+
+@pytest.mark.asyncio
+async def test_loyalty_five_priors_scores_five(client, db):
+    restaurant, items, _ = make_restaurant(db, name="Loyalty Five")
+    diner_id = _diner_row(db)
+    _seed_priors(db, diner_id=diner_id, restaurant_id=restaurant.id, count=5)
+    _make_session_for_diner(
+        db,
+        restaurant_id=restaurant.id,
+        diner_id=diner_id,
+        menu_items=items[:1],
+        status="open",
+    )
+    manager = make_staff(db, restaurant.id)
+    token = await login(client, manager.email)
+    rows = await _fetch_orders(client, restaurant.id, token)
+    assert len(rows) == 1
+    assert rows[0]["loyalty_score"] == 5
+
+
+@pytest.mark.asyncio
+async def test_loyalty_thirty_priors_capped_at_ten(client, db):
+    restaurant, items, _ = make_restaurant(db, name="Loyalty Cap")
+    diner_id = _diner_row(db)
+    _seed_priors(db, diner_id=diner_id, restaurant_id=restaurant.id, count=30)
+    _make_session_for_diner(
+        db,
+        restaurant_id=restaurant.id,
+        diner_id=diner_id,
+        menu_items=items[:1],
+        status="open",
+    )
+    manager = make_staff(db, restaurant.id)
+    token = await login(client, manager.email)
+    rows = await _fetch_orders(client, restaurant.id, token)
+    assert len(rows) == 1
+    assert rows[0]["loyalty_score"] == 10
+
+
+@pytest.mark.asyncio
+async def test_loyalty_ignores_non_completed_priors(client, db):
+    """Expired/cancelled/open priors don't count — drive-by scans mustn't
+    inflate the score. Diner has 4 expired + 4 cancelled = 8 non-counting
+    plus 1 rewarded → score for 1 prior is 2."""
+    restaurant, items, _ = make_restaurant(db, name="Loyalty NonComp")
+    diner_id = _diner_row(db)
+    _seed_priors(
+        db, diner_id=diner_id, restaurant_id=restaurant.id, count=4, status="expired"
+    )
+    _seed_priors(
+        db, diner_id=diner_id, restaurant_id=restaurant.id, count=4, status="cancelled"
+    )
+    _seed_priors(
+        db, diner_id=diner_id, restaurant_id=restaurant.id, count=1, status="rewarded"
+    )
+    _make_session_for_diner(
+        db,
+        restaurant_id=restaurant.id,
+        diner_id=diner_id,
+        menu_items=items[:1],
+        status="open",
+    )
+    manager = make_staff(db, restaurant.id)
+    token = await login(client, manager.email)
+    rows = await _fetch_orders(client, restaurant.id, token)
+    assert len(rows) == 1
+    assert rows[0]["loyalty_score"] == 2
+
+
+@pytest.mark.asyncio
+async def test_loyalty_ignores_sessions_older_than_180_days(client, db):
+    restaurant, items, _ = make_restaurant(db, name="Loyalty Old")
+    diner_id = _diner_row(db)
+    _seed_priors(
+        db,
+        diner_id=diner_id,
+        restaurant_id=restaurant.id,
+        count=5,
+        started_ago_days=200,
+    )
+    _make_session_for_diner(
+        db,
+        restaurant_id=restaurant.id,
+        diner_id=diner_id,
+        menu_items=items[:1],
+        status="open",
+    )
+    manager = make_staff(db, restaurant.id)
+    token = await login(client, manager.email)
+    rows = await _fetch_orders(client, restaurant.id, token)
+    assert len(rows) == 1
+    # All 5 priors are stale; only fresh floor applies.
+    assert rows[0]["loyalty_score"] == 1
+
+
+@pytest.mark.asyncio
+async def test_loyalty_null_for_walkin(client, db):
+    """Walk-ins have no diner_user_id → loyalty_score is null and the
+    frontend renders no badge."""
+    restaurant, items, _ = make_restaurant(db, name="Loyalty Walkin")
+    started = datetime.now(UTC) - timedelta(seconds=30)
+    session = MealSession(
+        diner_user_id=None,
+        restaurant_id=restaurant.id,
+        table_code=make_table_code("walkin-loy"),
+        status="open",
+        entry_channel="walkin",
+        started_at=started,
+        expires_at=started + timedelta(hours=4),
+    )
+    db.add(session)
+    db.flush()
+    db.add(
+        MealSessionItem(
+            meal_session_id=session.id,
+            menu_item_id=items[0].id,
+            quantity=1,
+            portion_size="small",
+        )
+    )
+    db.commit()
+    manager = make_staff(db, restaurant.id)
+    token = await login(client, manager.email)
+    rows = await _fetch_orders(client, restaurant.id, token)
+    assert len(rows) == 1
+    assert rows[0]["loyalty_score"] is None
+
+
+@pytest.mark.asyncio
+async def test_loyalty_is_per_restaurant(client, db):
+    """5 priors at Restaurant A, 0 at Restaurant B → the score at B is 1,
+    even though the diner is a regular somewhere else."""
+    r_a, items_a, _ = make_restaurant(db, name="Loyalty Cross A")
+    r_b, items_b, _ = make_restaurant(db, name="Loyalty Cross B")
+    diner_id = _diner_row(db)
+    _seed_priors(db, diner_id=diner_id, restaurant_id=r_a.id, count=5)
+    # Current session at B — score should NOT see the A priors.
+    _make_session_for_diner(
+        db,
+        restaurant_id=r_b.id,
+        diner_id=diner_id,
+        menu_items=items_b[:1],
+        status="open",
+    )
+    staff_b = make_staff(db, r_b.id)
+    token_b = await login(client, staff_b.email)
+    rows_b = await _fetch_orders(client, r_b.id, token_b)
+    assert len(rows_b) == 1
+    assert rows_b[0]["loyalty_score"] == 1
+    # Meanwhile a live session at A for the same diner should score 5.
+    _make_session_for_diner(
+        db,
+        restaurant_id=r_a.id,
+        diner_id=diner_id,
+        menu_items=items_a[:1],
+        status="open",
+    )
+    staff_a = make_staff(db, r_a.id)
+    token_a = await login(client, staff_a.email)
+    rows_a = await _fetch_orders(client, r_a.id, token_a)
+    assert len(rows_a) == 1
+    assert rows_a[0]["loyalty_score"] == 5

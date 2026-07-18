@@ -1062,5 +1062,8 @@
     "placeholder": "e.g. less sugar, warm please, no onions",
     "clear": "Clear note",
     "has_notes_aria": "This order has notes for the kitchen"
+  },
+  "live_orders": {
+    "loyalty_aria": "Repeat visit score {{n}} of 10"
   }
 }

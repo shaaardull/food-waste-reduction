@@ -29,6 +29,7 @@ import { EditItemsModal } from '../components/EditItemsModal';
 import { ChannelStrip } from '../components/ChannelStrip';
 import { OrderDetailDrawer } from '../components/OrderDetailDrawer';
 import { TakeawayPill } from '../components/TakeawayPill';
+import { LoyaltyBadge } from '../components/LoyaltyBadge';
 
 /**
  * Live orders — the kitchen visibility surface. Sits above Validation
@@ -112,6 +113,10 @@ export interface Order {
   // reason field explains why.
   reward: OrderReward | null;
   reward_outcome: OrderRewardOutcome | null;
+  // 1..10 repeat-visit tier computed at read time from the diner's
+  // prior completed sessions at this restaurant. Null for walk-ins /
+  // takeaways where there's no diner account to score.
+  loyalty_score: number | null;
 }
 
 type ChannelFilter = 'all' | 'qr' | 'walkin';
@@ -539,9 +544,12 @@ function OrderCard({
             {order.table_code}
           </span>
         )}
-        <span className="row gap-1 items-center text-[11.5px] text-s-muted">
-          <Timer size={11} />
-          {elapsed(order.started_seconds_ago)}
+        <span className="row gap-2 items-center">
+          <LoyaltyBadge score={order.loyalty_score} t={t} />
+          <span className="row gap-1 items-center text-[11.5px] text-s-muted">
+            <Timer size={11} />
+            {elapsed(order.started_seconds_ago)}
+          </span>
         </span>
       </div>
       <div className="row spread gap-1.5 items-center text-[11px] font-semibold text-s-faint uppercase tracking-wide relative z-10 pointer-events-none">

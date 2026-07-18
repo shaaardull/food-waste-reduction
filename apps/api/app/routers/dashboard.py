@@ -111,6 +111,98 @@ _TERMINAL_REWARD_DECISION_STATUSES = (
 )
 
 
+# Statuses that count as a "prior completed visit" for the loyalty
+# score. Excludes drive-by QR scans (open/eating/expired) so a diner
+# who repeatedly scans and abandons doesn't inflate their tier.
+_LOYALTY_COMPLETED_STATUSES = (
+    "rewarded",
+    "staff_approved",
+    "staff_rejected",
+    "paid",
+)
+
+
+def _priors_to_loyalty_score(priors: int) -> int:
+    """Map completed prior visits → 1..10 tier.
+
+    Floors at 1 so a first-time diner still shows a badge — new
+    customers get acknowledged. Caps at 10.
+    """
+    if priors <= 0:
+        return 1
+    if priors == 1:
+        return 2
+    if priors == 2:
+        return 3
+    if priors <= 4:
+        return 4
+    if priors <= 6:
+        return 5
+    if priors <= 8:
+        return 6
+    if priors <= 11:
+        return 7
+    if priors <= 15:
+        return 8
+    if priors <= 20:
+        return 9
+    return 10
+
+
+async def _load_loyalty_scores(
+    db: AsyncSession,
+    sessions: list[MealSession],
+) -> dict[UUID, int | None]:
+    """Compute loyalty_score per session id for a page of live orders.
+
+    One grouped SELECT across every diner_user_id in the page. Sessions
+    without a diner_user_id (walk-ins, takeaways) map to None so the
+    frontend renders no badge — this is not a shame indicator, guests
+    we don't know just have no score.
+
+    "At this restaurant" — the Live Orders endpoint scopes to one
+    restaurant, so all sessions share `restaurant_id`; we still pull it
+    from each session to keep the helper self-contained.
+    """
+    result: dict[UUID, int | None] = {}
+    diner_ids: set[UUID] = set()
+    for s in sessions:
+        if s.diner_user_id is None:
+            result[s.id] = None
+        else:
+            diner_ids.add(s.diner_user_id)
+    if not diner_ids:
+        return result
+
+    restaurant_ids = {s.restaurant_id for s in sessions}
+    current_session_ids = [s.id for s in sessions]
+    since = datetime.now(UTC) - timedelta(days=180)
+
+    priors_res = await db.execute(
+        select(
+            MealSession.diner_user_id,
+            func.count(MealSession.id).label("priors"),
+        )
+        .where(
+            MealSession.restaurant_id.in_(restaurant_ids),
+            MealSession.diner_user_id.in_(diner_ids),
+            MealSession.status.in_(_LOYALTY_COMPLETED_STATUSES),
+            MealSession.started_at >= since,
+            MealSession.id.notin_(current_session_ids),
+        )
+        .group_by(MealSession.diner_user_id)
+    )
+    priors_by_diner: dict[UUID, int] = {
+        diner_id: int(count) for diner_id, count in priors_res.all()
+    }
+    for s in sessions:
+        if s.diner_user_id is not None:
+            result[s.id] = _priors_to_loyalty_score(
+                priors_by_diner.get(s.diner_user_id, 0)
+            )
+    return result
+
+
 async def _load_reward_context(
     db: AsyncSession,
     sessions: list[MealSession],
@@ -300,6 +392,7 @@ async def list_live_orders(
     rewards_by_session, final_score_by_session, threshold_by_session = (
         await _load_reward_context(db, sessions)
     )
+    loyalty_by_session = await _load_loyalty_scores(db, sessions)
 
     now = datetime.now(UTC)
     out: list[dict[str, Any]] = []
@@ -342,6 +435,7 @@ async def list_live_orders(
                 ),
                 "reward": reward_dict,
                 "reward_outcome": outcome_dict,
+                "loyalty_score": loyalty_by_session.get(s.id),
             }
         )
     return {"orders": out}
