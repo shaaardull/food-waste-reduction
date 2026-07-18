@@ -960,6 +960,10 @@
     "sort_asc": "Sort ascending",
     "sort_desc": "Sort descending"
   },
+  "rewards": {
+    "code_masked": "PLATE-••••",
+    "code_masked_hint": "Diner has this code — shows here once they use it. TODO(i18n): translate to Hindi"
+  },
   "disputes": {
     "list_title": "विवाद",
     "blurb": "जिन ग्राहकों को लगता है कि अस्वीकार या स्कोर ग़लत था, वे यहाँ आते हैं। ग्राहक के पक्ष में हल करें ताकि टीम सीख सके; रेस्टोरेंट के पक्ष में हल करके बंद करें; अगर मामला असंबंधित है तो \"बंद\" चुनें।",

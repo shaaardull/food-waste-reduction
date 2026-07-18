@@ -959,6 +959,10 @@
     "sort_asc": "Sort ascending",
     "sort_desc": "Sort descending"
   },
+  "rewards": {
+    "code_masked": "PLATE-••••",
+    "code_masked_hint": "Diner has this code — shows here once they use it."
+  },
   "disputes": {
     "list_title": "Disputes",
     "blurb": "Diners who think a rejection or score was wrong end up here. Resolve in their favour to flag the case for the team to learn from; resolve in the restaurant's favour to close it; pick \"closed\" if the issue is unrelated.",

@@ -35,7 +35,10 @@ interface SummaryResponse {
 
 interface RewardRow {
   id: string;
-  redemption_code: string;
+  // Null while the reward is still 'issued' — the API hides the raw
+  // code from staff so it can't be silently redeemed without the diner
+  // presenting it. Populated once status is redeemed/voided.
+  redemption_code: string | null;
   table_code: string;
   value_minor: number;
   status: 'issued' | 'redeemed' | 'voided';
@@ -210,8 +213,11 @@ export function Rewards() {
           bv = b.table_code ?? '';
           break;
         case 'code':
-          av = a.redemption_code;
-          bv = b.redemption_code;
+          // Masked codes sort together at the top of asc order (empty
+          // string < any real code); either way redeemed/voided rows
+          // still cluster by their real code.
+          av = a.redemption_code ?? '';
+          bv = b.redemption_code ?? '';
           break;
       }
       if (av < bv) return sortDir === 'asc' ? -1 : 1;
@@ -363,8 +369,19 @@ export function Rewards() {
                 <td className="px-3 py-2 font-mono text-s-ink whitespace-nowrap">
                   {r.table_code}
                 </td>
-                <td className="px-3 py-2 font-mono font-bold text-s-ink whitespace-nowrap">
-                  {r.redemption_code}
+                <td className="px-3 py-2 font-mono whitespace-nowrap">
+                  {r.redemption_code ? (
+                    <span className="font-bold text-s-ink">
+                      {r.redemption_code}
+                    </span>
+                  ) : (
+                    <span
+                      className="font-bold text-s-faint"
+                      title={t('rewards.code_masked_hint')}
+                    >
+                      {t('rewards.code_masked')}
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-2 font-mono text-right text-s-ink tabular-nums whitespace-nowrap">
                   ₹{fmtRupees(r.value_minor)}

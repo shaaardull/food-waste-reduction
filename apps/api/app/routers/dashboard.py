@@ -184,10 +184,17 @@ def _reward_and_outcome_for_session(
             status = "voided"
         elif reward.redeemed_at is not None:
             status = "redeemed"
+        # Privacy: staff must not see raw codes while the reward is still
+        # active — otherwise they could redeem it themselves without the
+        # diner presenting it. Codes for redeemed/voided rows are past
+        # events and safe to expose for the audit trail.
+        visible_code = (
+            reward.redemption_code if status in ("redeemed", "voided") else None
+        )
         return (
             {
                 "id": str(reward.id),
-                "redemption_code": reward.redemption_code,
+                "redemption_code": visible_code,
                 "value_minor": int(reward.value_minor),
                 "status": status,
                 "issued_at": reward.issued_at.isoformat(),
@@ -1159,9 +1166,15 @@ async def rewards_list(
             status = "redeemed"
         else:
             status = "issued"
+        # Same privacy gate as the session-detail helper — a still-issued
+        # code is the diner's; only surface it after redeem/void so it's
+        # an audit-trail read, not a shortcut to silent redemption.
+        visible_code = (
+            reward.redemption_code if status in ("redeemed", "voided") else None
+        )
         return {
             "id": str(reward.id),
-            "redemption_code": reward.redemption_code,
+            "redemption_code": visible_code,
             "table_code": table_code,
             "value_minor": int(reward.value_minor),
             "status": status,

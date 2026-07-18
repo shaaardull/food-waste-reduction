@@ -369,3 +369,127 @@ async def test_rewards_list_pagination_and_filter(client, db):
     voided_page = res.json()
     assert len(voided_page["rows"]) == 4
     assert all(row["status"] == "voided" for row in voided_page["rows"])
+
+
+@pytest.mark.asyncio
+async def test_rewards_list_masks_code_for_issued(client, db):
+    """rewards-list must not surface the raw redemption_code while the
+    reward is still active — staff could otherwise walk the code straight
+    to the Redeem screen without the diner ever presenting it. Codes for
+    redeemed/voided rows stay visible for the audit trail."""
+    restaurant, _, rule = make_restaurant(db, name="Mask List Rest")
+    staff = make_staff(db, restaurant.id)
+
+    now = datetime.now(UTC)
+    issued_row = _seed_reward_row(
+        db, restaurant_id=restaurant.id, rule_id=rule.id,
+        issued_at=now - timedelta(minutes=1),
+        label="mask_issued",
+    )
+    redeemed_row = _seed_reward_row(
+        db, restaurant_id=restaurant.id, rule_id=rule.id,
+        issued_at=now - timedelta(minutes=2),
+        redeemed_at=now,
+        label="mask_redeemed",
+    )
+    voided_row = _seed_reward_row(
+        db, restaurant_id=restaurant.id, rule_id=rule.id,
+        issued_at=now - timedelta(minutes=3),
+        voided_at=now,
+        label="mask_voided",
+    )
+
+    token = await login(client, staff.email)
+    res = await client.get(
+        f"/api/v1/restaurants/{restaurant.id}/dashboard/rewards-list",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    rows_by_id = {row["id"]: row for row in res.json()["rows"]}
+
+    issued = rows_by_id[str(issued_row.id)]
+    assert issued["status"] == "issued"
+    assert issued["redemption_code"] is None
+
+    redeemed = rows_by_id[str(redeemed_row.id)]
+    assert redeemed["status"] == "redeemed"
+    assert redeemed["redemption_code"] == redeemed_row.redemption_code
+
+    voided = rows_by_id[str(voided_row.id)]
+    assert voided["status"] == "voided"
+    assert voided["redemption_code"] == voided_row.redemption_code
+
+
+@pytest.mark.asyncio
+async def test_session_detail_masks_code_for_issued_reward(
+    client, db, fake_s3, fake_scoring
+):
+    """The reward object embedded in the past-orders payload masks the
+    redemption_code while status='issued', then re-surfaces the code
+    once the reward is redeemed."""
+    reward, _ = await _run_reward_flow(
+        client, db, label="maskdet", rule_value_minor=None
+    )
+    # Fresh session already refreshed the reward and expunged it — pull
+    # the restaurant + staff for the auth token via the same connection
+    # style used by the other tests below.
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session as SyncSession
+
+    from app.config import get_settings
+    from app.models.meal_session import MealSession as MSModel
+
+    engine = create_engine(get_settings().DATABASE_URL_SYNC, future=True)
+    with SyncSession(engine, future=True) as s:
+        session = s.get(MSModel, reward.meal_session_id)
+        assert session is not None
+        restaurant_id = session.restaurant_id
+        s.expunge(session)
+
+    # The staff row that was created by _run_reward_flow — the flow
+    # calls `make_staff` which stamps a stable password, so we can log
+    # in via email lookup on the DB.
+    from app.models.restaurant import RestaurantStaff
+    from app.models.user import User as UserModel
+
+    with SyncSession(engine, future=True) as s:
+        staff_row = (
+            s.query(UserModel)
+            .join(RestaurantStaff, RestaurantStaff.user_id == UserModel.id)
+            .filter(RestaurantStaff.restaurant_id == restaurant_id)
+            .first()
+        )
+        assert staff_row is not None
+        staff_email = staff_row.email
+
+    token = await login(client, staff_email)
+
+    # Issued: past-orders payload masks the code.
+    res = await client.get(
+        f"/api/v1/restaurants/{restaurant_id}/dashboard/orders/past",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    orders = {o["session_id"]: o for o in res.json()["orders"]}
+    entry = orders.get(str(reward.meal_session_id))
+    assert entry is not None
+    assert entry["reward"] is not None
+    assert entry["reward"]["status"] == "issued"
+    assert entry["reward"]["redemption_code"] is None
+
+    # Redeem the reward → past-orders payload now surfaces the code.
+    redeem_res = await client.post(
+        f"/api/v1/rewards/{reward.redemption_code}/redeem",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert redeem_res.status_code == 200, redeem_res.text
+
+    res = await client.get(
+        f"/api/v1/restaurants/{restaurant_id}/dashboard/orders/past",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    orders = {o["session_id"]: o for o in res.json()["orders"]}
+    entry = orders[str(reward.meal_session_id)]
+    assert entry["reward"]["status"] == "redeemed"
+    assert entry["reward"]["redemption_code"] == reward.redemption_code

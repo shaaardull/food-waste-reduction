@@ -66,7 +66,10 @@ interface OrderItem {
 
 export interface OrderReward {
   id: string;
-  redemption_code: string;
+  // Null while the reward is still 'issued' — the API withholds the
+  // raw code from staff so it can't be silently redeemed without the
+  // diner presenting it. Populated once status is redeemed/voided.
+  redemption_code: string | null;
   value_minor: number;
   status: 'issued' | 'redeemed' | 'voided';
   issued_at: string;

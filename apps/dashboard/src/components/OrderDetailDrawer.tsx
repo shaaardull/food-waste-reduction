@@ -323,7 +323,7 @@ function RewardSection({ order }: { order: Order }) {
   if (!reward && !outcome) return null;
 
   const copyCode = async () => {
-    if (!reward) return;
+    if (!reward?.redemption_code) return;
     try {
       await navigator.clipboard.writeText(reward.redemption_code);
       setCopied(true);
@@ -361,19 +361,28 @@ function RewardSection({ order }: { order: Order }) {
           {t('walkin.reward_issued')}
         </div>
         <div className="mt-3 flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={copyCode}
-            aria-label={t('walkin.reward_copy_code')}
-            className="inline-flex items-center gap-1.5 font-mono text-[16px] font-bold text-s-ink hover:text-brand transition"
-          >
-            {reward.redemption_code}
-            {copied ? (
-              <Check size={14} className="text-sage" />
-            ) : (
-              <Copy size={14} className="opacity-60" />
-            )}
-          </button>
+          {reward.redemption_code ? (
+            <button
+              type="button"
+              onClick={copyCode}
+              aria-label={t('walkin.reward_copy_code')}
+              className="inline-flex items-center gap-1.5 font-mono text-[16px] font-bold text-s-ink hover:text-brand transition"
+            >
+              {reward.redemption_code}
+              {copied ? (
+                <Check size={14} className="text-sage" />
+              ) : (
+                <Copy size={14} className="opacity-60" />
+              )}
+            </button>
+          ) : (
+            <span
+              className="font-mono text-[16px] font-bold text-s-faint"
+              title={t('rewards.code_masked_hint')}
+            >
+              {t('rewards.code_masked')}
+            </span>
+          )}
           <span
             className={clsx(
               'inline-flex items-center h-5 px-2 rounded-full text-[10px] font-bold uppercase tracking-wider',
@@ -386,6 +395,11 @@ function RewardSection({ order }: { order: Order }) {
         <div className="mt-1 text-sm text-s-muted">
           ₹{(reward.value_minor / 100).toFixed(2)}
         </div>
+        {!reward.redemption_code && (
+          <div className="mt-1 text-xs text-s-muted">
+            {t('rewards.code_masked_hint')}
+          </div>
+        )}
         {reward.status === 'voided' && reward.voided_reason && (
           <div className="mt-1 text-xs italic text-s-muted">
             {t('walkin.reward_voided_reason', { reason: reward.voided_reason })}
