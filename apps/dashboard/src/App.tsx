@@ -289,6 +289,7 @@ function StaffRail({
     { to: '/redeem', label: t('app.nav.redeem'), icon: <Receipt size={16} /> },
     { to: '/analytics', label: t('app.nav.analytics'), icon: <TrendingUp size={16} /> },
     { to: '/rewards', label: t('app.nav.rewards'), icon: <Gift size={16} /> },
+    { to: '/bills', label: t('app.nav.bills'), icon: <Receipt size={16} /> },
     { to: '/staff-metrics', label: t('app.nav.staff_metrics'), icon: <Users size={16} /> },
     {
       to: '/disputes',

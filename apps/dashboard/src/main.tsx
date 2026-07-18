@@ -8,6 +8,7 @@ import './lib/i18n'; // initialises i18next before any screen renders
 import { App } from './App';
 import { AdminOnboard } from './screens/AdminOnboard';
 import { Analytics } from './screens/Analytics';
+import { Bills } from './screens/Bills';
 import { DisputeDetail } from './screens/DisputeDetail';
 import { Disputes } from './screens/Disputes';
 import { BugReport } from './screens/BugReport';
@@ -54,6 +55,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="staff-metrics" element={<StaffMetrics />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="rewards" element={<Rewards />} />
+            <Route path="bills" element={<Bills />} />
             <Route path="disputes" element={<Disputes />} />
             <Route path="disputes/:id" element={<DisputeDetail />} />
             <Route path="settings" element={<Settings />} />
