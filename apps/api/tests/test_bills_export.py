@@ -463,3 +463,162 @@ async def test_export_cell_values_and_total_formulas(client, db):
 
     # Panes frozen from row 6 so the header rows stay visible on scroll.
     assert ws.freeze_panes == "A6"
+
+
+# ── list endpoint: diner-email fallback for QR sessions ───────────────
+
+
+@pytest.mark.asyncio
+async def test_bills_list_customer_email_from_diner(client, db):
+    """QR session with a diner_user_id and NULL session.customer_email:
+    the list response should surface the diner's account email so the
+    Customer column isn't empty."""
+    restaurant, items, _ = make_restaurant(db, name="QRDinerEmail")
+    staff = make_staff(db, restaurant.id)
+    diner_id, diner_email = _diner_user(db)
+
+    _seed_bill(
+        db,
+        restaurant_id=restaurant.id,
+        menu_items=items[:1],
+        when=datetime(2026, 7, 5, 12, 0, tzinfo=UTC),
+        diner_user_id=diner_id,
+        bill_number="QR/00001",
+        entry_channel="qr",
+        customer_email=None,  # QR sessions never had this set historically
+    )
+    token = await login(client, staff.email)
+    res = await client.get(
+        f"/api/v1/restaurants/{restaurant.id}/bills?month=2026-07",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    rows = res.json()["rows"]
+    assert len(rows) == 1
+    assert rows[0]["customer_email"] == diner_email
+
+
+@pytest.mark.asyncio
+async def test_bills_list_customer_email_precedence(client, db):
+    """When session.customer_email is set (staff-typed at walk-in Step 3),
+    it must beat the diner's account email — never overwrite what the
+    counter entered."""
+    restaurant, items, _ = make_restaurant(db, name="EmailPrecedence")
+    staff = make_staff(db, restaurant.id)
+    diner_id, _diner_email = _diner_user(db)
+    typed_email = "staff-typed@example.com"
+
+    _seed_bill(
+        db,
+        restaurant_id=restaurant.id,
+        menu_items=items[:1],
+        when=datetime(2026, 7, 6, 12, 0, tzinfo=UTC),
+        diner_user_id=diner_id,
+        bill_number="PREC/00001",
+        entry_channel="qr",
+        customer_email=typed_email,
+    )
+    token = await login(client, staff.email)
+    res = await client.get(
+        f"/api/v1/restaurants/{restaurant.id}/bills?month=2026-07",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.text
+    rows = res.json()["rows"]
+    assert len(rows) == 1
+    assert rows[0]["customer_email"] == typed_email
+
+
+@pytest.mark.asyncio
+async def test_bills_export_customer_email_from_diner(client, db):
+    """xlsx export applies the same fallback — CA-facing sheet should
+    show diner emails for QR rows even when customer_email was null."""
+    restaurant, items, _ = make_restaurant(db, name="ExportDinerEmail")
+    staff = make_staff(db, restaurant.id)
+    diner_id, diner_email = _diner_user(db)
+
+    _seed_bill(
+        db,
+        restaurant_id=restaurant.id,
+        menu_items=items[:1],
+        when=datetime(2026, 7, 7, 13, 0, tzinfo=UTC),
+        diner_user_id=diner_id,
+        bill_number="QRX/00001",
+        entry_channel="qr",
+        customer_email=None,
+    )
+    token = await login(client, staff.email)
+    res = await client.get(
+        f"/api/v1/restaurants/{restaurant.id}/bills/export?month=2026-07",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200
+    wb = load_workbook(io.BytesIO(res.content))
+    ws = wb.active
+    assert ws is not None
+    # Column 5 (Customer Email), first data row is 6.
+    assert ws.cell(row=6, column=5).value == diner_email
+
+
+# ── backfill migration ────────────────────────────────────────────────
+
+
+def test_backfill_migration_populates_qr_customer_email(db):
+    """Simulate the 0020 backfill: a QR session with a diner_user_id but
+    null customer_email should get the diner's email populated by the
+    same UPDATE the migration executes."""
+    from sqlalchemy import text
+
+    restaurant, items, _ = make_restaurant(db, name="Backfill")
+    diner_id, diner_email = _diner_user(db)
+
+    # QR session with null customer_email — the historical shape the
+    # migration exists to fix.
+    when = datetime(2026, 7, 8, 12, 0, tzinfo=UTC)
+    qr_session = MealSession(
+        diner_user_id=diner_id,
+        restaurant_id=restaurant.id,
+        table_code=make_table_code("bf-qr"),
+        status="billed",
+        entry_channel="qr",
+        is_takeaway=False,
+        started_at=when,
+        expires_at=when + timedelta(hours=4),
+        customer_email=None,
+        customer_phone=None,
+    )
+    # Walk-in with a staff-typed email — must NOT be overwritten (the
+    # backfill only fills nulls).
+    walkin_typed_email = "counter@example.com"
+    walkin_session = MealSession(
+        diner_user_id=None,
+        restaurant_id=restaurant.id,
+        table_code=make_table_code("bf-wi"),
+        status="billed",
+        entry_channel="walkin",
+        is_takeaway=False,
+        started_at=when,
+        expires_at=when + timedelta(hours=4),
+        customer_email=walkin_typed_email,
+        customer_phone=None,
+    )
+    db.add(qr_session)
+    db.add(walkin_session)
+    db.commit()
+
+    db.execute(
+        text(
+            "UPDATE meal_sessions "
+            "SET customer_email = u.email "
+            "FROM users u "
+            "WHERE meal_sessions.diner_user_id = u.id "
+            "  AND meal_sessions.customer_email IS NULL "
+            "  AND u.email IS NOT NULL"
+        )
+    )
+    db.commit()
+
+    db.refresh(qr_session)
+    db.refresh(walkin_session)
+    assert qr_session.customer_email == diner_email
+    assert walkin_session.customer_email == walkin_typed_email

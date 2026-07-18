@@ -38,6 +38,7 @@ from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
 from app.models.restaurant import Restaurant
 from app.models.reward import Reward
+from app.models.user import User
 
 
 class BillGenerationError(HTTPException):
@@ -231,6 +232,16 @@ async def get_or_create_bill(
             "NO_ITEMS",
             "This session has no ordered items — nothing to bill.",
         )
+
+    # QR sessions carry a diner_user_id but never write customer_email
+    # (the walk-in Step 3 form is the only writer). Snapshot the diner's
+    # account email onto the session at bill-generation time so it
+    # becomes the persistent record for downstream Bills-dashboard reads
+    # and exports. Never overwrite a value a staff member already set.
+    if session.customer_email is None and session.diner_user_id is not None:
+        diner = await db.get(User, session.diner_user_id)
+        if diner is not None and diner.email:
+            session.customer_email = diner.email
 
     discount, code_used = await _resolve_reward_discount(
         db, session=session, redemption_code=apply_redemption_code

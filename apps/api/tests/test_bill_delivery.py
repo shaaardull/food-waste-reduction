@@ -417,3 +417,70 @@ async def test_send_endpoint_uses_snapshotted_target_on_second_call(
         headers={"Authorization": f"Bearer {tok}"},
     )
     assert second.status_code == 202
+
+
+@pytest.mark.asyncio
+async def test_send_endpoint_persists_customer_email_on_session(
+    client, db, monkeypatch
+):
+    """A diner-triggered 'email me the bill' request should backfill
+    session.customer_email if it's currently NULL, so future exports
+    show the recipient without needing the read-time diner-user
+    fallback."""
+    from app.models.meal_session import MealSession
+    from app.tasks import deliver_bill as task_module
+
+    monkeypatch.setattr(task_module.deliver_bill, "delay", lambda *a, **k: None)
+    restaurant, items, _ = make_restaurant(db, name="Persist Email")
+    bill_json, _, tok = await _make_bill(client, db, restaurant, items)
+    from app.models.bill import Bill
+    session_id = db.get(Bill, bill_json["id"]).meal_session_id
+
+    # Precondition: session was created without a staff-typed email.
+    session = db.get(MealSession, session_id)
+    session.customer_email = None
+    db.commit()
+
+    res = await client.post(
+        f"/api/v1/bills/{bill_json['id']}/send",
+        json={"via": "email", "target_email": "diner-typed@example.com"},
+        headers={"Authorization": f"Bearer {tok}"},
+    )
+    assert res.status_code == 202
+
+    db.expire_all()
+    session = db.get(MealSession, session_id)
+    assert session.customer_email == "diner-typed@example.com"
+
+
+@pytest.mark.asyncio
+async def test_send_endpoint_does_not_overwrite_staff_typed_customer_email(
+    client, db, monkeypatch
+):
+    """Walk-in Step 3 (or takeaway Step 3) staff-typed customer_email
+    is authoritative. A diner-triggered resend to a different address
+    must not stomp on the staff-recorded value."""
+    from app.models.meal_session import MealSession
+    from app.tasks import deliver_bill as task_module
+
+    monkeypatch.setattr(task_module.deliver_bill, "delay", lambda *a, **k: None)
+    restaurant, items, _ = make_restaurant(db, name="No Overwrite")
+    bill_json, _, tok = await _make_bill(client, db, restaurant, items)
+    from app.models.bill import Bill
+    session_id = db.get(Bill, bill_json["id"]).meal_session_id
+
+    # Staff already recorded a customer_email at walk-in Step 3.
+    session = db.get(MealSession, session_id)
+    session.customer_email = "staff-recorded@example.com"
+    db.commit()
+
+    res = await client.post(
+        f"/api/v1/bills/{bill_json['id']}/send",
+        json={"via": "email", "target_email": "someone-else@example.com"},
+        headers={"Authorization": f"Bearer {tok}"},
+    )
+    assert res.status_code == 202
+
+    db.expire_all()
+    session = db.get(MealSession, session_id)
+    assert session.customer_email == "staff-recorded@example.com"

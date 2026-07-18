@@ -144,7 +144,51 @@ def _derive_status(session: MealSession) -> str:
     return "unpaid"
 
 
-def _bill_row(bill: Bill, session: MealSession) -> dict[str, Any]:
+async def _diner_email_lookup(
+    db: AsyncSession, sessions: list[MealSession]
+) -> dict[UUID, str]:
+    """Batch-load users.email for any session with a diner_user_id but a
+    null customer_email. Returned dict maps user_id → email; sessions
+    whose diner has no email row simply don't appear as keys.
+
+    QR sessions all carry diner_user_id (see CLAUDE.md §5.3), so this
+    is the fallback that populates the Customer column on QR-originated
+    bill rows where nothing was ever written to customer_email."""
+    missing_user_ids = {
+        s.diner_user_id
+        for s in sessions
+        if not s.customer_email and s.diner_user_id is not None
+    }
+    if not missing_user_ids:
+        return {}
+    rows = await db.execute(
+        select(User.id, User.email).where(User.id.in_(missing_user_ids))
+    )
+    return {uid: email for uid, email in rows.all() if email}
+
+
+def _resolve_customer_email(
+    bill: Bill, session: MealSession, diner_email_by_id: dict[UUID, str]
+) -> str | None:
+    """Precedence: bill.delivery_email → session.customer_email →
+    diner user's email (looked up via session.diner_user_id).
+
+    Staff-typed emails on walk-in/takeaway Step 3 always win over the
+    diner's own account email — respect what the counter typed."""
+    if bill.delivery_email:
+        return bill.delivery_email
+    if session.customer_email:
+        return session.customer_email
+    if session.diner_user_id is not None:
+        return diner_email_by_id.get(session.diner_user_id)
+    return None
+
+
+def _bill_row(
+    bill: Bill,
+    session: MealSession,
+    diner_email_by_id: dict[UUID, str],
+) -> dict[str, Any]:
     # gst_rate on the response is the total (CGST + SGST) so the CA-side
     # summary matches the ledger — the CGST/SGST split lives on the
     # export sheet columns, not on the JSON row where callers just want
@@ -159,7 +203,7 @@ def _bill_row(bill: Bill, session: MealSession) -> dict[str, Any]:
         "channel": session.entry_channel,
         "is_takeaway": session.is_takeaway,
         "table_code": session.table_code,
-        "customer_email": session.customer_email,
+        "customer_email": _resolve_customer_email(bill, session, diner_email_by_id),
         "customer_phone": session.customer_phone,
         "subtotal_minor": bill.subtotal_minor,
         "gst_rate": str(gst_rate),
@@ -258,7 +302,10 @@ async def list_bills(
     if has_more:
         pairs = pairs[:limit]
 
-    rows = [_bill_row(bill, session) for (bill, session) in pairs]
+    diner_email_by_id = await _diner_email_lookup(
+        db, [session for (_, session) in pairs]
+    )
+    rows = [_bill_row(bill, session, diner_email_by_id) for (bill, session) in pairs]
     next_cursor: str | None = None
     if has_more and pairs:
         last_bill, _ = pairs[-1]
@@ -378,6 +425,7 @@ def _build_workbook(
     tz: ZoneInfo,
     pairs: list[tuple[Bill, MealSession]],
     items_by_session: dict[UUID, list[tuple[MealSessionItem, MenuItem]]],
+    diner_email_by_id: dict[UUID, str],
 ) -> bytes:
     """Assemble the xlsx workbook in memory and return the bytes.
 
@@ -506,7 +554,7 @@ def _build_workbook(
             bill.bill_number,
             _channel_label(session.entry_channel, session.is_takeaway),
             table_display,
-            session.customer_email or "",
+            _resolve_customer_email(bill, session, diner_email_by_id) or "",
             session.customer_phone or "",
             _items_summary(items),
             subtotal,
@@ -581,6 +629,9 @@ async def export_bills_xlsx(
     )
     session_ids = [session.id for (_, session) in pairs]
     items_by_session = await _fetch_items_by_session(db, session_ids)
+    diner_email_by_id = await _diner_email_lookup(
+        db, [session for (_, session) in pairs]
+    )
 
     xlsx_bytes = _build_workbook(
         restaurant=restaurant,
@@ -589,6 +640,7 @@ async def export_bills_xlsx(
         tz=tz,
         pairs=pairs,
         items_by_session=items_by_session,
+        diner_email_by_id=diner_email_by_id,
     )
 
     filename = f"plateclean-{restaurant.slug}-bills-{year:04d}-{mon:02d}.xlsx"

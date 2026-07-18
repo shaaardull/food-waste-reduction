@@ -99,6 +99,16 @@ async def send_bill(
     bill.delivery_phone = target_phone
     bill.delivery_status = "pending"
     bill.delivery_error = None
+    # Backfill the underlying session's customer_email/phone if empty
+    # so the Bills dashboard's Customer column shows something even if
+    # the read-time diner-email fallback is bypassed. Only fill nulls —
+    # a staff member who typed an email on walk-in Step 3 takes
+    # precedence over whatever the diner later typed into "Email me
+    # the bill" on the PWA.
+    if payload.target_email and session.customer_email is None:
+        session.customer_email = payload.target_email
+    if payload.target_phone and session.customer_phone is None:
+        session.customer_phone = payload.target_phone
     await db.commit()
 
     # Late import so the Celery import graph doesn't drag the sync
