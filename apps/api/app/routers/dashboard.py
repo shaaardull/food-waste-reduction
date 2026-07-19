@@ -1,7 +1,9 @@
+from calendar import monthrange
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
@@ -1614,4 +1616,366 @@ async def resolve_dispute(
             if compensation_reward is not None
             else None
         ),
+    }
+
+
+# ── Analytics overview screen ───────────────────────────────────────────
+#
+# Powers the /analytics screen's five widgets in one round-trip:
+# revenue trend, peak-hours heatmap, top items, avg ticket, and the
+# new-vs-repeat diner ratio. Sales + traffic only — inventory tracking
+# is explicitly out of scope for this surface.
+
+
+_ANALYTICS_RANGE_LABELS = {
+    "7d": "Last 7 days",
+    "30d": "Last 30 days",
+    "this_month": "This month",
+    "last_month": "Last month",
+    "custom": "Custom range",
+}
+
+
+def _tz_for_restaurant(restaurant: Restaurant) -> ZoneInfo:
+    """Same fallback as bills_dashboard — a corrupt IANA string on the
+    restaurant row shouldn't 500 the analytics call."""
+    try:
+        return ZoneInfo(restaurant.timezone or "UTC")
+    except ZoneInfoNotFoundError:
+        return ZoneInfo("UTC")
+
+
+def _analytics_range_bounds(
+    range_key: str,
+    tz: ZoneInfo,
+    custom_from: datetime | None,
+    custom_to: datetime | None,
+    now_utc: datetime,
+) -> tuple[datetime, datetime, str]:
+    """Return (from_utc, to_utc, label). All bounds are UTC datetimes;
+    the label is the human string shown on the screen.
+
+    `7d` / `30d` are rolling — from = now - N days. `this_month` and
+    `last_month` are calendar months in the restaurant's local
+    timezone (so a Kolkata restaurant's "this month" doesn't start
+    at 05:30 IST because UTC midnight lands there). `custom` requires
+    both bounds; a missing bound → 400.
+    """
+    label = _ANALYTICS_RANGE_LABELS[range_key]
+    if range_key == "7d":
+        return now_utc - timedelta(days=7), now_utc, label
+    if range_key == "30d":
+        return now_utc - timedelta(days=30), now_utc, label
+    if range_key == "this_month":
+        local_now = now_utc.astimezone(tz)
+        start_local = datetime(
+            local_now.year, local_now.month, 1, 0, 0, 0, tzinfo=tz
+        )
+        return start_local.astimezone(UTC), now_utc, label
+    if range_key == "last_month":
+        local_now = now_utc.astimezone(tz)
+        year = local_now.year
+        month = local_now.month - 1
+        if month == 0:
+            month = 12
+            year -= 1
+        start_local = datetime(year, month, 1, 0, 0, 0, tzinfo=tz)
+        _, last_day = monthrange(year, month)
+        end_local = datetime(
+            year, month, last_day, 23, 59, 59, 999_999, tzinfo=tz
+        ) + timedelta(microseconds=1)
+        return start_local.astimezone(UTC), end_local.astimezone(UTC), label
+    if range_key == "custom":
+        if custom_from is None or custom_to is None:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_RANGE",
+                    "message": "custom range requires both from and to.",
+                },
+            )
+        # Normalise naive datetimes to UTC — sqlite / URL parsing
+        # sometimes hands us tz-naive values from the query string.
+        f = custom_from if custom_from.tzinfo else custom_from.replace(tzinfo=UTC)
+        t = custom_to if custom_to.tzinfo else custom_to.replace(tzinfo=UTC)
+        if f >= t:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "INVALID_RANGE",
+                    "message": "from must be strictly before to.",
+                },
+            )
+        return f, t, label
+    # Should be unreachable — Query pattern already restricts values.
+    raise HTTPException(status_code=400, detail={"code": "INVALID_RANGE"})
+
+
+def _as_utc(dt: datetime) -> datetime:
+    """SQLite drops tzinfo from TIMESTAMPTZ round-trips; postgres keeps
+    it. Normalise to aware-UTC so downstream arithmetic + isoformat is
+    consistent between prod and pytest."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
+@router.get("/restaurants/{restaurant_id}/dashboard/analytics-overview")
+async def analytics_overview(
+    restaurant_id: UUID,
+    # Alias keeps the URL query name `range` (matches the client) while
+    # the Python parameter avoids shadowing the built-in.
+    range_key: str = Query(
+        default="30d",
+        alias="range",
+        pattern="^(7d|30d|this_month|last_month|custom)$",
+    ),
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = Query(default=None),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Restaurant analytics screen aggregations — one round-trip for the
+    five widgets the /analytics screen renders.
+
+    All numbers scoped to `restaurant_id`. Time-bucketing runs in the
+    restaurant's local timezone so a "daily" bar on the revenue chart
+    lines up with a Kolkata restaurant's calendar day, not UTC's.
+
+    Explicitly NOT cached, not materialised — pilot scale is fine with
+    fresh queries. Revisit if a restaurant crosses ~10k sessions/month.
+    """
+    await _ensure_staff(db, user, restaurant_id)
+    restaurant = await db.get(Restaurant, restaurant_id)
+    if restaurant is None:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+    tz = _tz_for_restaurant(restaurant)
+    now_utc = datetime.now(UTC)
+    from_utc, to_utc, label = _analytics_range_bounds(
+        range_key, tz, from_, to, now_utc
+    )
+    window_seconds = (to_utc - from_utc).total_seconds()
+    prior_from_utc = from_utc - timedelta(seconds=window_seconds)
+    prior_to_utc = from_utc
+
+    # ── Revenue: bills in the window, non-voided sessions ────────────
+    # We treat a bill as revenue whenever its parent session isn't
+    # voided. In phase 1 QR sessions never enter paid/voided so their
+    # bills always count; walk-ins that were voided at the counter drop
+    # out on the voided_at IS NOT NULL check.
+    revenue_rows = (
+        await db.execute(
+            select(Bill.total_minor, Bill.created_at)
+            .join(MealSession, MealSession.id == Bill.meal_session_id)
+            .where(
+                Bill.restaurant_id == restaurant_id,
+                Bill.created_at >= from_utc,
+                Bill.created_at < to_utc,
+                MealSession.voided_at.is_(None),
+            )
+        )
+    ).all()
+    total_minor = 0
+    daily_totals: dict[str, int] = {}
+    for total, created_at in revenue_rows:
+        total_int = int(total)
+        total_minor += total_int
+        local_day = _as_utc(created_at).astimezone(tz).strftime("%Y-%m-%d")
+        daily_totals[local_day] = daily_totals.get(local_day, 0) + total_int
+
+    # Prior-window revenue total for the delta pill. Same non-voided
+    # filter so the comparison is apples-to-apples.
+    prior_revenue_total = int(
+        await db.scalar(
+            select(func.coalesce(func.sum(Bill.total_minor), 0))
+            .join(MealSession, MealSession.id == Bill.meal_session_id)
+            .where(
+                Bill.restaurant_id == restaurant_id,
+                Bill.created_at >= prior_from_utc,
+                Bill.created_at < prior_to_utc,
+                MealSession.voided_at.is_(None),
+            )
+        )
+        or 0
+    )
+
+    # Fill every local day in the range so the chart doesn't skip empty
+    # days — the frontend expects a dense series.
+    daily: list[dict[str, Any]] = []
+    cursor_local = from_utc.astimezone(tz).date()
+    end_local = to_utc.astimezone(tz).date()
+    days_in_range = 0
+    while cursor_local <= end_local:
+        key = cursor_local.strftime("%Y-%m-%d")
+        daily.append({"date": key, "total_minor": daily_totals.get(key, 0)})
+        cursor_local = cursor_local + timedelta(days=1)
+        days_in_range += 1
+    avg_per_day_minor = total_minor // days_in_range if days_in_range else 0
+
+    def _delta_pct(current: int, prior: int) -> float | None:
+        if prior == 0:
+            return None
+        return round((current - prior) / prior * 100, 2)
+
+    revenue_delta_pct = _delta_pct(total_minor, prior_revenue_total)
+
+    # ── Peak hours: 7×24 grid of session start counts, dow=Mon..Sun ──
+    # dow follows ISO / Python weekday() where Monday=0..Sunday=6 so it
+    # matches the frontend heatmap's Mon-first row order.
+    peak_rows = (
+        await db.execute(
+            select(MealSession.started_at).where(
+                MealSession.restaurant_id == restaurant_id,
+                MealSession.started_at >= from_utc,
+                MealSession.started_at < to_utc,
+            )
+        )
+    ).all()
+    peak_grid: dict[tuple[int, int], int] = {}
+    for (started_at,) in peak_rows:
+        local = _as_utc(started_at).astimezone(tz)
+        key = (local.weekday(), local.hour)
+        peak_grid[key] = peak_grid.get(key, 0) + 1
+    peak_buckets = [
+        {"dow": dow, "hour": hour, "session_count": peak_grid.get((dow, hour), 0)}
+        for dow in range(7)
+        for hour in range(24)
+    ]
+
+    # ── Top items: joined via meal_session_items × menu_items × bills ─
+    # Filter is bill in-range + session not voided. Sums quantity and
+    # (quantity × price) so a party of four ordering two mains counts
+    # as 8 units of that dish, not one row.
+    top_item_rows = (
+        await db.execute(
+            select(
+                MenuItem.id,
+                MenuItem.name,
+                func.sum(MealSessionItem.quantity).label("count"),
+                func.sum(
+                    MealSessionItem.quantity * MenuItem.price_minor
+                ).label("revenue_minor"),
+            )
+            .join(
+                MealSessionItem,
+                MealSessionItem.menu_item_id == MenuItem.id,
+            )
+            .join(
+                MealSession,
+                MealSession.id == MealSessionItem.meal_session_id,
+            )
+            .join(Bill, Bill.meal_session_id == MealSession.id)
+            .where(
+                Bill.restaurant_id == restaurant_id,
+                Bill.created_at >= from_utc,
+                Bill.created_at < to_utc,
+                MealSession.voided_at.is_(None),
+            )
+            .group_by(MenuItem.id, MenuItem.name)
+            .order_by(func.sum(MealSessionItem.quantity).desc())
+            .limit(10)
+        )
+    ).all()
+    top_items = [
+        {
+            "menu_item_id": str(row.id),
+            "name": row.name,
+            "count": int(row.count),
+            "revenue_minor": int(row.revenue_minor),
+        }
+        for row in top_item_rows
+    ]
+
+    # ── Avg ticket: mean of bill.total_minor for non-voided bills ────
+    async def _avg_ticket(win_from: datetime, win_to: datetime) -> int:
+        row = (
+            await db.execute(
+                select(
+                    func.coalesce(func.avg(Bill.total_minor), 0)
+                )
+                .join(MealSession, MealSession.id == Bill.meal_session_id)
+                .where(
+                    Bill.restaurant_id == restaurant_id,
+                    Bill.created_at >= win_from,
+                    Bill.created_at < win_to,
+                    MealSession.voided_at.is_(None),
+                )
+            )
+        ).one()
+        return int(row[0] or 0)
+
+    avg_ticket_current = await _avg_ticket(from_utc, to_utc)
+    avg_ticket_prior = await _avg_ticket(prior_from_utc, prior_to_utc)
+    avg_ticket_delta = _delta_pct(avg_ticket_current, avg_ticket_prior)
+
+    # ── Diner ratio: new vs repeat vs anonymous ──────────────────────
+    # A diner counts once per range. "New" if their earliest session at
+    # this restaurant (any status) lands in the range; "repeat" if the
+    # earliest sits before the range start. Sessions without a
+    # diner_user_id are anonymous / walk-in.
+    in_range_diner_rows = (
+        await db.execute(
+            select(MealSession.diner_user_id).where(
+                MealSession.restaurant_id == restaurant_id,
+                MealSession.started_at >= from_utc,
+                MealSession.started_at < to_utc,
+            )
+        )
+    ).all()
+    anonymous_count = 0
+    diner_ids: set[UUID] = set()
+    for (diner_id,) in in_range_diner_rows:
+        if diner_id is None:
+            anonymous_count += 1
+        else:
+            diner_ids.add(diner_id)
+
+    new_count = 0
+    repeat_count = 0
+    if diner_ids:
+        earliest_rows = (
+            await db.execute(
+                select(
+                    MealSession.diner_user_id,
+                    func.min(MealSession.started_at).label("earliest"),
+                )
+                .where(
+                    MealSession.restaurant_id == restaurant_id,
+                    MealSession.diner_user_id.in_(diner_ids),
+                )
+                .group_by(MealSession.diner_user_id)
+            )
+        ).all()
+        for diner_id, earliest in earliest_rows:
+            earliest_utc = _as_utc(earliest)
+            if earliest_utc >= from_utc:
+                new_count += 1
+            else:
+                repeat_count += 1
+
+    return {
+        "range": {
+            "from": from_utc.isoformat(),
+            "to": to_utc.isoformat(),
+            "label": label,
+        },
+        "revenue": {
+            "total_minor": total_minor,
+            "avg_per_day_minor": avg_per_day_minor,
+            "prior_period_total_minor": prior_revenue_total,
+            "delta_pct": revenue_delta_pct,
+            "daily": daily,
+        },
+        "peak_hours": {"buckets": peak_buckets},
+        "top_items": top_items,
+        "avg_ticket": {
+            "minor": avg_ticket_current,
+            "prior_period_minor": avg_ticket_prior,
+            "delta_pct": avg_ticket_delta,
+        },
+        "diner_ratio": {
+            "new_count": new_count,
+            "repeat_count": repeat_count,
+            "anonymous_count": anonymous_count,
+        },
     }
