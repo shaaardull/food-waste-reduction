@@ -241,13 +241,17 @@ export function AdminOnboard() {
     setError(null);
     setBusy(true);
     try {
+      // Admin onboarding uses the inline-password path so the wizard
+      // hands the operator a set of ready-to-go credentials; the SES
+      // invitation flow is for the Settings → Staff surface later.
       const res = await api.post<{ user_id: string; email: string; role: StaffRole }>(
         `/restaurants/${restaurant.id}/staff`,
         {
           email: staffEmail.trim().toLowerCase(),
           display_name: staffName || undefined,
           role: staffRole,
-          password: staffPassword,
+          send_invitation: false,
+          temp_password: staffPassword,
         },
         token,
       );

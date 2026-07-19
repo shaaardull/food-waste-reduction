@@ -26,6 +26,7 @@ import { PastOrders } from './screens/PastOrders';
 import { Redeem } from './screens/Redeem';
 import { Rewards } from './screens/Rewards';
 import { Settings } from './screens/Settings';
+import { SettingsStaff } from './screens/SettingsStaff';
 import { SettingsTables } from './screens/SettingsTables';
 import { StaffMetrics } from './screens/StaffMetrics';
 import { Summary } from './screens/Summary';
@@ -64,6 +65,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="disputes/:id" element={<DisputeDetail />} />
             <Route path="settings" element={<Settings />} />
             <Route path="settings/tables" element={<SettingsTables />} />
+            <Route path="settings/staff" element={<SettingsStaff />} />
             <Route path="report-bug" element={<BugReport />} />
             <Route path="not-on-staff" element={<NotStaffOfRestaurant />} />
             {/* Backdoor: no left-rail item, the URL prefix `/-/` is

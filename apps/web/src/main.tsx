@@ -7,6 +7,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import './index.css';
 import './lib/i18n'; // initialises i18next before any screen renders
 import { App } from './App';
+import { AcceptInvitation } from './screens/AcceptInvitation';
 import { ForgotPassword } from './screens/ForgotPassword';
 import { Landing } from './screens/Landing';
 import { Login } from './screens/Login';
@@ -22,6 +23,7 @@ import { Profile } from './screens/Profile';
 import { QrResolve } from './screens/QrResolve';
 import { QuickStart } from './screens/QuickStart';
 import { Stats } from './screens/Stats';
+import { Waitlist } from './screens/Waitlist';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,6 +47,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route index element={<Landing />} />
             <Route path="login" element={<Login />} />
             <Route path="forgot-password" element={<ForgotPassword />} />
+            <Route path="accept-invitation" element={<AcceptInvitation />} />
             <Route path="onboard-choice" element={<OnboardChoice />} />
             <Route path="quick-start" element={<QuickStart />} />
             <Route path="qr/:token" element={<QrResolve />} />
@@ -57,6 +60,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="rewards" element={<Rewards />} />
             <Route path="profile" element={<Profile />} />
             <Route path="stats" element={<Stats />} />
+            <Route path="wait/:slug" element={<Waitlist />} />
           </Route>
         </Routes>
       </BrowserRouter>

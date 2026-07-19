@@ -6,6 +6,7 @@
     "no_restaurant": "रेस्टॉरंट निवडलं नाही",
     "nav": {
       "orders": "थेट ऑर्डर",
+      "waitlist": "Waitlist [TODO mr]",
       "past_orders": "मागील ऑर्डर",
       "validations": "पडताळणी रांग",
       "menu": "मेन्यू",
@@ -18,6 +19,7 @@
       "disputes": "वाद",
       "settings": "सेटिंग्ज",
       "tables": "Tables",
+      "staff": "Staff TODO(i18n:mr)",
       "report_bug": "बग रिपोर्ट करा",
       "onboard": "रेस्टॉरंट जोडा",
       "sign_in": "साइन इन",
@@ -570,8 +572,64 @@
       "toast_restored_title": "Table restored TODO(i18n:mr)",
       "toast_restored_body": "It's back in the active list. TODO(i18n:mr)",
       "err_generic": "Something went wrong. Try again. TODO(i18n:mr)"
+    },
+    "staff": {
+      "eyebrow": "Staff TODO(i18n:mr)",
+      "title": "Staff TODO(i18n:mr)",
+      "blurb": "People who can access the restaurant's dashboard. TODO(i18n:mr)",
+      "add_cta": "Add staff TODO(i18n:mr)",
+      "loading": "Loading staff… TODO(i18n:mr)",
+      "empty_title": "You're the only one here yet TODO(i18n:mr)",
+      "empty_blurb": "Add your first staff member to get started. They'll be able to sign in and help run the restaurant. TODO(i18n:mr)",
+      "empty_cta": "Add your first staff member TODO(i18n:mr)",
+      "col_name": "Name TODO(i18n:mr)",
+      "col_email": "Email TODO(i18n:mr)",
+      "col_role": "Role TODO(i18n:mr)",
+      "col_added": "Added TODO(i18n:mr)",
+      "col_status": "Status TODO(i18n:mr)",
+      "col_actions": "Actions TODO(i18n:mr)",
+      "role_owner": "Owner TODO(i18n:mr)",
+      "role_manager": "Manager TODO(i18n:mr)",
+      "role_server": "Server TODO(i18n:mr)",
+      "role_owner_locked": "owners only TODO(i18n:mr)",
+      "status_active": "Active TODO(i18n:mr)",
+      "status_pending": "Invitation pending TODO(i18n:mr)",
+      "you_pill": "you TODO(i18n:mr)",
+      "action_resend": "Resend invitation TODO(i18n:mr)",
+      "action_remove": "Remove TODO(i18n:mr)",
+      "close_modal": "Close TODO(i18n:mr)",
+      "cancel": "Cancel TODO(i18n:mr)",
+      "saving": "Saving… TODO(i18n:mr)",
+      "working": "Working… TODO(i18n:mr)",
+      "modal_add_eyebrow": "Add staff TODO(i18n:mr)",
+      "modal_add_title": "Add a staff member TODO(i18n:mr)",
+      "field_email": "Email TODO(i18n:mr)",
+      "field_role": "Role TODO(i18n:mr)",
+      "field_send_invitation": "Send invitation email TODO(i18n:mr)",
+      "field_send_invitation_hint": "We'll email a signup link so they can set their own password. Uncheck to set a temporary password yourself. TODO(i18n:mr)",
+      "field_temp_password": "Temporary password TODO(i18n:mr)",
+      "field_temp_password_placeholder": "at least 8 characters TODO(i18n:mr)",
+      "field_temp_password_hint": "Share this with the staff member directly — they can change it after signing in. TODO(i18n:mr)",
+      "add_confirm_invite": "Send invitation TODO(i18n:mr)",
+      "add_confirm_inline": "Add to staff TODO(i18n:mr)",
+      "err_email_required": "Enter an email address. TODO(i18n:mr)",
+      "err_temp_password_required": "Enter a temporary password or turn the invitation email back on. TODO(i18n:mr)",
+      "err_generic": "Something went wrong. Try again. TODO(i18n:mr)",
+      "remove_eyebrow": "Remove staff TODO(i18n:mr)",
+      "remove_title": "Remove {{name}} from the staff? TODO(i18n:mr)",
+      "remove_body": "They'll lose dashboard access immediately. Their user account isn't deleted — you can re-add them any time. TODO(i18n:mr)",
+      "remove_confirm": "Remove TODO(i18n:mr)",
+      "toast_invited_title": "Invitation sent TODO(i18n:mr)",
+      "toast_invited_body": "Invitation sent to {{email}}. TODO(i18n:mr)",
+      "toast_added_title": "Staff added TODO(i18n:mr)",
+      "toast_added_body": "Added {{email}} to staff. TODO(i18n:mr)",
+      "toast_resent_title": "Invitation resent TODO(i18n:mr)",
+      "toast_resent_body": "A fresh invitation email is on its way to {{email}}. TODO(i18n:mr)",
+      "toast_removed_title": "Staff removed TODO(i18n:mr)",
+      "toast_removed_body": "Removed {{email}} from the staff. TODO(i18n:mr)"
     }
   },
+
   "bill_send": {
     "eyebrow": "बिल",
     "title": "डायनरला बिल पाठवा",
@@ -917,70 +975,6 @@
       "downloading": "तयार करत आहे…",
       "download_hint": "सध्याच्या कालावधीचा एका-पानाचा टिकाऊपणा सारांश",
       "download_error": "PDF डाउनलोड होऊ शकलं नाही"
-    },
-    "overview": {
-      "title": "Analytics",
-      "subtitle": "Sales and traffic signal for this restaurant, on one screen.",
-      "loading": "Loading analytics…",
-      "pick_restaurant": "Sign in and pick a restaurant first.",
-      "load_error": "Couldn't load analytics",
-      "range": {
-        "7d": "Last 7 days",
-        "30d": "Last 30 days",
-        "this_month": "This month",
-        "last_month": "Last month",
-        "custom": "Custom"
-      },
-      "range_from": "From",
-      "range_to": "To",
-      "revenue": {
-        "heading": "Revenue trend",
-        "total_label": "Total revenue",
-        "avg_label": "Avg per day",
-        "delta_vs_prior": "vs prior period",
-        "empty_title": "No revenue in this range",
-        "empty_hint": "Try a wider range from the picker above."
-      },
-      "peak_hours": {
-        "heading": "Peak hours",
-        "sub": "Sessions started per hour, in restaurant time.",
-        "empty_title": "No sessions in this range",
-        "empty_hint": "Try a wider range from the picker above.",
-        "tooltip": "{{day}} {{hour}}:00 — {{count}} sessions",
-        "days": {
-          "0": "Mon",
-          "1": "Tue",
-          "2": "Wed",
-          "3": "Thu",
-          "4": "Fri",
-          "5": "Sat",
-          "6": "Sun"
-        }
-      },
-      "top_items": {
-        "heading": "Top selling items",
-        "sub": "Ranked by count. Revenue shown alongside.",
-        "col_item": "Item",
-        "col_count": "Count",
-        "col_revenue": "Revenue",
-        "empty_title": "No item sales in this range",
-        "empty_hint": "Once bills land, the top ten by count show here."
-      },
-      "diner_ratio": {
-        "heading": "New vs repeat diners",
-        "new_label": "New",
-        "new_hint": "First-ever session at this restaurant fell inside the range.",
-        "repeat_label": "Repeat",
-        "repeat_hint": "Has at least one prior session at this restaurant.",
-        "anonymous_pill": "{{count}} walk-in / takeaway sessions aren't counted here",
-        "empty_title": "No diner sessions in this range",
-        "empty_hint": "New and repeat counts appear once QR-linked diners log a session."
-      },
-      "avg_ticket": {
-        "heading": "Avg ticket size",
-        "sub": "Mean bill total across non-voided bills in the range.",
-        "delta_vs_prior": "vs prior period"
-      }
     }
   },
   "reward_rules_settings": {
@@ -1131,5 +1125,52 @@
   },
   "live_orders": {
     "loyalty_aria": "Repeat visit score {{n}} of 10 [TODO mr]"
+  },
+  "dashboard": {
+    "waitlist": {
+      "title": "Waitlist [TODO mr]",
+      "subtitle": "Guests waiting for a table. [TODO mr]",
+      "loading": "Loading the queue… [TODO mr]",
+      "chip_waiting": "{{count}} waiting [TODO mr]",
+      "chip_waiting_aria": "Total guests waiting [TODO mr]",
+      "chip_median": "≈ {{minutes}} min wait so far [TODO mr]",
+      "chip_median_aria": "Median wait time today [TODO mr]",
+      "print_cta": "Print waitlist sticker [TODO mr]",
+      "position_label": "spot [TODO mr]",
+      "party_size_one": "{{count}} guest [TODO mr]",
+      "party_size_other": "{{count}} guests [TODO mr]",
+      "party_size": "{{count}} guests [TODO mr]",
+      "waiting_for": "waiting {{minutes}} min [TODO mr]",
+      "seat_cta": "Seat [TODO mr]",
+      "more_actions_aria": "More actions [TODO mr]",
+      "action_no_show": "Mark no-show [TODO mr]",
+      "action_cancel": "Cancel with reason [TODO mr]",
+      "recent_toggle": "Recently cleared · {{count}} [TODO mr]",
+      "recent_empty": "No cleared entries yet today. [TODO mr]",
+      "empty_title": "No one waiting. All clear. [TODO mr]",
+      "empty_hint": "The waitlist QR is at {{url}} — laminate that and stick it near the entrance. [TODO mr]",
+      "cancel_title": "Cancel {{name}}'s entry? [TODO mr]",
+      "cancel_subtitle": "Add a short reason so we can track why entries get cleared. [TODO mr]",
+      "cancel_reason_label": "Reason [TODO mr]",
+      "cancel_reason_placeholder": "e.g. left without waiting [TODO mr]",
+      "cancel_dismiss": "Never mind [TODO mr]",
+      "cancel_confirm": "Cancel entry [TODO mr]",
+      "toast_seat_error_title": "Couldn't seat that entry [TODO mr]",
+      "toast_action_error": "Couldn't update that entry [TODO mr]",
+      "toast_cancel_success": "Entry cancelled [TODO mr]",
+      "status": {
+        "seated": "Seated [TODO mr]",
+        "cancelled": "Cancelled [TODO mr]",
+        "no_show": "No-show [TODO mr]"
+      }
+    },
+    "waitlist_print": {
+      "eyebrow": "Waitlist sticker [TODO mr]",
+      "title": "Print the waitlist QR [TODO mr]",
+      "print_button": "Print [TODO mr]",
+      "missing_slug": "No restaurant selected — open this from the Waitlist screen. [TODO mr]",
+      "card_eyebrow": "Join the waitlist [TODO mr]",
+      "card_copy": "Full house? Scan to join the waitlist. We'll seat you as soon as we can. [TODO mr]"
+    }
   }
 }

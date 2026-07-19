@@ -18,6 +18,9 @@ const FRONT_DOOR_ROUTES = new Set([
   '/quick-start',
   '/onboard-choice',
   '/stats',
+  // First-touch surface for a restaurant staff member arriving from
+  // the SES invitation email — no diner chrome, no sign-in link.
+  '/accept-invitation',
 ]);
 
 export function App() {
@@ -36,7 +39,9 @@ export function App() {
   // prefix-match it as an additional front-door route. Everything
   // else stays a strict membership check.
   const fullBleed =
-    FRONT_DOOR_ROUTES.has(loc.pathname) || loc.pathname.startsWith('/qr/');
+    FRONT_DOOR_ROUTES.has(loc.pathname) ||
+    loc.pathname.startsWith('/qr/') ||
+    loc.pathname.startsWith('/wait/');
 
   return (
     <div className="min-h-full flex flex-col">
