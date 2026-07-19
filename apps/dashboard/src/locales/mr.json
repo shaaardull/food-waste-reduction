@@ -917,6 +917,70 @@
       "downloading": "तयार करत आहे…",
       "download_hint": "सध्याच्या कालावधीचा एका-पानाचा टिकाऊपणा सारांश",
       "download_error": "PDF डाउनलोड होऊ शकलं नाही"
+    },
+    "overview": {
+      "title": "Analytics",
+      "subtitle": "Sales and traffic signal for this restaurant, on one screen.",
+      "loading": "Loading analytics…",
+      "pick_restaurant": "Sign in and pick a restaurant first.",
+      "load_error": "Couldn't load analytics",
+      "range": {
+        "7d": "Last 7 days",
+        "30d": "Last 30 days",
+        "this_month": "This month",
+        "last_month": "Last month",
+        "custom": "Custom"
+      },
+      "range_from": "From",
+      "range_to": "To",
+      "revenue": {
+        "heading": "Revenue trend",
+        "total_label": "Total revenue",
+        "avg_label": "Avg per day",
+        "delta_vs_prior": "vs prior period",
+        "empty_title": "No revenue in this range",
+        "empty_hint": "Try a wider range from the picker above."
+      },
+      "peak_hours": {
+        "heading": "Peak hours",
+        "sub": "Sessions started per hour, in restaurant time.",
+        "empty_title": "No sessions in this range",
+        "empty_hint": "Try a wider range from the picker above.",
+        "tooltip": "{{day}} {{hour}}:00 — {{count}} sessions",
+        "days": {
+          "0": "Mon",
+          "1": "Tue",
+          "2": "Wed",
+          "3": "Thu",
+          "4": "Fri",
+          "5": "Sat",
+          "6": "Sun"
+        }
+      },
+      "top_items": {
+        "heading": "Top selling items",
+        "sub": "Ranked by count. Revenue shown alongside.",
+        "col_item": "Item",
+        "col_count": "Count",
+        "col_revenue": "Revenue",
+        "empty_title": "No item sales in this range",
+        "empty_hint": "Once bills land, the top ten by count show here."
+      },
+      "diner_ratio": {
+        "heading": "New vs repeat diners",
+        "new_label": "New",
+        "new_hint": "First-ever session at this restaurant fell inside the range.",
+        "repeat_label": "Repeat",
+        "repeat_hint": "Has at least one prior session at this restaurant.",
+        "anonymous_pill": "{{count}} walk-in / takeaway sessions aren't counted here",
+        "empty_title": "No diner sessions in this range",
+        "empty_hint": "New and repeat counts appear once QR-linked diners log a session."
+      },
+      "avg_ticket": {
+        "heading": "Avg ticket size",
+        "sub": "Mean bill total across non-voided bills in the range.",
+        "delta_vs_prior": "vs prior period"
+      }
     }
   },
   "reward_rules_settings": {

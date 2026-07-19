@@ -31,6 +31,8 @@ import { StaffMetrics } from './screens/StaffMetrics';
 import { Summary } from './screens/Summary';
 import { ValidationDetail } from './screens/ValidationDetail';
 import { ValidationQueue } from './screens/ValidationQueue';
+import { Waitlist } from './screens/Waitlist';
+import { WaitlistPrintSheet } from './screens/WaitlistPrintSheet';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 2_000, refetchOnWindowFocus: false } },
@@ -48,6 +50,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="orders" element={<Orders />} />
             <Route path="orders/new-walkin" element={<NewWalkinOrder />} />
             <Route path="orders/past" element={<PastOrders />} />
+            <Route path="waitlist" element={<Waitlist />} />
+            <Route path="-/waitlist-print" element={<WaitlistPrintSheet />} />
             <Route path="validations" element={<ValidationQueue />} />
             <Route path="validations/:sessionId" element={<ValidationDetail />} />
             <Route path="menu" element={<Menu />} />

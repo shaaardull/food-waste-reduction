@@ -1,468 +1,738 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import {
-  Leaf,
-  Download,
-  Sparkles,
-  Clock,
-  Sliders,
-  ShieldAlert,
-  Utensils,
-  Check,
-  TrendingUp,
-} from 'lucide-react';
+import { BarChart3, ArrowUp, ArrowDown, TrendingUp, Users, Utensils, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 
-type Range = '7d' | '30d' | '90d';
+/**
+ * Analytics overview — sales + traffic signal on a single screen,
+ * scoped to the currently-selected restaurant. Sourced from ONE
+ * aggregated backend call so switching the range picker triggers a
+ * single round-trip.
+ *
+ * Layout:
+ *   Row 1 — Revenue trend chart (2/3) + Revenue stat card (1/3)
+ *   Row 2 — Peak-hours heatmap (full width)
+ *   Row 3 — Top items (2/3) + New-vs-repeat diner ratio (1/3)
+ *   Row 4 — Avg-ticket stat card
+ *
+ * Every chart is hand-rolled inline SVG — no chart library, same rule
+ * as the Rewards sparkline.
+ */
 
-interface AnalyticsResponse {
-  range: Range;
-  period_days: number;
-  totals: {
-    sessions: number;
-    approved: number;
-    adjusted: number;
-    rejected: number;
-    decided: number;
-    pending_validation: number;
-    rewards_issued: number;
-    rewards_redeemed: number;
+type RangeKey = '7d' | '30d' | 'this_month' | 'last_month' | 'custom';
+
+interface AnalyticsOverview {
+  range: { from: string; to: string; label: string };
+  revenue: {
+    total_minor: number;
+    avg_per_day_minor: number;
+    prior_period_total_minor: number;
+    delta_pct: number | null;
+    daily: Array<{ date: string; total_minor: number }>;
   };
-  rates: {
-    approval_rate: number | null;
-    redemption_rate: number | null;
+  peak_hours: {
+    buckets: Array<{ dow: number; hour: number; session_count: number }>;
   };
-  avg_final_score: number | null;
-  decision_latency_ms: {
-    p50: number | null;
-    p95: number | null;
-    count: number;
-  };
-  top_dishes: Array<{
+  top_items: Array<{
     menu_item_id: string;
     name: string;
-    category: string | null;
-    orders: number;
-    avg_final_score: number;
+    count: number;
+    revenue_minor: number;
   }>;
-  fraud_signals: Array<{
-    signal_type: string;
-    severity_counts: { info: number; warning: number; block: number };
-    total: number;
-  }>;
-  sustainability: {
-    kg_food_saved: number;
-    kg_co2e_saved: number;
-    trees_day_equivalent: number;
-    sessions_counted: number;
+  avg_ticket: {
+    minor: number;
+    prior_period_minor: number;
+    delta_pct: number | null;
+  };
+  diner_ratio: {
+    new_count: number;
+    repeat_count: number;
+    anonymous_count: number;
   };
 }
 
-const RANGES: Range[] = ['7d', '30d', '90d'];
+const RANGE_KEYS: RangeKey[] = ['7d', '30d', 'this_month', 'last_month', 'custom'];
 
-function pct(v: number | null): string {
-  return v == null ? '—' : `${Math.round(v * 100)}%`;
+function fmtRupees(minor: number): string {
+  return (minor / 100).toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 }
 
-function fmtScore(v: number | null): string {
-  return v == null ? '—' : `${Math.round(v * 100)}%`;
+function isoDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
 
-function fmtMs(ms: number | null): string {
-  if (ms == null) return '—';
-  if (ms < 1000) return `${ms} ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
-  return `${(ms / 60_000).toFixed(1)} min`;
+function customDefaultFrom(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return isoDay(d);
+}
+
+function customDefaultTo(): string {
+  return isoDay(new Date());
 }
 
 export function Analytics() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { token, restaurantId } = useAuthStore();
-  const [range, setRange] = useState<Range>('7d');
-  const [downloading, setDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [range, setRange] = useState<RangeKey>('30d');
+  const [customFrom, setCustomFrom] = useState<string>(customDefaultFrom());
+  const [customTo, setCustomTo] = useState<string>(customDefaultTo());
 
   useEffect(() => {
     if (!token) navigate('/login');
   }, [token, navigate]);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['analytics', restaurantId, range],
+  const queryParams = useMemo(() => {
+    const p = new URLSearchParams({ range });
+    if (range === 'custom') {
+      // Same iso-day convention as Rewards: start-of-day for `from`,
+      // start of the next day for `to` so the picker's "to = today"
+      // includes anything that landed later today.
+      p.set('from', new Date(`${customFrom}T00:00:00Z`).toISOString());
+      const toDate = new Date(`${customTo}T00:00:00Z`);
+      toDate.setUTCDate(toDate.getUTCDate() + 1);
+      p.set('to', toDate.toISOString());
+    }
+    return p.toString();
+  }, [range, customFrom, customTo]);
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['analytics-overview', restaurantId, queryParams],
     queryFn: () =>
-      api.get<AnalyticsResponse>(
-        `/restaurants/${restaurantId}/dashboard/analytics?range=${range}`,
+      api.get<AnalyticsOverview>(
+        `/restaurants/${restaurantId}/dashboard/analytics-overview?${queryParams}`,
         token,
       ),
     enabled: Boolean(restaurantId && token),
     refetchInterval: 60_000,
   });
 
-  async function downloadPdf() {
-    if (!restaurantId || !token || downloading) return;
-    setDownloading(true);
-    setDownloadError(null);
-    try {
-      const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
-      const res = await fetch(
-        `${base}/restaurants/${restaurantId}/dashboard/sustainability-report.pdf?range=${range}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const cd = res.headers.get('Content-Disposition') ?? '';
-      const match = /filename="([^"]+)"/.exec(cd);
-      const filename = match?.[1] ?? `plate-clean-sustainability-${range}.pdf`;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setDownloadError(
-        err instanceof Error ? err.message : t('analytics.pdf.download_error'),
-      );
-    } finally {
-      setDownloading(false);
-    }
+  if (!restaurantId) {
+    return (
+      <p className="text-s-muted text-sm">{t('analytics.overview.pick_restaurant')}</p>
+    );
   }
-
-  if (!restaurantId)
-    return <p className="text-s-muted text-sm">{t('analytics.pick_restaurant')}</p>;
-  if (isLoading || !data) {
-    return <p className="text-s-muted text-sm">{t('analytics.loading')}</p>;
-  }
-
-  const totals = data.totals;
 
   return (
     <section className="flex flex-col gap-4">
       <header className="flex flex-col gap-2">
-        <div className="row spread items-end flex-wrap gap-2">
+        <div className="flex items-end justify-between gap-3 flex-wrap">
           <div>
-            <div className="text-[12px] font-semibold text-s-muted dev uppercase tracking-wide">
-              {t('app.nav.analytics')}
+            <div className="text-[12px] font-semibold text-s-muted uppercase tracking-wide inline-flex items-center gap-1.5">
+              <BarChart3 size={14} />
+              {t('analytics.overview.title')}
             </div>
-            <h1 className="display text-[28px] text-s-ink leading-tight">
-              {t('analytics.title')}
+            <h1 className="text-[28px] text-s-ink leading-tight font-semibold">
+              {t('analytics.overview.title')}
             </h1>
+            <p className="text-[12.5px] text-s-muted mt-1 max-w-[64ch]">
+              {t('analytics.overview.subtitle')}
+            </p>
           </div>
-          <div className="row gap-2 flex-wrap">
-            <div className="row gap-1.5">
-              {RANGES.map((r) => {
-                const active = r === range;
-                return (
-                  <button
-                    key={r}
-                    onClick={() => setRange(r)}
-                    className={clsx(
-                      'chip transition',
-                      active
-                        ? 'bg-brand text-white'
-                        : 'bg-s-paper border border-s-line text-s-muted hover:text-s-ink',
-                    )}
-                    aria-pressed={active}
-                  >
-                    {t(`analytics.range.${r}`)}
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              onClick={downloadPdf}
-              disabled={downloading}
-              className="row gap-1.5 items-center chip bg-sage-wash text-sage hover:bg-sage hover:text-white transition disabled:opacity-50"
-              title={t('analytics.pdf.download_hint') ?? undefined}
-            >
-              <Download size={12} />
-              {downloading ? t('analytics.pdf.downloading') : t('analytics.pdf.download')}
-            </button>
-          </div>
+          <RangePicker
+            range={range}
+            onRange={setRange}
+            customFrom={customFrom}
+            customTo={customTo}
+            onCustomFrom={setCustomFrom}
+            onCustomTo={setCustomTo}
+          />
         </div>
-        <p className="text-[12.5px] text-s-muted">{t('analytics.blurb')}</p>
       </header>
 
-      {downloadError && (
-        <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
-          {t('analytics.pdf.download_error')}: {downloadError}
+      {isLoading && (
+        <p className="text-s-muted text-sm">{t('analytics.overview.loading')}</p>
+      )}
+      {isError && (
+        <p className="text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2 text-sm">
+          {t('analytics.overview.load_error')}
         </p>
       )}
 
-      {/* top-line stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard
-          icon={<TrendingUp size={14} />}
-          tone="info"
-          label={t('analytics.stat.sessions')}
-          value={String(totals.sessions)}
-        />
-        <StatCard
-          icon={<Check size={14} />}
-          tone="sage"
-          label={t('analytics.stat.approval_rate')}
-          value={pct(data.rates.approval_rate)}
-          caption={t('analytics.stat.decided_n', { count: totals.decided })}
-        />
-        <StatCard
-          icon={<Sparkles size={14} />}
-          tone="saffron"
-          label={t('analytics.stat.rewards_issued')}
-          value={String(totals.rewards_issued)}
-          caption={t('analytics.stat.redemption_rate', {
-            rate: pct(data.rates.redemption_rate),
-          })}
-        />
-        <StatCard
-          icon={<Sliders size={14} />}
-          tone="brand"
-          label={t('analytics.stat.avg_score')}
-          value={fmtScore(data.avg_final_score)}
-          caption={t('analytics.stat.pending_n', {
-            count: totals.pending_validation,
-          })}
-        />
-      </div>
-
-      {/* decision-time + decision-mix */}
-      <div className="grid md:grid-cols-2 gap-3">
-        <Section icon={<Clock size={14} />} label={t('analytics.decision_time.heading')}>
-          <Pair
-            term={t('analytics.decision_time.p50')}
-            value={fmtMs(data.decision_latency_ms.p50)}
-          />
-          <Pair
-            term={t('analytics.decision_time.p95')}
-            value={fmtMs(data.decision_latency_ms.p95)}
-          />
-          <Pair
-            term={t('analytics.decision_time.n')}
-            value={String(data.decision_latency_ms.count)}
-          />
-        </Section>
-
-        <Section icon={<Sliders size={14} />} label={t('analytics.decision_mix.heading')}>
-          <Pair
-            term={t('analytics.decision_mix.approved')}
-            value={String(totals.approved)}
-            accent="sage"
-          />
-          <Pair
-            term={t('analytics.decision_mix.adjusted')}
-            value={String(totals.adjusted)}
-            accent="amber"
-          />
-          <Pair
-            term={t('analytics.decision_mix.rejected')}
-            value={String(totals.rejected)}
-            accent="danger"
-          />
-        </Section>
-      </div>
-
-      {/* sustainability hero */}
-      <section className="card p-5 bg-sage-wash/40 border-sage/20 flex flex-col gap-4">
-        <div className="row gap-2.5 items-center">
-          <div className="w-10 h-10 rounded-md bg-sage-wash text-sage flex items-center justify-center">
-            <Leaf size={18} />
-          </div>
-          <div>
-            <div className="font-semibold text-[15px] text-sage">
-              {t('analytics.sustainability.heading')}
+      {data && (
+        <>
+          {/* Row 1: revenue chart + revenue stat card */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <div className="lg:col-span-2">
+              <RevenueTrend daily={data.revenue.daily} />
             </div>
-            <p className="text-[12px] text-s-muted leading-snug">
-              {t('analytics.sustainability.blurb')}
-            </p>
+            <RevenueStatCard revenue={data.revenue} />
           </div>
-        </div>
-        <div className="grid grid-cols-3 gap-2.5">
-          <SustainabilityTile
-            value={data.sustainability.kg_food_saved.toFixed(2)}
-            label={t('analytics.sustainability.kg_food_saved')}
-          />
-          <SustainabilityTile
-            value={data.sustainability.kg_co2e_saved.toFixed(2)}
-            label={t('analytics.sustainability.kg_co2e_saved')}
-          />
-          <SustainabilityTile
-            value={data.sustainability.trees_day_equivalent.toFixed(1)}
-            label={t('analytics.sustainability.trees_day')}
-          />
-        </div>
-      </section>
 
-      {/* top dishes */}
-      <Section icon={<Utensils size={14} />} label={t('analytics.top_dishes.heading')}>
-        {data.top_dishes.length === 0 ? (
-          <p className="text-[13px] text-s-muted">{t('analytics.top_dishes.empty')}</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr className="text-[11px] text-s-muted dev uppercase tracking-wide">
-                  <th className="text-left py-1.5 font-semibold">
-                    {t('analytics.top_dishes.dish')}
-                  </th>
-                  <th className="text-left py-1.5 font-semibold">
-                    {t('analytics.top_dishes.category')}
-                  </th>
-                  <th className="text-right py-1.5 font-semibold">
-                    {t('analytics.top_dishes.orders')}
-                  </th>
-                  <th className="text-right py-1.5 font-semibold">
-                    {t('analytics.top_dishes.avg_score')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.top_dishes.map((d) => (
-                  <tr key={d.menu_item_id} className="border-t border-s-line">
-                    <td className="py-1.5 text-s-ink">{d.name}</td>
-                    <td className="py-1.5 text-s-muted capitalize">
-                      {d.category ?? '—'}
-                    </td>
-                    <td className="py-1.5 text-right tnum">{d.orders}</td>
-                    <td className="py-1.5 text-right tnum">
-                      {Math.round(d.avg_final_score * 100)}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Row 2: peak-hours heatmap */}
+          <PeakHoursHeatmap buckets={data.peak_hours.buckets} />
+
+          {/* Row 3: top items + diner ratio */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <div className="lg:col-span-2">
+              <TopItems items={data.top_items} />
+            </div>
+            <DinerRatio ratio={data.diner_ratio} />
           </div>
-        )}
-      </Section>
 
-      {/* fraud signals */}
-      <Section icon={<ShieldAlert size={14} />} label={t('analytics.fraud.heading')}>
-        {data.fraud_signals.length === 0 ? (
-          <p className="text-[13px] text-s-muted">{t('analytics.fraud.empty')}</p>
-        ) : (
-          <ul className="flex flex-col gap-1.5">
-            {data.fraud_signals.map((f) => (
-              <li
-                key={f.signal_type}
-                className="row spread items-baseline border-t border-s-line/60 pt-1.5 first:border-t-0 first:pt-0 text-[12.5px]"
-              >
-                <span className="text-s-ink">{f.signal_type}</span>
-                <span className="row gap-2 items-baseline">
-                  {f.severity_counts.block > 0 && (
-                    <span className="chip chip-danger">
-                      {t('analytics.fraud.severity.block', {
-                        count: f.severity_counts.block,
-                      })}
-                    </span>
-                  )}
-                  {f.severity_counts.warning > 0 && (
-                    <span className="chip chip-amber">
-                      {t('analytics.fraud.severity.warning', {
-                        count: f.severity_counts.warning,
-                      })}
-                    </span>
-                  )}
-                  {f.severity_counts.info > 0 && (
-                    <span className="chip chip-muted">
-                      {t('analytics.fraud.severity.info', {
-                        count: f.severity_counts.info,
-                      })}
-                    </span>
-                  )}
-                  <span className="tnum font-bold text-s-ink">{f.total}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Section>
+          {/* Row 4: avg ticket stat card, isolated */}
+          <AvgTicketCard avgTicket={data.avg_ticket} />
+        </>
+      )}
     </section>
   );
 }
 
-/* ----- pieces ----------------------------------------------------- */
+/* ────────────────────────────────────────────────────────────────── */
+/*   Range picker                                                    */
+/* ────────────────────────────────────────────────────────────────── */
 
-interface StatCardProps {
-  icon: React.ReactNode;
-  tone: 'info' | 'sage' | 'saffron' | 'brand';
-  label: string;
-  value: string;
-  caption?: string;
+interface RangePickerProps {
+  range: RangeKey;
+  onRange: (r: RangeKey) => void;
+  customFrom: string;
+  customTo: string;
+  onCustomFrom: (v: string) => void;
+  onCustomTo: (v: string) => void;
 }
 
-function StatCard({ icon, tone, label, value, caption }: StatCardProps) {
-  const accent =
-    tone === 'sage'
-      ? 'text-sage'
-      : tone === 'saffron'
-        ? 'text-saffron-deep'
-        : tone === 'info'
-          ? 'text-info'
-          : 'text-brand';
+function RangePicker({
+  range,
+  onRange,
+  customFrom,
+  customTo,
+  onCustomFrom,
+  onCustomTo,
+}: RangePickerProps) {
+  const { t } = useTranslation();
   return (
-    <div className="stat flex flex-col gap-1.5">
-      <div className={`row gap-1.5 items-center ${accent}`}>
-        {icon}
-        <span className="k dev uppercase tracking-wide">{label}</span>
+    <div className="flex items-end gap-2 flex-wrap">
+      <div className="inline-flex gap-1 rounded-md p-1 bg-s-bg border border-s-line">
+        {RANGE_KEYS.map((r) => {
+          const active = r === range;
+          return (
+            <button
+              key={r}
+              onClick={() => onRange(r)}
+              className={clsx(
+                'px-3 h-8 rounded-md text-[12.5px] font-semibold transition',
+                active
+                  ? 'bg-brand text-white'
+                  : 'text-s-muted hover:text-s-ink hover:bg-white',
+              )}
+              aria-pressed={active}
+            >
+              {t(`analytics.overview.range.${r}`)}
+            </button>
+          );
+        })}
       </div>
-      <div className="v tnum">{value}</div>
-      {caption && <div className="text-[11.5px] text-s-muted dev">{caption}</div>}
+      {range === 'custom' && (
+        <div className="flex items-end gap-2">
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10.5px] font-semibold text-s-muted uppercase tracking-wide">
+              {t('analytics.overview.range_from')}
+            </span>
+            <input
+              type="date"
+              value={customFrom}
+              max={customTo}
+              onChange={(e) => onCustomFrom(e.target.value)}
+              className="h-8 px-2 rounded-md border border-s-line bg-s-paper text-[12.5px]"
+            />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10.5px] font-semibold text-s-muted uppercase tracking-wide">
+              {t('analytics.overview.range_to')}
+            </span>
+            <input
+              type="date"
+              value={customTo}
+              min={customFrom}
+              onChange={(e) => onCustomTo(e.target.value)}
+              className="h-8 px-2 rounded-md border border-s-line bg-s-paper text-[12.5px]"
+            />
+          </label>
+        </div>
+      )}
     </div>
   );
 }
 
-interface SectionProps {
-  icon: React.ReactNode;
-  label: string;
-  children: React.ReactNode;
-}
+/* ────────────────────────────────────────────────────────────────── */
+/*   Widget: revenue trend (bar chart, hand-rolled SVG)              */
+/* ────────────────────────────────────────────────────────────────── */
 
-function Section({ icon, label, children }: SectionProps) {
+function RevenueTrend({
+  daily,
+}: {
+  daily: AnalyticsOverview['revenue']['daily'];
+}) {
+  const { t } = useTranslation();
+  const max = Math.max(1, ...daily.map((d) => d.total_minor));
+  const hasData = daily.some((d) => d.total_minor > 0);
+  const width = 720;
+  const height = 220;
+  const paddingLeft = 44;
+  const paddingRight = 12;
+  const paddingTop = 12;
+  const paddingBottom = 26;
+  const chartW = width - paddingLeft - paddingRight;
+  const chartH = height - paddingTop - paddingBottom;
+  const gap = daily.length > 20 ? 1 : 2;
+  const barW = daily.length ? (chartW - gap * (daily.length - 1)) / daily.length : 0;
+  // Y-axis: pick a "nice" number for the top so the grid labels round
+  // cleanly. Round the max up to the nearest whole rupee tier (100, 500, 1000…).
+  const roundUp = (n: number): number => {
+    if (n <= 100) return 100;
+    const orders = 10 ** Math.floor(Math.log10(n));
+    return Math.ceil(n / orders) * orders;
+  };
+  const niceMax = roundUp(max);
+  const tickCount = 4;
+  const yTicks = Array.from({ length: tickCount + 1 }, (_, i) => (niceMax / tickCount) * i);
+  // X-axis: only label every Nth bar so labels don't collide on a
+  // 30- or 90-day chart. Aim for ~6 labels total.
+  const xEvery = Math.max(1, Math.ceil(daily.length / 6));
+
   return (
-    <section className="bg-s-paper border border-s-line rounded-lg p-4 flex flex-col gap-2">
-      <div className="row gap-2 items-center text-s-muted">
-        {icon}
-        <span className="font-semibold text-[12px] dev uppercase tracking-wide">
-          {label}
+    <section className="bg-s-paper border border-s-line rounded-lg p-4 flex flex-col gap-2 h-full">
+      <div className="flex items-center gap-2 text-s-muted">
+        <TrendingUp size={14} />
+        <span className="font-semibold text-[12px] uppercase tracking-wide">
+          {t('analytics.overview.revenue.heading')}
         </span>
       </div>
-      <div className="flex flex-col gap-1">{children}</div>
+      {!hasData ? (
+        <EmptyState
+          title={t('analytics.overview.revenue.empty_title')}
+          hint={t('analytics.overview.revenue.empty_hint')}
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            width="100%"
+            height={height}
+            preserveAspectRatio="xMinYMid meet"
+            role="img"
+            aria-label={t('analytics.overview.revenue.heading')}
+          >
+            {/* Y-axis grid + labels */}
+            {yTicks.map((v, i) => {
+              const y = paddingTop + chartH - (v / niceMax) * chartH;
+              return (
+                <g key={i}>
+                  <line
+                    x1={paddingLeft}
+                    x2={width - paddingRight}
+                    y1={y}
+                    y2={y}
+                    stroke="hsl(214 22% 91%)"
+                    strokeDasharray={i === 0 ? undefined : '2 3'}
+                  />
+                  <text
+                    x={paddingLeft - 6}
+                    y={y}
+                    dominantBaseline="middle"
+                    textAnchor="end"
+                    fontSize="10"
+                    fill="hsl(215 14% 44%)"
+                    fontFamily="JetBrains Mono, monospace"
+                  >
+                    ₹{fmtRupees(v)}
+                  </text>
+                </g>
+              );
+            })}
+            {/* Bars */}
+            {daily.map((d, i) => {
+              const h = niceMax === 0 ? 0 : (d.total_minor / niceMax) * chartH;
+              const x = paddingLeft + i * (barW + gap);
+              const y = paddingTop + chartH - h;
+              return (
+                <g key={d.date}>
+                  <rect
+                    x={x}
+                    y={y}
+                    width={Math.max(1, barW)}
+                    height={Math.max(h > 0 ? 1 : 0, h)}
+                    rx={1.5}
+                    fill="hsl(153 43% 46%)"
+                  >
+                    <title>{`${d.date} — ₹${fmtRupees(d.total_minor)}`}</title>
+                  </rect>
+                </g>
+              );
+            })}
+            {/* X-axis labels */}
+            {daily.map((d, i) => {
+              if (i % xEvery !== 0 && i !== daily.length - 1) return null;
+              const x = paddingLeft + i * (barW + gap) + barW / 2;
+              const y = height - 8;
+              // Trim to MM-DD to keep the label narrow.
+              const label = d.date.slice(5);
+              return (
+                <text
+                  key={`x-${d.date}`}
+                  x={x}
+                  y={y}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fill="hsl(215 14% 44%)"
+                  fontFamily="JetBrains Mono, monospace"
+                >
+                  {label}
+                </text>
+              );
+            })}
+          </svg>
+        </div>
+      )}
     </section>
   );
 }
 
-interface PairProps {
-  term: string;
-  value: string;
-  accent?: 'sage' | 'amber' | 'danger';
-}
+/* ────────────────────────────────────────────────────────────────── */
+/*   Widget: revenue stat card (total, avg, delta)                   */
+/* ────────────────────────────────────────────────────────────────── */
 
-function Pair({ term, value, accent }: PairProps) {
-  const cls =
-    accent === 'sage'
-      ? 'text-sage'
-      : accent === 'amber'
-        ? 'text-amber-deep'
-        : accent === 'danger'
-          ? 'text-danger'
-          : 'text-s-ink';
+function RevenueStatCard({
+  revenue,
+}: {
+  revenue: AnalyticsOverview['revenue'];
+}) {
+  const { t } = useTranslation();
   return (
-    <div className="row spread items-baseline py-0.5 text-[13px]">
-      <span className="text-s-muted">{term}</span>
-      <span className={`tnum font-bold ${cls}`}>{value}</span>
-    </div>
+    <section className="bg-brand-wash border border-brand-line rounded-lg p-5 flex flex-col gap-3 h-full">
+      <div className="text-[11px] font-semibold text-brand-700 uppercase tracking-wide">
+        {t('analytics.overview.revenue.total_label')}
+      </div>
+      <div className="font-mono text-3xl font-bold text-s-ink tabular-nums leading-none">
+        ₹{fmtRupees(revenue.total_minor)}
+      </div>
+      <DeltaPill delta={revenue.delta_pct} label={t('analytics.overview.revenue.delta_vs_prior')} />
+      <div className="mt-2 pt-3 border-t border-brand-line">
+        <div className="text-[11px] font-semibold text-s-muted uppercase tracking-wide">
+          {t('analytics.overview.revenue.avg_label')}
+        </div>
+        <div className="font-mono text-xl font-bold text-s-ink tabular-nums mt-1">
+          ₹{fmtRupees(revenue.avg_per_day_minor)}
+        </div>
+      </div>
+    </section>
   );
 }
 
-function SustainabilityTile({ value, label }: { value: string; label: string }) {
+/* ────────────────────────────────────────────────────────────────── */
+/*   Widget: peak-hours heatmap (7×24)                               */
+/* ────────────────────────────────────────────────────────────────── */
+
+function PeakHoursHeatmap({
+  buckets,
+}: {
+  buckets: AnalyticsOverview['peak_hours']['buckets'];
+}) {
+  const { t } = useTranslation();
+  const grid: number[][] = Array.from({ length: 7 }, () =>
+    new Array<number>(24).fill(0),
+  );
+  let max = 0;
+  for (const b of buckets) {
+    if (b.dow >= 0 && b.dow < 7 && b.hour >= 0 && b.hour < 24) {
+      const row = grid[b.dow]!;
+      row[b.hour] = b.session_count;
+      if (b.session_count > max) max = b.session_count;
+    }
+  }
+  const hasData = max > 0;
+  // 24 columns, each 22px wide; 7 rows, each 22px tall. Plus left-labels + top-labels.
+  const cell = 22;
+  const gap = 2;
+  const leftLabelW = 34;
+  const topLabelH = 20;
+  const w = leftLabelW + 24 * (cell + gap);
+  const h = topLabelH + 7 * (cell + gap);
+  const hourLabels = [0, 6, 12, 18];
+
   return (
-    <div className="rounded-md bg-paper border border-line p-3">
-      <div className="tnum font-bold text-[22px] text-ink leading-none">{value}</div>
-      <div className="text-[11.5px] text-muted dev mt-1 leading-tight">{label}</div>
+    <section className="bg-s-paper border border-s-line rounded-lg p-4 flex flex-col gap-2">
+      <div className="flex items-center gap-2 text-s-muted">
+        <Clock size={14} />
+        <span className="font-semibold text-[12px] uppercase tracking-wide">
+          {t('analytics.overview.peak_hours.heading')}
+        </span>
+        <span className="text-[11.5px] text-s-faint">
+          {t('analytics.overview.peak_hours.sub')}
+        </span>
+      </div>
+      {!hasData ? (
+        <EmptyState
+          title={t('analytics.overview.peak_hours.empty_title')}
+          hint={t('analytics.overview.peak_hours.empty_hint')}
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <svg
+            viewBox={`0 0 ${w} ${h}`}
+            width="100%"
+            height={h}
+            preserveAspectRatio="xMinYMid meet"
+            role="img"
+            aria-label={t('analytics.overview.peak_hours.heading')}
+          >
+            {/* top labels: 00, 06, 12, 18 */}
+            {hourLabels.map((hr) => {
+              const x = leftLabelW + hr * (cell + gap) + cell / 2;
+              return (
+                <text
+                  key={`hlbl-${hr}`}
+                  x={x}
+                  y={12}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fill="hsl(215 14% 44%)"
+                  fontFamily="JetBrains Mono, monospace"
+                >
+                  {String(hr).padStart(2, '0')}
+                </text>
+              );
+            })}
+            {/* rows */}
+            {grid.map((row, dow) => {
+              const y = topLabelH + dow * (cell + gap);
+              return (
+                <g key={dow}>
+                  <text
+                    x={leftLabelW - 6}
+                    y={y + cell / 2}
+                    textAnchor="end"
+                    dominantBaseline="middle"
+                    fontSize="10"
+                    fill="hsl(215 14% 44%)"
+                    fontFamily="JetBrains Mono, monospace"
+                  >
+                    {t(`analytics.overview.peak_hours.days.${dow}`)}
+                  </text>
+                  {row.map((v, hr) => {
+                    // Intensity from 5% → 100% as spec calls out. Fall
+                    // through to a bare-min opacity for the zero cells
+                    // so the whole grid still reads as a grid.
+                    const opacity = v === 0 ? 0.05 : 0.05 + (v / max) * 0.95;
+                    const x = leftLabelW + hr * (cell + gap);
+                    const dayLabel = t(`analytics.overview.peak_hours.days.${dow}`);
+                    return (
+                      <rect
+                        key={hr}
+                        x={x}
+                        y={y}
+                        width={cell}
+                        height={cell}
+                        rx={3}
+                        fill="hsl(153 43% 46%)"
+                        fillOpacity={opacity}
+                      >
+                        <title>
+                          {t('analytics.overview.peak_hours.tooltip', {
+                            day: dayLabel,
+                            hour: String(hr).padStart(2, '0'),
+                            count: v,
+                          })}
+                        </title>
+                      </rect>
+                    );
+                  })}
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/*   Widget: top selling items (horizontal bars)                     */
+/* ────────────────────────────────────────────────────────────────── */
+
+function TopItems({ items }: { items: AnalyticsOverview['top_items'] }) {
+  const { t } = useTranslation();
+  const max = items.length ? Math.max(...items.map((i) => i.count)) : 0;
+  return (
+    <section className="bg-s-paper border border-s-line rounded-lg p-4 flex flex-col gap-2 h-full">
+      <div className="flex items-center gap-2 text-s-muted">
+        <Utensils size={14} />
+        <span className="font-semibold text-[12px] uppercase tracking-wide">
+          {t('analytics.overview.top_items.heading')}
+        </span>
+        <span className="text-[11.5px] text-s-faint">
+          {t('analytics.overview.top_items.sub')}
+        </span>
+      </div>
+      {items.length === 0 ? (
+        <EmptyState
+          title={t('analytics.overview.top_items.empty_title')}
+          hint={t('analytics.overview.top_items.empty_hint')}
+        />
+      ) : (
+        <div className="flex flex-col gap-1.5 mt-2">
+          {items.map((it) => {
+            const pct = max ? (it.count / max) * 100 : 0;
+            return (
+              <div
+                key={it.menu_item_id}
+                className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,2fr)_auto] items-center gap-3 text-[12.5px]"
+              >
+                <span className="truncate text-s-ink font-semibold" title={it.name}>
+                  {it.name}
+                </span>
+                <div className="relative h-5 bg-s-bg rounded overflow-hidden">
+                  <div
+                    className="h-full bg-brand transition-all"
+                    style={{ width: `${pct}%` }}
+                  />
+                  <span className="absolute inset-0 flex items-center pl-2 text-[11px] font-mono font-semibold text-s-ink mix-blend-luminosity">
+                    {it.count}
+                  </span>
+                </div>
+                <span className="font-mono tabular-nums text-right text-s-ink font-semibold min-w-[70px]">
+                  ₹{fmtRupees(it.revenue_minor)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/*   Widget: new vs repeat diner ratio                               */
+/* ────────────────────────────────────────────────────────────────── */
+
+function DinerRatio({ ratio }: { ratio: AnalyticsOverview['diner_ratio'] }) {
+  const { t } = useTranslation();
+  const hasData = ratio.new_count + ratio.repeat_count > 0;
+  return (
+    <section className="bg-s-paper border border-s-line rounded-lg p-4 flex flex-col gap-3 h-full">
+      <div className="flex items-center gap-2 text-s-muted">
+        <Users size={14} />
+        <span className="font-semibold text-[12px] uppercase tracking-wide">
+          {t('analytics.overview.diner_ratio.heading')}
+        </span>
+      </div>
+      {!hasData && ratio.anonymous_count === 0 ? (
+        <EmptyState
+          title={t('analytics.overview.diner_ratio.empty_title')}
+          hint={t('analytics.overview.diner_ratio.empty_hint')}
+        />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-md border border-brand-line bg-brand-wash p-3 flex flex-col">
+              <div className="text-[10.5px] font-semibold text-brand-700 uppercase tracking-wide">
+                {t('analytics.overview.diner_ratio.new_label')}
+              </div>
+              <div className="font-mono text-3xl font-bold text-s-ink tabular-nums mt-1 leading-none">
+                {ratio.new_count}
+              </div>
+              <div className="text-[11px] text-s-muted mt-2 leading-snug">
+                {t('analytics.overview.diner_ratio.new_hint')}
+              </div>
+            </div>
+            <div className="rounded-md border border-s-line bg-s-bg p-3 flex flex-col">
+              <div className="text-[10.5px] font-semibold text-s-muted uppercase tracking-wide">
+                {t('analytics.overview.diner_ratio.repeat_label')}
+              </div>
+              <div className="font-mono text-3xl font-bold text-s-ink tabular-nums mt-1 leading-none">
+                {ratio.repeat_count}
+              </div>
+              <div className="text-[11px] text-s-muted mt-2 leading-snug">
+                {t('analytics.overview.diner_ratio.repeat_hint')}
+              </div>
+            </div>
+          </div>
+          {ratio.anonymous_count > 0 && (
+            <div className="text-[11px] text-s-muted bg-s-bg border border-s-line rounded px-2 py-1.5 inline-block self-start">
+              {t('analytics.overview.diner_ratio.anonymous_pill', {
+                count: ratio.anonymous_count,
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/*   Widget: avg ticket size stat card                               */
+/* ────────────────────────────────────────────────────────────────── */
+
+function AvgTicketCard({
+  avgTicket,
+}: {
+  avgTicket: AnalyticsOverview['avg_ticket'];
+}) {
+  const { t } = useTranslation();
+  return (
+    <section className="bg-brand-wash border border-brand-line rounded-lg p-5 flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <div className="text-[11px] font-semibold text-brand-700 uppercase tracking-wide">
+          {t('analytics.overview.avg_ticket.heading')}
+        </div>
+        <div className="font-mono text-3xl font-bold text-s-ink tabular-nums mt-1 leading-none">
+          ₹{fmtRupees(avgTicket.minor)}
+        </div>
+        <p className="text-[11.5px] text-s-muted mt-2 max-w-[64ch]">
+          {t('analytics.overview.avg_ticket.sub')}
+        </p>
+      </div>
+      <DeltaPill delta={avgTicket.delta_pct} label={t('analytics.overview.avg_ticket.delta_vs_prior')} />
+    </section>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────── */
+/*   Shared: delta pill + empty state                                */
+/* ────────────────────────────────────────────────────────────────── */
+
+function DeltaPill({ delta, label }: { delta: number | null; label: string }) {
+  if (delta === null) {
+    return (
+      <span className="inline-flex items-center gap-1 self-start text-[11.5px] font-semibold text-s-muted bg-s-bg border border-s-line rounded-full px-2.5 h-6">
+        — {label}
+      </span>
+    );
+  }
+  const positive = delta >= 0;
+  return (
+    <span
+      className={clsx(
+        'inline-flex items-center gap-1 self-start text-[11.5px] font-semibold rounded-full px-2.5 h-6',
+        positive ? 'bg-sage-wash text-sage' : 'bg-danger-wash text-danger',
+      )}
+    >
+      {positive ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
+      <span className="font-mono tabular-nums">
+        {positive ? '+' : ''}
+        {delta.toFixed(1)}%
+      </span>
+      <span className="text-s-muted font-normal">{label}</span>
+    </span>
+  );
+}
+
+function EmptyState({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-10 text-center gap-1.5">
+      <p className="text-[13px] font-semibold text-s-ink">{title}</p>
+      <p className="text-[12px] text-s-muted max-w-[36ch]">{hint}</p>
     </div>
   );
 }

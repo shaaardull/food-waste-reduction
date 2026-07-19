@@ -21,6 +21,7 @@ import {
   Bug,
   Grid3x3,
   Gift,
+  ListOrdered,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Menu, X as CloseIcon } from 'lucide-react';
@@ -54,6 +55,10 @@ const FRONT_DOOR = new Set([
   // Print sheet MUST be full-bleed — the browser print dialog would
   // otherwise include the staff rail in the printed PDF.
   '/-/platform/qr-print',
+  // Waitlist QR print sheet — same reason as the platform QR print
+  // sheet: must be full-bleed so the browser print dialog doesn't
+  // include the staff rail in the PDF.
+  '/-/waitlist-print',
 ]);
 
 export function App() {
@@ -277,6 +282,11 @@ function StaffRail({
       icon: <ClipboardList size={16} />,
       end: true,
       count: badges?.orders_active,
+    },
+    {
+      to: '/waitlist',
+      label: t('app.nav.waitlist'),
+      icon: <ListOrdered size={16} />,
     },
     { to: '/orders/past', label: t('app.nav.past_orders'), icon: <History size={16} /> },
     {
