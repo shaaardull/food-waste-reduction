@@ -256,6 +256,15 @@ def cleanup_run_artifacts() -> Iterator[None]:
                 "(SELECT id FROM restaurants WHERE slug LIKE :p)"
             ).bindparams(p=f"itest-{RUN_TAG}-%")
         )
+        # Waitlist entries FK restaurants + users — wipe any test-created
+        # rows before the restaurants delete cascades / users delete
+        # NULLs their FK. Match by restaurant slug prefix.
+        s.execute(
+            text(
+                "DELETE FROM waitlist_entries WHERE restaurant_id IN "
+                "(SELECT id FROM restaurants WHERE slug LIKE :p)"
+            ).bindparams(p=f"itest-{RUN_TAG}-%")
+        )
         s.execute(
             text("DELETE FROM restaurants WHERE slug LIKE :p").bindparams(
                 p=f"itest-{RUN_TAG}-%"

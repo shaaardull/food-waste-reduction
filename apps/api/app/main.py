@@ -21,6 +21,7 @@ from app.routers import (
     rewards,
     sessions,
     validations,
+    waitlist,
 )
 from app.routers import restaurants as restaurants_router
 
@@ -117,3 +118,8 @@ app.include_router(platform.router, prefix="/api/v1", tags=["platform"])
 # Mounted at the API root because the public `/qr/:token/resolve` and
 # the admin `/admin/platform/qr-tokens/*` share the same module.
 app.include_router(qr_tokens.router, prefix="/api/v1", tags=["qr-tokens"])
+# Walk-in waitlist: public POST/GET-by-id (guest submit + poll) and
+# staff-only list / seat / cancel / no-show. Mounted at the API root
+# because the routes span two shapes: /restaurants/{slug|id}/waitlist
+# and /waitlist/{entry_id}/*.
+app.include_router(waitlist.router, prefix="/api/v1", tags=["waitlist"])

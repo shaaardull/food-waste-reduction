@@ -13,6 +13,7 @@ from app.models.reward import Reward, RewardRule
 from app.models.staff_metrics import StaffMetricsSnapshot
 from app.models.staff_validation import StaffValidation
 from app.models.user import User
+from app.models.waitlist_entry import WaitlistEntry
 
 __all__ = [
     "Bill",
@@ -33,4 +34,5 @@ __all__ = [
     "FraudSignal",
     "Dispute",
     "LabeledSession",
+    "WaitlistEntry",
 ]
