@@ -1946,7 +1946,7 @@ async def analytics_overview(
                 .group_by(MealSession.diner_user_id)
             )
         ).all()
-        for diner_id, earliest in earliest_rows:
+        for _diner_id, earliest in earliest_rows:
             earliest_utc = _as_utc(earliest)
             if earliest_utc >= from_utc:
                 new_count += 1
