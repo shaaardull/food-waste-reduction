@@ -378,7 +378,11 @@ function StaffRail({
       </Link>
 
       {/* nav items */}
-      <nav className="flex-1 px-2 py-2 flex flex-col gap-0.5">
+      {/* min-h-0 + overflow-y-auto lets the nav scroll internally when the
+          item list grows past the viewport, so the sign-out footer below
+          stays pinned. Without min-h-0 the flex child refuses to shrink
+          below its content and pushes the footer off-screen. */}
+      <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-2 flex flex-col gap-0.5">
         {items
           .filter((it) => !it.adminOnly || user?.role === 'admin')
           .map((it) => (
