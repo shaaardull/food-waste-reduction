@@ -262,6 +262,11 @@ export function Kitchen() {
   );
 }
 
+// Cap what a chef sees at once per column. Deep queues at rush hour
+// scroll off-screen otherwise and important fresh KOTs stay hidden
+// behind stale in-progress ones.
+const CARDS_PER_PAGE = 8;
+
 function StationColumn({
   station,
   cards,
@@ -275,8 +280,12 @@ function StationColumn({
   now: number;
   onTransition: (itemId: string, status: string) => void;
   onReprint: (sessionId: string) => void;
-  t: (k: string) => string;
+  t: (k: string, opts?: Record<string, unknown>) => string;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const showAll = expanded || cards.length <= CARDS_PER_PAGE;
+  const visible = showAll ? cards : cards.slice(0, CARDS_PER_PAGE);
+  const hiddenCount = cards.length - visible.length;
   return (
     <section className="rounded-lg bg-s-paper border border-s-line flex flex-col overflow-hidden">
       <header className="px-3 py-2 border-b border-s-line flex items-center justify-between">
@@ -294,7 +303,7 @@ function StationColumn({
             {t('kitchen.idle')}
           </div>
         )}
-        {cards.map((card) => (
+        {visible.map((card) => (
           <OrderCard
             key={`${card.station}-${card.session_id}`}
             card={card}
@@ -304,6 +313,24 @@ function StationColumn({
             t={t}
           />
         ))}
+        {hiddenCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="mt-1 h-8 rounded-md text-[12px] font-semibold text-brand hover:bg-brand/5 border border-dashed border-brand/40"
+          >
+            {t('kitchen.show_more', { count: hiddenCount })}
+          </button>
+        )}
+        {expanded && cards.length > CARDS_PER_PAGE && (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="mt-1 h-7 rounded-md text-[11.5px] font-semibold text-muted hover:bg-s-bg"
+          >
+            {t('kitchen.show_less')}
+          </button>
+        )}
       </div>
     </section>
   );
@@ -320,7 +347,7 @@ function OrderCard({
   now: number;
   onTransition: (itemId: string, status: string) => void;
   onReprint: () => void;
-  t: (k: string) => string;
+  t: (k: string, opts?: Record<string, unknown>) => string;
 }) {
   const elapsed = elapsedShort(card.started_at, now);
   const isTakeaway = card.is_takeaway;
@@ -370,7 +397,7 @@ function ItemRow({
 }: {
   item: KitchenItem;
   onTransition: (itemId: string, status: string) => void;
-  t: (k: string) => string;
+  t: (k: string, opts?: Record<string, unknown>) => string;
 }) {
   const nextStatus =
     item.kitchen_status === 'queued'

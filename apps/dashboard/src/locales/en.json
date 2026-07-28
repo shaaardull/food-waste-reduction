@@ -1179,6 +1179,8 @@
     "loading": "Loading the kitchen queue…",
     "idle": "Nothing cooking here.",
     "auto_print_label": "Auto-print new tickets",
+    "show_more": "+ {{count}} more",
+    "show_less": "Show less",
     "reprint_aria": "Reprint ticket",
     "takeaway_pill": "Takeaway",
     "walkin_pill": "Walk-in",

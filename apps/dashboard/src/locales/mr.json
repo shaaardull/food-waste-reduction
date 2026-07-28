@@ -1179,6 +1179,8 @@
     "loading": "किचन रांग लोड होत आहे…",
     "idle": "इथे काही शिजत नाही.",
     "auto_print_label": "नवीन तिकिटं आपोआप छापा",
+    "show_more": "+ आणखी {{count}}",
+    "show_less": "कमी दाखवा",
     "reprint_aria": "तिकीट पुन्हा छापा",
     "takeaway_pill": "टेकअवे",
     "walkin_pill": "वॉक-इन",

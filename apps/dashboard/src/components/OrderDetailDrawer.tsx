@@ -23,6 +23,7 @@ import { BillSendModal } from './BillSendModal';
 import { BillViewModal } from './BillViewModal';
 import { EditItemsModal } from './EditItemsModal';
 import { LoyaltyBadge } from './LoyaltyBadge';
+import { PrintReceipt, type Bill } from './PrintReceipt';
 import type { Order } from '../screens/Orders';
 
 /**
@@ -62,14 +63,42 @@ const STATE_LABEL_KEY: Record<string, string> = {
 };
 
 export function OrderDetailDrawer({ order, onClose }: Props) {
-  const { t } = useTranslation();
-  const { token, restaurantId } = useAuthStore();
+  const { t, i18n } = useTranslation();
+  const { token, restaurantId, activeRestaurant } = useAuthStore();
   const qc = useQueryClient();
 
   const [voidOpen, setVoidOpen] = useState(false);
   const [billSendOpen, setBillSendOpen] = useState(false);
   const [billViewOpen, setBillViewOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  // Bill loaded / generated on Print bill click. When non-null the
+  // hidden .rx-receipt element is in the DOM, ready for
+  // window.print(). Kept in state (not a query) so the print fires
+  // deterministically after the mutation resolves.
+  const [printableBill, setPrintableBill] = useState<Bill | null>(null);
+
+  const printBill = useMutation({
+    mutationFn: async () => {
+      // POST /sessions/:id/bill is idempotent server-side —
+      // returns the existing bill if one already exists, otherwise
+      // generates a fresh one from the current items list. Either
+      // way we get the full Bill payload we need to render.
+      return api.post<Bill>(
+        `/sessions/${order.session_id}/bill`,
+        {},
+        token,
+      );
+    },
+    onSuccess: (bill) => {
+      setPrintableBill(bill);
+      // The .rx-receipt element mounts on the next render; give React
+      // one tick to paint it before firing the browser print flow.
+      window.setTimeout(() => {
+        window.print();
+      }, 60);
+      void qc.invalidateQueries({ queryKey: ['live-orders', restaurantId] });
+    },
+  });
 
   const isWalkin = order.entry_channel === 'walkin';
   const hasBill = order.bill_id !== null;
@@ -206,11 +235,14 @@ export function OrderDetailDrawer({ order, onClose }: Props) {
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <button
                     type="button"
-                    onClick={() => window.print()}
-                    className="h-11 rounded-lg border border-s-line text-s-ink font-semibold text-sm inline-flex items-center justify-center gap-2 hover:bg-s-bg transition"
+                    onClick={() => printBill.mutate()}
+                    disabled={printBill.isPending}
+                    className="h-11 rounded-lg border border-s-line text-s-ink font-semibold text-sm inline-flex items-center justify-center gap-2 hover:bg-s-bg transition disabled:opacity-60"
                   >
                     <Printer size={16} />
-                    {t('walkin.print_bill')}
+                    {printBill.isPending
+                      ? t('walkin.working')
+                      : t('walkin.print_bill')}
                   </button>
                   <button
                     type="button"
@@ -300,6 +332,22 @@ export function OrderDetailDrawer({ order, onClose }: Props) {
           restaurantId={restaurantId}
           currentItems={order.items}
           onClose={() => setEditOpen(false)}
+        />
+      )}
+      {/* Hidden thermal-receipt layout, present in the DOM only after
+          the Print bill mutation resolves. The `@media print` rules
+          in index.css flip .rx-receipt visible and blank everything
+          else on the page. */}
+      {printableBill && (
+        <PrintReceipt
+          bill={printableBill}
+          restaurant={activeRestaurant}
+          tableCode={order.table_code}
+          noGst={
+            printableBill.cgst_amount_minor === 0 &&
+            printableBill.sgst_amount_minor === 0
+          }
+          locale={i18n.resolvedLanguage ?? 'en'}
         />
       )}
     </>
