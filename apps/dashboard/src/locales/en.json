@@ -8,6 +8,7 @@
       "orders": "Live orders",
       "waitlist": "Waitlist",
       "past_orders": "Past orders",
+      "kitchen": "Kitchen",
       "validations": "Validation queue",
       "menu": "Menu",
       "redeem": "Redeem code",
@@ -1169,6 +1170,28 @@
       "missing_slug": "No restaurant selected — open this from the Waitlist screen.",
       "card_eyebrow": "Join the waitlist",
       "card_copy": "Full house? Scan to join the waitlist. We'll seat you as soon as we can."
+    }
+  },
+  "kitchen": {
+    "eyebrow": "Kitchen display",
+    "title": "Kitchen board",
+    "pick_restaurant": "Sign in and pick a restaurant first.",
+    "loading": "Loading the kitchen queue…",
+    "idle": "Nothing cooking here.",
+    "auto_print_label": "Auto-print new tickets",
+    "reprint_aria": "Reprint ticket",
+    "takeaway_pill": "Takeaway",
+    "walkin_pill": "Walk-in",
+    "fire": "Fire",
+    "mark_ready": "Ready",
+    "mark_served": "Serve",
+    "done": "Done",
+    "station": {
+      "hot": "Hot line",
+      "tandoor": "Tandoor",
+      "cold": "Cold line",
+      "bar": "Bar",
+      "dessert": "Dessert"
     }
   }
 }

@@ -13,6 +13,7 @@ from app.routers import (
     bills,
     bills_dashboard,
     dashboard,
+    kitchen,
     onboarding,
     platform,
     public,
@@ -123,3 +124,6 @@ app.include_router(qr_tokens.router, prefix="/api/v1", tags=["qr-tokens"])
 # because the routes span two shapes: /restaurants/{slug|id}/waitlist
 # and /waitlist/{entry_id}/*.
 app.include_router(waitlist.router, prefix="/api/v1", tags=["waitlist"])
+# Kitchen Display System: staff-only queue view + per-item lifecycle
+# transitions + KOT event polling for the auto-print loop.
+app.include_router(kitchen.router, prefix="/api/v1", tags=["kitchen"])

@@ -22,6 +22,7 @@ import {
   Grid3x3,
   Gift,
   ListOrdered,
+  ChefHat,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Menu, X as CloseIcon } from 'lucide-react';
@@ -289,6 +290,7 @@ function StaffRail({
       icon: <ListOrdered size={16} />,
     },
     { to: '/orders/past', label: t('app.nav.past_orders'), icon: <History size={16} /> },
+    { to: '/kitchen', label: t('app.nav.kitchen'), icon: <ChefHat size={16} /> },
     {
       to: '/validations',
       label: t('app.nav.validations'),

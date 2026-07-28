@@ -13,6 +13,7 @@ import { DisputeDetail } from './screens/DisputeDetail';
 import { Disputes } from './screens/Disputes';
 import { BugReport } from './screens/BugReport';
 import { ForgotPassword } from './screens/ForgotPassword';
+import { Kitchen } from './screens/Kitchen';
 import { Login } from './screens/Login';
 import { PlatformCommandCenter } from './screens/PlatformCommandCenter';
 import { PlatformQrTokens } from './screens/PlatformQrTokens';
@@ -51,6 +52,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="orders" element={<Orders />} />
             <Route path="orders/new-walkin" element={<NewWalkinOrder />} />
             <Route path="orders/past" element={<PastOrders />} />
+            <Route path="kitchen" element={<Kitchen />} />
             <Route path="waitlist" element={<Waitlist />} />
             <Route path="-/waitlist-print" element={<WaitlistPrintSheet />} />
             <Route path="validations" element={<ValidationQueue />} />
