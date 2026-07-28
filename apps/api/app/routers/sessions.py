@@ -45,7 +45,7 @@ from app.schemas.session import (
     WalkinVoidIn,
 )
 from app.security import get_current_user, haversine_m
-from app.services import billing, fraud, nonce, rate_limit, storage
+from app.services import billing, fraud, kot, nonce, rate_limit, storage
 
 router = APIRouter()
 settings = get_settings()
@@ -183,18 +183,36 @@ async def add_items(
     if session.status not in allowed_statuses:
         raise WrongSessionStatus(sorted(allowed_statuses), session.status)
 
+    # Was there already at least one item on this session before this
+    # call? If yes, the KOT this call emits is an "add_on"; otherwise
+    # it's the "new" ticket that kicks off cooking.
+    existing_count_res = await db.execute(
+        select(MealSessionItem.id).where(MealSessionItem.meal_session_id == session.id)
+    )
+    is_first_batch = existing_count_res.first() is None
+
+    new_items: list[MealSessionItem] = []
     for item in payload.items:
         menu_item = await db.get(MenuItem, item.menu_item_id)
         if menu_item is None or menu_item.restaurant_id != session.restaurant_id:
             raise HTTPException(status_code=400, detail="Invalid menu_item_id")
-        db.add(
-            MealSessionItem(
-                meal_session_id=session.id,
-                menu_item_id=item.menu_item_id,
-                quantity=item.quantity,
-                portion_size=item.portion_size,
-                notes=item.notes,
-            )
+        si = MealSessionItem(
+            meal_session_id=session.id,
+            menu_item_id=item.menu_item_id,
+            quantity=item.quantity,
+            portion_size=item.portion_size,
+            notes=item.notes,
+        )
+        db.add(si)
+        new_items.append(si)
+    await db.flush()  # populate si.id so the KOT snapshot can reference it
+    if is_first_batch:
+        await kot.emit_new(
+            db, session=session, items=new_items, triggered_by_user_id=user.id
+        )
+    else:
+        await kot.emit_add(
+            db, session=session, items=new_items, triggered_by_user_id=user.id
         )
     await db.commit()
     await db.refresh(session)
@@ -796,18 +814,35 @@ async def replace_session_items(
     existing_res = await db.execute(
         select(MealSessionItem).where(MealSessionItem.meal_session_id == session.id)
     )
-    for row in existing_res.scalars().all():
+    existing_items = list(existing_res.scalars().all())
+    # Anything the kitchen may have already fired needs a VOID ticket
+    # so the station stops cooking. Skip already-served items — those
+    # were handed to the diner, kitchen doesn't care anymore.
+    to_void = [
+        it for it in existing_items if it.kitchen_status not in ("served", "voided")
+    ]
+    if to_void:
+        await kot.emit_void(
+            db, session=session, items=to_void, triggered_by_user_id=user.id
+        )
+    for row in existing_items:
         await db.delete(row)
 
+    new_items: list[MealSessionItem] = []
     for item in payload.items:
-        db.add(
-            MealSessionItem(
-                meal_session_id=session.id,
-                menu_item_id=item.menu_item_id,
-                quantity=item.quantity,
-                portion_size=item.portion_size,
-                notes=item.notes,
-            )
+        si = MealSessionItem(
+            meal_session_id=session.id,
+            menu_item_id=item.menu_item_id,
+            quantity=item.quantity,
+            portion_size=item.portion_size,
+            notes=item.notes,
+        )
+        db.add(si)
+        new_items.append(si)
+    await db.flush()
+    if new_items:
+        await kot.emit_new(
+            db, session=session, items=new_items, triggered_by_user_id=user.id
         )
     await db.commit()
     await db.refresh(session)
@@ -975,6 +1010,23 @@ async def void_session(
     session.voided_at = now
     session.voided_reason = payload.reason
     session.voided_by_user_id = user.id
+
+    # Kitchen needs to know: stop cooking. Emit VOID KOT for every
+    # item that was not already served — items past 'served' were
+    # already handed out and no longer belong to the kitchen queue.
+    items_res = await db.execute(
+        select(MealSessionItem).where(
+            MealSessionItem.meal_session_id == session.id,
+            MealSessionItem.kitchen_status.notin_(("served", "voided")),
+        )
+    )
+    still_cooking = list(items_res.scalars().all())
+    for it in still_cooking:
+        it.kitchen_status = "voided"
+    await kot.emit_void(
+        db, session=session, items=still_cooking, triggered_by_user_id=user.id
+    )
+
     await db.commit()
     await db.refresh(session)
     return SessionOut.model_validate(session)

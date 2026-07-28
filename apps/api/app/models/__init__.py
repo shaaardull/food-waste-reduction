@@ -2,6 +2,7 @@ from app.models.bill import Bill
 from app.models.consumption_score import ConsumptionScore
 from app.models.dispute import Dispute
 from app.models.fraud_signal import FraudSignal
+from app.models.kot_event import KotEvent
 from app.models.labeled_session import LabeledSession
 from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_extraction import MenuExtraction
@@ -33,6 +34,7 @@ __all__ = [
     "Reward",
     "FraudSignal",
     "Dispute",
+    "KotEvent",
     "LabeledSession",
     "WaitlistEntry",
 ]

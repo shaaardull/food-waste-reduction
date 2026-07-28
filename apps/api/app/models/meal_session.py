@@ -119,6 +119,10 @@ class MealSessionItem(Base, UUIDPKMixin, TimestampMixin):
             "portion_size IS NULL OR portion_size IN ('small', 'regular', 'large')",
             name="meal_session_items_portion_check",
         ),
+        CheckConstraint(
+            "kitchen_status IN ('queued','fired','ready','served','voided')",
+            name="meal_session_items_kitchen_status_check",
+        ),
     )
 
     meal_session_id: Mapped[UUID] = mapped_column(
@@ -133,3 +137,15 @@ class MealSessionItem(Base, UUIDPKMixin, TimestampMixin):
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     portion_size: Mapped[str | None] = mapped_column(String, nullable=True)
     notes: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Per-item kitchen lifecycle. Distinct from the coarse
+    # meal_sessions.kitchen_ack_at bit: multiple stations may work
+    # the same order in parallel and finish at different times.
+    kitchen_status: Mapped[str] = mapped_column(
+        String, nullable=False, default="queued", server_default="queued"
+    )
+    fired_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    ready_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

@@ -20,3 +20,8 @@ class MenuItem(Base, UUIDPKMixin, TimestampMixin):
     is_reward_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     reference_image_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Which kitchen station cooks this dish. Drives KOT routing:
+    # one KOT ticket is emitted per distinct station in an order.
+    kitchen_station: Mapped[str] = mapped_column(
+        String, nullable=False, default="hot", server_default="hot"
+    )
