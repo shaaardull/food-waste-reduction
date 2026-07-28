@@ -69,6 +69,23 @@ interface EventsResponse {
 }
 
 const AUTO_PRINT_KEY = 'plate_dashboard_kot_autoprint';
+const PAGE_SIZE_KEY = 'plate_dashboard_kot_page_size';
+
+// Options for the per-column visible-count dropdown. 0 = show all
+// (no cap). 30 is a compromise between "everything's visible on a
+// wall-mounted TV" and "don't lag the browser at rush hour".
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 0] as const;
+const DEFAULT_PAGE_SIZE = 30;
+
+function readPageSize(): number {
+  if (typeof window === 'undefined') return DEFAULT_PAGE_SIZE;
+  const raw = localStorage.getItem(PAGE_SIZE_KEY);
+  if (raw === null) return DEFAULT_PAGE_SIZE;
+  const n = parseInt(raw, 10);
+  return PAGE_SIZE_OPTIONS.includes(n as (typeof PAGE_SIZE_OPTIONS)[number])
+    ? n
+    : DEFAULT_PAGE_SIZE;
+}
 
 function elapsedShort(iso: string, now: number): string {
   const then = new Date(iso).getTime();
@@ -92,6 +109,12 @@ export function Kitchen() {
       : false,
   );
   const printQueueRef = useRef<KotEvent[]>([]);
+  const [pageSize, setPageSize] = useState<number>(() => readPageSize());
+
+  function changePageSize(next: number) {
+    setPageSize(next);
+    localStorage.setItem(PAGE_SIZE_KEY, String(next));
+  }
 
   // Cheap tick so elapsed labels stay live without extra queries.
   const now = useNow(5_000);
@@ -207,15 +230,10 @@ export function Kitchen() {
   }
 
   const stations = queueQ.data?.stations ?? {};
-  // Preserve station display order; only render columns that exist
-  // OR are canonical (so an empty "Hot" column shows an idle-state
-  // instead of the column just vanishing).
-  const columns = STATION_ORDER.filter(
-    (s) => (stations[s]?.length ?? 0) > 0,
-  ) as Station[];
-  // Fallback: if nothing is cooking anywhere, still show hot as a
-  // placeholder column.
-  if (columns.length === 0) columns.push('hot');
+  // All five station columns render every time — empty ones show
+  // an idle-state placeholder. Fills the wide screen on kitchen
+  // tablets and keeps the layout stable as cards come and go.
+  const columns = [...STATION_ORDER] as Station[];
 
   return (
     <div className="p-4 md:p-6 flex flex-col gap-4 min-h-full">
@@ -229,25 +247,42 @@ export function Kitchen() {
             {t('kitchen.title')}
           </h1>
         </div>
-        <label className="flex items-center gap-2 text-[13px] cursor-pointer select-none">
-          <input
-            type="checkbox"
-            defaultChecked={autoPrint.current}
-            onChange={toggleAutoPrint}
-            className="w-4 h-4 accent-brand"
-          />
-          <Printer size={14} />
-          {t('kitchen.auto_print_label')}
-        </label>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 text-[13px] select-none">
+            <span className="text-muted">{t('kitchen.page_size_label')}</span>
+            <select
+              value={pageSize}
+              onChange={(e) => changePageSize(parseInt(e.target.value, 10))}
+              className="h-8 rounded-md border border-s-line bg-white px-2 text-[13px] font-semibold text-ink"
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n === 0 ? t('kitchen.page_size_all') : n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-[13px] cursor-pointer select-none">
+            <input
+              type="checkbox"
+              defaultChecked={autoPrint.current}
+              onChange={toggleAutoPrint}
+              className="w-4 h-4 accent-brand"
+            />
+            <Printer size={14} />
+            {t('kitchen.auto_print_label')}
+          </label>
+        </div>
       </header>
 
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
         {columns.map((station) => (
           <StationColumn
             key={station}
             station={station}
             cards={stations[station] ?? []}
             now={now}
+            pageSize={pageSize}
             onTransition={(itemId, status) =>
               transition.mutate({ itemId, status })
             }
@@ -262,15 +297,11 @@ export function Kitchen() {
   );
 }
 
-// Cap what a chef sees at once per column. Deep queues at rush hour
-// scroll off-screen otherwise and important fresh KOTs stay hidden
-// behind stale in-progress ones.
-const CARDS_PER_PAGE = 8;
-
 function StationColumn({
   station,
   cards,
   now,
+  pageSize,
   onTransition,
   onReprint,
   t,
@@ -278,13 +309,16 @@ function StationColumn({
   station: Station;
   cards: KitchenCard[];
   now: number;
+  /** Per-column visible cap. 0 means show all (no cap). */
+  pageSize: number;
   onTransition: (itemId: string, status: string) => void;
   onReprint: (sessionId: string) => void;
   t: (k: string, opts?: Record<string, unknown>) => string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const showAll = expanded || cards.length <= CARDS_PER_PAGE;
-  const visible = showAll ? cards : cards.slice(0, CARDS_PER_PAGE);
+  const uncapped = pageSize === 0;
+  const showAll = uncapped || expanded || cards.length <= pageSize;
+  const visible = showAll ? cards : cards.slice(0, pageSize);
   const hiddenCount = cards.length - visible.length;
   return (
     <section className="rounded-lg bg-s-paper border border-s-line flex flex-col overflow-hidden">
@@ -322,7 +356,7 @@ function StationColumn({
             {t('kitchen.show_more', { count: hiddenCount })}
           </button>
         )}
-        {expanded && cards.length > CARDS_PER_PAGE && (
+        {expanded && !uncapped && cards.length > pageSize && (
           <button
             type="button"
             onClick={() => setExpanded(false)}

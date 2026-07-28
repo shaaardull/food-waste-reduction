@@ -1179,6 +1179,8 @@
     "loading": "Loading the kitchen queue…",
     "idle": "Nothing cooking here.",
     "auto_print_label": "Auto-print new tickets",
+    "page_size_label": "Per column",
+    "page_size_all": "All",
     "show_more": "+ {{count}} more",
     "show_less": "Show less",
     "reprint_aria": "Reprint ticket",

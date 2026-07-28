@@ -1179,6 +1179,8 @@
     "loading": "किचन सूची लोड हो रही है…",
     "idle": "यहाँ अभी कुछ नहीं पक रहा.",
     "auto_print_label": "नए टिकट अपने-आप छापें",
+    "page_size_label": "प्रति कॉलम",
+    "page_size_all": "सभी",
     "show_more": "+ {{count}} और",
     "show_less": "कम दिखाएँ",
     "reprint_aria": "टिकट फिर से छापें",
