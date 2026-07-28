@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Loader2 } from 'lucide-react';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import type { Restaurant } from '@plate-clean/shared-types';
@@ -21,40 +22,86 @@ export function ScanTable() {
   const [tableCode, setTableCode] = useState('T-01');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Fast-path when we arrive here from QrResolve → auth → back here
+  // with a stashed (restaurant, table) pair. Skip the picker entirely
+  // and drop the diner into the menu.
+  const [resuming, setResuming] = useState(
+    () => typeof window !== 'undefined' && !!sessionStorage.getItem('qr-context'),
+  );
 
   useEffect(() => {
-    api
-      .get<Restaurant[]>('/restaurants')
-      .then((rs) => {
+    let cancelled = false;
+
+    async function loadAndMaybeResume() {
+      let rs: Restaurant[] = [];
+      try {
+        rs = await api.get<Restaurant[]>('/restaurants');
+        if (cancelled) return;
         setRestaurants(rs);
-        // If a diner scanned a bound QR sticker before signing in,
-        // QrResolve stashed the resolved (restaurant, table) pair
-        // in sessionStorage. Auto-select it now so the diner doesn't
-        // have to re-pick after finishing auth — one-shot, cleared
-        // on read so a subsequent manual scan doesn't reuse stale
-        // context.
-        try {
-          const raw = sessionStorage.getItem('qr-context');
-          if (raw) {
-            const hint = JSON.parse(raw) as {
-              restaurantId: string;
-              tableCode: string;
-            };
-            sessionStorage.removeItem('qr-context');
-            const match = rs.find((r) => r.id === hint.restaurantId);
-            if (match) {
-              setRestaurantId(match.id);
-              setTableCode(hint.tableCode);
-              return;
-            }
-          }
-        } catch {
-          /* ignore malformed / stale JSON */
+      } catch {
+        if (!cancelled) {
+          setError(t('scan.load_error'));
+          setResuming(false);
         }
-        if (rs[0]) setRestaurantId(rs[0].id);
-      })
-      .catch(() => setError(t('scan.load_error')));
-  }, [t]);
+        return;
+      }
+
+      // If a diner scanned a bound QR sticker before signing in,
+      // QrResolve stashed the resolved (restaurant, table) pair
+      // in sessionStorage. Auto-create the session and go straight
+      // to the menu — one-shot, cleared on read.
+      let hint: { restaurantId: string; tableCode: string } | null = null;
+      try {
+        const raw = sessionStorage.getItem('qr-context');
+        if (raw) {
+          hint = JSON.parse(raw);
+          sessionStorage.removeItem('qr-context');
+        }
+      } catch {
+        /* ignore malformed / stale JSON */
+      }
+
+      const match = hint ? rs.find((r) => r.id === hint!.restaurantId) : null;
+      if (hint && match && token) {
+        try {
+          setActiveRestaurant(match);
+          const created = await api.post<SessionCreateOut>(
+            '/sessions',
+            { table_code: hint.tableCode, restaurant_id: match.id },
+            token,
+          );
+          if (cancelled) return;
+          sessionStorage.setItem(
+            `nonce-before-${created.session_id}`,
+            created.before_capture_nonce,
+          );
+          navigate(`/sessions/${created.session_id}/order`, { replace: true });
+          return;
+        } catch (err) {
+          // Auto-resume failed — fall through to the picker with the
+          // hint pre-filled so the diner can retry manually.
+          if (!cancelled) {
+            setRestaurantId(match.id);
+            setTableCode(hint.tableCode);
+            setError(err instanceof ApiException ? err.message : t('scan.start_error'));
+            setResuming(false);
+          }
+          return;
+        }
+      }
+
+      // No hint (or restaurant no longer exists / not signed in yet) —
+      // render the normal picker with the first restaurant selected.
+      if (cancelled) return;
+      if (rs[0]) setRestaurantId(rs[0].id);
+      setResuming(false);
+    }
+
+    void loadAndMaybeResume();
+    return () => {
+      cancelled = true;
+    };
+  }, [t, token, navigate, setActiveRestaurant]);
 
   async function start() {
     setError(null);
@@ -75,6 +122,15 @@ export function ScanTable() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (resuming) {
+    return (
+      <section className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+        <Loader2 className="animate-spin text-brand" size={28} />
+        <p className="text-sm text-slate-600">{t('scan.resuming')}</p>
+      </section>
+    );
   }
 
   return (

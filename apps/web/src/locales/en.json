@@ -227,6 +227,7 @@
     "table_code_label": "Table code",
     "start": "Open a session",
     "starting": "Starting…",
+    "resuming": "Opening your table…",
     "load_error": "Could not load restaurants.",
     "start_error": "Could not start session."
   },
