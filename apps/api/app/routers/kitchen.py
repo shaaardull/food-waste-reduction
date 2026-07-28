@@ -132,8 +132,10 @@ async def get_queue(
     db: AsyncSession = Depends(get_db),
 ) -> KitchenQueueOut:
     """Return every item in the kitchen right now, grouped by station
-    and then by session. Sorted oldest-first within each station so
-    the leftmost card is the one the kitchen should fire next."""
+    and then by session. Cards are sorted **newest-first** within
+    each station so a fresh KOT lands at the top of the column where
+    the chef is most likely to look — older orders that are already
+    being worked on scroll below."""
     await _ensure_staff(db, user, restaurant_id)
 
     rows = (
@@ -185,10 +187,13 @@ async def get_queue(
         )
 
     # Materialise into the response shape: dict[station, list[card]]
-    # with cards ordered by started_at.
+    # with newest cards first (see docstring — matches chef's
+    # attention pattern).
     stations: dict[str, list[KitchenCardOut]] = {}
     for station, bucket in grouped.items():
-        stations[station] = sorted(bucket.values(), key=lambda c: c.started_at)
+        stations[station] = sorted(
+            bucket.values(), key=lambda c: c.started_at, reverse=True
+        )
     return KitchenQueueOut(stations=stations)
 
 
