@@ -55,6 +55,13 @@ class Restaurant(Base, UUIDPKMixin, TimestampMixin):
     gst_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
+    # Per-restaurant kill switch for the rewards program. When false the
+    # diner PWA shows a "rewards paused" notice on the menu screen and
+    # the after-capture reward flow is short-circuited — orders and
+    # bills continue to work normally, only reward issuance is skipped.
+    rewards_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
 
 
 class RestaurantStaff(Base, UUIDPKMixin, TimestampMixin):

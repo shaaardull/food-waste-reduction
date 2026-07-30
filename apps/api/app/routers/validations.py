@@ -186,7 +186,16 @@ async def submit_validation(
     if payload.decision == "rejected":
         session.status = "staff_rejected"
     else:
-        # approved or adjusted — check threshold
+        # approved or adjusted — check threshold, then per-restaurant
+        # rewards toggle. If the restaurant has paused its rewards
+        # program the session lands in staff_approved without a reward
+        # regardless of the score. The diner PWA already surfaces this
+        # via the "rewards paused" notice on the menu screen so this
+        # branch is not a surprise.
+        restaurant_row = await db.get(Restaurant, session.restaurant_id)
+        rewards_paused = (
+            restaurant_row is not None and not restaurant_row.rewards_enabled
+        )
         rule_result = await db.execute(
             select(RewardRule).where(
                 RewardRule.restaurant_id == session.restaurant_id,
@@ -194,7 +203,11 @@ async def submit_validation(
             )
         )
         rule = rule_result.scalar_one_or_none()
-        if rule is not None and final_score >= rule.consumption_threshold:
+        if (
+            not rewards_paused
+            and rule is not None
+            and final_score >= rule.consumption_threshold
+        ):
             try:
                 await rate_limit.check_rewards_per_restaurant_per_day(
                     session.diner_user_id, session.restaurant_id

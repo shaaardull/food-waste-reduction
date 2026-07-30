@@ -10,6 +10,7 @@ import {
   ChevronDown,
   MessageSquare,
   Trash2,
+  Gift,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { MenuItem, PortionSize } from '@plate-clean/shared-types';
@@ -74,6 +75,18 @@ export function Order() {
   const [lines, setLines] = useState<Record<string, Line>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Rewards-paused notice — one-time per session. sessionStorage
+  // scoped by session id so the diner doesn't see it re-appear if
+  // they navigate away and back within the same meal.
+  const rewardsPaused = activeRestaurant?.rewards_enabled === false;
+  const noticeKey = `rewards-paused-notice-seen-${sessionId}`;
+  const [showRewardsPausedNotice, setShowRewardsPausedNotice] = useState(
+    () => rewardsPaused && sessionStorage.getItem(noticeKey) !== '1',
+  );
+  function dismissRewardsPausedNotice() {
+    sessionStorage.setItem(noticeKey, '1');
+    setShowRewardsPausedNotice(false);
+  }
 
   useEffect(() => {
     (async () => {
@@ -222,6 +235,45 @@ export function Order() {
 
   return (
     <div className="d-screen flex flex-col min-h-full">
+      {/* Rewards-paused notice — first-time modal per meal session.
+          Blocks the ordering flow until dismissed, but only briefly:
+          diner reads, taps Got it, proceeds to menu as normal. Non-
+          scary framing — the ordering experience is unchanged. */}
+      {showRewardsPausedNotice && (
+        <div
+          className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-ink/40 px-4 pb-4 sm:pb-0"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rewards-paused-title"
+        >
+          <div className="w-full max-w-[440px] rounded-xl bg-white shadow-pop p-5 flex flex-col gap-4 animate-[slideup_.18s_ease-out]">
+            <div className="row gap-3 items-start">
+              <div className="w-10 h-10 shrink-0 rounded-full bg-amber-wash flex items-center justify-center text-amber">
+                <Gift size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2
+                  id="rewards-paused-title"
+                  className="display text-[19px] leading-tight"
+                >
+                  {t('order.rewards_paused_title')}
+                </h2>
+                <p className="mt-1.5 text-[13.5px] text-muted leading-snug">
+                  {t('order.rewards_paused_body')}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={dismissRewardsPausedNotice}
+              className="btn btn-primary btn-lg w-full"
+            >
+              {t('order.rewards_paused_ack')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* header — table chip + lang toggle */}
       <div className="px-5 pt-4 pb-1.5">
         <div className="spread">

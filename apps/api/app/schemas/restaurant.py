@@ -36,6 +36,10 @@ class RestaurantOut(BaseModel):
     # Past bills keep their snapshot rate; only future bills follow
     # the new setting.
     gst_enabled: bool = True
+    # Per-restaurant rewards program toggle. Exposed on the diner-facing
+    # GET /restaurants/:slug so the PWA can gate the reward flow and
+    # show a "paused" notice without a separate settings fetch.
+    rewards_enabled: bool = True
 
     model_config = {"from_attributes": True}
 
@@ -86,6 +90,7 @@ class RestaurantPatchIn(BaseModel):
     hsn_code: str | None = Field(default=None, min_length=4, max_length=8)
     bill_prefix: str | None = Field(default=None, max_length=32)
     gst_enabled: bool | None = None
+    rewards_enabled: bool | None = None
 
 
 class MenuItemOut(BaseModel):

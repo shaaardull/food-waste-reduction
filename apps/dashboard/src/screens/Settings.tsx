@@ -146,6 +146,15 @@ export function Settings() {
         </p>
       </header>
 
+      {/* Rewards program toggle — self-contained so a flip doesn't
+          require submitting the GST form. Optimistic update on the
+          restaurant cache so the change reflects immediately. */}
+      <RewardsToggleCard
+        restaurant={restaurant!}
+        restaurantId={restaurantId!}
+        token={token}
+      />
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -484,6 +493,103 @@ function RewardRuleRowForm({
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * RewardsToggleCard — headline switch that pauses/resumes the rewards
+ * program for this restaurant. Self-contained mutation so it doesn't
+ * couple with the GST-form save cycle.
+ *
+ * When paused:
+ *   • Diner PWA shows a "rewards paused" notice on the menu screen.
+ *   • Staff validation still runs; the API short-circuits reward
+ *     issuance server-side regardless of the score.
+ *   • Existing unredeemed rewards remain valid — a pause is forward-
+ *     looking only.
+ */
+function RewardsToggleCard({
+  restaurant,
+  restaurantId,
+  token,
+}: {
+  restaurant: Restaurant;
+  restaurantId: string;
+  token: string | null;
+}) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [pendingValue, setPendingValue] = useState<boolean | null>(null);
+  const enabled = pendingValue ?? restaurant.rewards_enabled ?? true;
+
+  const toggle = useMutation({
+    mutationFn: async (next: boolean) => {
+      return api.patch<Restaurant>(
+        `/restaurants/${restaurantId}`,
+        { rewards_enabled: next },
+        token,
+      );
+    },
+    onMutate: (next) => {
+      setPendingValue(next);
+    },
+    onSuccess: (updated) => {
+      setPendingValue(null);
+      // Invalidate the cached restaurant so Settings, the auth store,
+      // and any downstream consumers see the new value on next fetch.
+      void qc.invalidateQueries({
+        queryKey: ['restaurant-detail', restaurantId],
+      });
+      useAuthStore.getState().setActiveRestaurant(updated);
+    },
+    onError: () => {
+      // Revert optimistic display on failure.
+      setPendingValue(null);
+    },
+  });
+
+  return (
+    <div className="rounded-lg border border-s-line bg-s-paper p-5 flex items-start gap-4">
+      <div
+        className={clsx(
+          'w-10 h-10 shrink-0 rounded-md flex items-center justify-center',
+          enabled ? 'bg-sage/15 text-sage' : 'bg-s-bg text-s-muted',
+        )}
+      >
+        <Gift size={18} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="row items-center gap-2 flex-wrap">
+          <h2 className="display text-[18px] text-s-ink">
+            {t('settings.rewards_enabled_label')}
+          </h2>
+          <span
+            className={clsx(
+              'text-[10.5px] font-bold uppercase tracking-wide px-2 py-0.5 rounded',
+              enabled ? 'bg-sage/15 text-sage' : 'bg-danger/10 text-danger',
+            )}
+          >
+            {enabled
+              ? t('settings.rewards_status_on')
+              : t('settings.rewards_status_off')}
+          </span>
+        </div>
+        <p className="text-[12.5px] text-s-muted leading-snug mt-1 max-w-[54ch]">
+          {enabled
+            ? t('settings.rewards_enabled_hint_on')
+            : t('settings.rewards_enabled_hint_off')}
+        </p>
+      </div>
+      <label className="inline-flex items-center gap-2 cursor-pointer shrink-0 mt-1">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={toggle.isPending}
+          onChange={(e) => toggle.mutate(e.target.checked)}
+          className="w-4 h-4 accent-brand"
+        />
+      </label>
     </div>
   );
 }

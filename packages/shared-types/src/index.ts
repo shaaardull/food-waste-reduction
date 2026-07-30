@@ -76,6 +76,10 @@ export interface Restaurant {
   hsn_code?: string;
   bill_prefix?: string | null;
   gst_enabled?: boolean;
+  // Per-restaurant rewards program toggle. When false, the diner PWA
+  // shows a "rewards paused" notice on the menu screen and the API
+  // short-circuits reward issuance in the validation flow.
+  rewards_enabled?: boolean;
 }
 
 export interface MenuItem {

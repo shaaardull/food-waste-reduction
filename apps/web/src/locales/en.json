@@ -243,6 +243,9 @@
     "send_to_kitchen": "Send to kitchen",
     "saving": "Saving…",
     "loading": "Loading menu…",
+    "rewards_paused_title": "Rewards are paused today",
+    "rewards_paused_body": "The restaurant has temporarily paused its rewards program. You can still order as normal — no reward will be issued for this meal. Existing unredeemed rewards remain valid.",
+    "rewards_paused_ack": "Got it — continue to menu",
     "category": {
       "main": "main",
       "side": "side",
