@@ -16,7 +16,7 @@ import {
  * `superpositionlabs.co.in/plate-clean` — deploy target is a config
  * decision, not a code one). Job:
  *
- *   1. Establish parent-company trust — Superposition Labs Pvt Ltd
+ *   1. Establish parent-company trust — Hypergeometric Labs Pvt. Ltd.
  *      is the entity behind the product. Diners see it in the
  *      footer, restaurant partners see it prominently in the About
  *      section (they're onboarding a real corporate relationship,
@@ -34,6 +34,10 @@ import {
 const DINER_URL = import.meta.env.VITE_DINER_URL ?? 'http://localhost:5173';
 const DASHBOARD_URL =
   import.meta.env.VITE_DASHBOARD_URL ?? 'http://localhost:5174';
+// TODO(rebrand-domain): once hypergeometriclabs.co.in is registered
+// and SES sender identity is verified, swap the default and update
+// VITE_CONTACT_EMAIL in prod env. Legacy mailbox on the old domain
+// remains active for continuity.
 const CONTACT_EMAIL =
   import.meta.env.VITE_CONTACT_EMAIL ??
   'hello-platecleanrewards@superpositionlabs.co.in';
@@ -66,7 +70,7 @@ function Header() {
               Plate-Clean Rewards
             </span>
             <span className="text-[11px] text-muted mt-0.5">
-              a Superposition Labs product
+              a Hypergeometric Labs product
             </span>
           </span>
         </a>
@@ -338,7 +342,7 @@ function Footer() {
             </span>
             <div className="leading-tight">
               <div className="font-bold text-[14px] text-ink">
-                Superposition Labs Pvt Ltd
+                Hypergeometric Labs Pvt. Ltd.
               </div>
               <div className="text-[11.5px] text-muted mt-0.5">
                 Parent company · Mumbai, India
@@ -346,7 +350,7 @@ function Footer() {
             </div>
           </div>
           <p className="mt-4 text-[12.5px] text-muted leading-[1.6] max-w-[38ch]">
-            Plate-Clean Rewards is built and operated by Superposition Labs.
+            Plate-Clean Rewards is built and operated by Hypergeometric Labs.
             We build tools that keep incentives aligned with outcomes.
           </p>
         </div>
@@ -390,7 +394,10 @@ function Footer() {
                 target="_blank"
                 rel="noreferrer"
               >
-                superpositionlabs.co.in
+                {/* TODO(rebrand-domain): swap href to
+                    hypergeometriclabs.co.in when the new domain is
+                    registered and DNS-routed. */}
+                Parent company →
               </a>
             </li>
           </ul>
@@ -399,7 +406,7 @@ function Footer() {
       <div className="border-t border-line/60">
         <div className="max-w-6xl mx-auto px-6 py-4 text-[11.5px] text-muted flex flex-wrap items-center justify-between gap-2">
           <span>
-            © {new Date().getFullYear()} Superposition Labs Pvt Ltd. All rights
+            © {new Date().getFullYear()} Hypergeometric Labs Pvt. Ltd. All rights
             reserved.
           </span>
           <span>DPDP Act compliant · India-first</span>

@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     # Where diner-filed disputes get emailed. Configurable so ops can
     # point it at a Zendesk / Freshdesk drop address later without a
     # code change.
+    # TODO(rebrand-domain): move to @hypergeometriclabs.co.in once that
+    # domain is registered and SES sender identity is verified. Legacy
+    # mailbox on the old domain remains active for continuity.
     SUPPORT_EMAIL_ADDRESS: str = "support-platecleanrewards@superpositionlabs.co.in"
     # Google Identity Services OAuth Client ID. When empty, the
     # /auth/google endpoint responds 503 (feature not configured);

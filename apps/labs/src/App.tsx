@@ -1,3 +1,6 @@
+// TODO(rebrand-domain): swap to hello@hypergeometriclabs.co.in once the
+// new domain is registered and SES sender identity is verified. Legacy
+// mailbox on the old domain remains active for continuity.
 const CONTACT_EMAIL = 'hello@superpositionlabs.co.in';
 
 interface Product {
@@ -25,7 +28,7 @@ export function App() {
       <div className="mx-auto w-full max-w-[640px] px-6">
         <header className="flex items-center justify-between pt-8">
           <span className="text-[20px] font-light tracking-tight text-ink">
-            Superposition Labs
+            Hypergeometric Labs
           </span>
           <a
             href={`mailto:${CONTACT_EMAIL}`}
@@ -37,7 +40,7 @@ export function App() {
 
         <section className="flex min-h-[40vh] flex-col justify-center py-24">
           <h1 className="text-[44px] font-light leading-[1.05] tracking-tight text-ink sm:text-[56px]">
-            Superposition Labs
+            Hypergeometric Labs
           </h1>
           <p className="mt-6 text-[28px] font-light leading-[1.25] text-ink">
             Data, AI, and ML systems for real-world sustainability.
@@ -65,7 +68,7 @@ export function App() {
         </section>
 
         <footer className="mt-24 pb-12 text-center text-[12px] text-neutral-500">
-          © 2026 Superposition Labs. Mumbai, India.
+          © 2026 Hypergeometric Labs Pvt. Ltd. Mumbai, India.
         </footer>
       </div>
     </div>
