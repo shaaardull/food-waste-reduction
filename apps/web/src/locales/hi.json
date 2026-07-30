@@ -246,6 +246,9 @@
     "rewards_paused_title": "आज रिवॉर्ड्स कुछ समय के लिए बंद हैं",
     "rewards_paused_body": "रेस्टोरेंट ने रिवॉर्ड कार्यक्रम कुछ समय के लिए रोक दिया है. आप हमेशा की तरह ऑर्डर कर सकते हैं — इस भोजन के लिए रिवॉर्ड जारी नहीं होगा. पहले जारी किए गए बिना रिडीम रिवॉर्ड मान्य रहेंगे.",
     "rewards_paused_ack": "समझ गया — मेन्यू पर जाएँ",
+    "add_to_order": "ऑर्डर में जोड़ें",
+    "addon_already_ordered": "आपके ऑर्डर पर पहले से",
+    "addon_hint": "और जो चाहिए वो चुनें. पहले से ऑर्डर की गई चीज़ें ऑर्डर पर बनी रहेंगी — सिर्फ़ नई चीज़ें भेजी जाएँगी.",
     "category": {
       "main": "मुख्य",
       "side": "साइड",
@@ -283,6 +286,12 @@
   "session_status": {
     "title": "आपका भोजन",
     "status_label": "स्थिति",
+    "your_order_heading": "आपका ऑर्डर",
+    "your_order_count_one": "{{count}} डिश",
+    "your_order_count_other": "{{count}} डिश",
+    "your_order_subtotal": "उप-कुल",
+    "your_order_add_more": "और डिश जोड़ें",
+    "your_order_unknown_item": "आइटम",
     "take_before": "पहले की फ़ोटो लें",
     "waiting_for_food_heading": "आपका ऑर्डर आ रहा है",
     "waiting_for_food_blurb": "आराम से। जब थालियाँ मेज़ पर आ जाएँ, नीचे टैप करें और पहले की फ़ोटो लें।",

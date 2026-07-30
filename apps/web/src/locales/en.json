@@ -246,6 +246,9 @@
     "rewards_paused_title": "Rewards are paused today",
     "rewards_paused_body": "The restaurant has temporarily paused its rewards program. You can still order as normal — no reward will be issued for this meal. Existing unredeemed rewards remain valid.",
     "rewards_paused_ack": "Got it — continue to menu",
+    "add_to_order": "Add to order",
+    "addon_already_ordered": "Already on your ticket",
+    "addon_hint": "Pick anything else you'd like to add. Your existing items stay on the ticket — this only sends the new items.",
     "category": {
       "main": "main",
       "side": "side",
@@ -283,6 +286,12 @@
   "session_status": {
     "title": "Your meal",
     "status_label": "Status",
+    "your_order_heading": "Your order",
+    "your_order_count_one": "{{count}} dish",
+    "your_order_count_other": "{{count}} dishes",
+    "your_order_subtotal": "Subtotal",
+    "your_order_add_more": "Add more items",
+    "your_order_unknown_item": "Item",
     "take_before": "Take the before photo",
     "waiting_for_food_heading": "Your order is on the way",
     "waiting_for_food_blurb": "Relax — no rush. When the plates arrive at your table, tap below and snap the before photo.",

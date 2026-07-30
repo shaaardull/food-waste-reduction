@@ -246,6 +246,9 @@
     "rewards_paused_title": "आज रिवॉर्ड्स तात्पुरते बंद आहेत",
     "rewards_paused_body": "रेस्टॉरंटने रिवॉर्ड कार्यक्रम तात्पुरता थांबवला आहे. तुम्ही नेहमीप्रमाणे ऑर्डर करू शकता — या जेवणासाठी रिवॉर्ड मिळणार नाही. पूर्वी दिलेले न वापरलेले रिवॉर्ड तसेच वैध राहतील.",
     "rewards_paused_ack": "समजलं — मेन्यूकडे जा",
+    "add_to_order": "ऑर्डरमध्ये जोडा",
+    "addon_already_ordered": "तुमच्या ऑर्डरवर आधीच",
+    "addon_hint": "आणखी काय हवं ते निवडा. आधीच ऑर्डर केलेले पदार्थ तसेच राहतील — फक्त नवीन पदार्थ पाठवले जातील.",
     "category": {
       "main": "मुख्य",
       "side": "साइड",
@@ -283,6 +286,12 @@
   "session_status": {
     "title": "तुमचं जेवण",
     "status_label": "स्थिती",
+    "your_order_heading": "तुमची ऑर्डर",
+    "your_order_count_one": "{{count}} पदार्थ",
+    "your_order_count_other": "{{count}} पदार्थ",
+    "your_order_subtotal": "उप-एकूण",
+    "your_order_add_more": "आणखी पदार्थ जोडा",
+    "your_order_unknown_item": "पदार्थ",
     "take_before": "आधीचा फोटो काढा",
     "waiting_for_food_heading": "तुमची ऑर्डर येत आहे",
     "waiting_for_food_blurb": "आरामात राहा. ताट टेबलावर आल्यावर, खाली टॅप करून आधीचा फोटो काढा.",

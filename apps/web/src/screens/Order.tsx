@@ -25,6 +25,19 @@ interface SessionDetail {
     status: string;
     table_code: string;
   };
+  items?: Array<{
+    menu_item_id: string;
+    quantity: number;
+    portion_size?: string | null;
+    notes?: string | null;
+  }>;
+}
+
+interface ExistingItem {
+  menu_item_id: string;
+  quantity: number;
+  portion_size?: string | null;
+  notes?: string | null;
 }
 
 interface Line {
@@ -73,6 +86,13 @@ export function Order() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [tableCode, setTableCode] = useState<string>('');
   const [lines, setLines] = useState<Record<string, Line>>({});
+  // Items already sent to the kitchen on this session. Rendered as a
+  // read-only strip at the top so the diner can see what's been sent
+  // without accidentally re-adding it. Populated on mount from
+  // GET /sessions/:id; the lines state below always starts empty in
+  // add-on mode so Submit only sends the delta.
+  const [existingItems, setExistingItems] = useState<ExistingItem[]>([]);
+  const addOnMode = existingItems.length > 0;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Rewards-paused notice — one-time per session. sessionStorage
@@ -93,6 +113,7 @@ export function Order() {
       try {
         const detail = await api.get<SessionDetail>(`/sessions/${sessionId}`, token);
         setTableCode(detail.session.table_code);
+        setExistingItems(detail.items ?? []);
         const m = await api.get<MenuItem[]>(
           `/restaurants/${detail.session.restaurant_id}/menu`,
           token,
@@ -299,6 +320,51 @@ export function Order() {
         </span>
       </div>
 
+      {/* Add-on mode strip — visible when the diner has already sent
+          items to the kitchen. Read-only summary so they can see
+          what's on the ticket without accidentally re-adding it. */}
+      {addOnMode && (
+        <div className="mx-5 mb-2.5 rounded-md border border-line/60 bg-cream/40 px-3.5 py-3">
+          <div className="row gap-1.5 items-baseline">
+            <Utensils size={13} className="text-brand" />
+            <span className="text-[11.5px] uppercase font-bold tracking-wide text-brand">
+              {t('order.addon_already_ordered')}
+            </span>
+          </div>
+          <ul className="mt-1.5 flex flex-col gap-0.5">
+            {existingItems.map((it, idx) => {
+              const mi = menu.find((m) => m.id === it.menu_item_id);
+              const name = mi?.name ?? '—';
+              const portion =
+                it.portion_size && it.portion_size !== 'regular'
+                  ? it.portion_size.toUpperCase()
+                  : null;
+              return (
+                <li
+                  key={`${it.menu_item_id}-${idx}`}
+                  className="text-[13px] text-ink flex gap-2"
+                >
+                  <span className="font-mono font-bold tnum shrink-0 w-5">
+                    {it.quantity}×
+                  </span>
+                  <span className="flex-1">
+                    {name}
+                    {portion && (
+                      <span className="ml-1.5 text-[10px] uppercase font-bold text-muted">
+                        {portion}
+                      </span>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-2 text-[11.5px] text-muted leading-snug">
+            {t('order.addon_hint')}
+          </p>
+        </div>
+      )}
+
       {/* menu list, grouped by category with collapsible sections */}
       <div className="px-4 pb-4 flex flex-col gap-4">
         {grouped.map((section) => {
@@ -452,7 +518,11 @@ export function Order() {
           className="btn btn-primary btn-lg btn-block disabled:opacity-50"
         >
           <Utensils size={18} />
-          {busy ? t('order.saving') : t('order.send_to_kitchen')}
+          {busy
+            ? t('order.saving')
+            : addOnMode
+              ? t('order.add_to_order')
+              : t('order.send_to_kitchen')}
         </button>
       </div>
     </div>

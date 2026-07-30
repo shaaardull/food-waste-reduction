@@ -13,8 +13,9 @@ import {
   Clock,
   Check,
   Receipt,
+  Plus,
 } from 'lucide-react';
-import type { Reward } from '@plate-clean/shared-types';
+import type { MenuItem, Reward } from '@plate-clean/shared-types';
 import { api } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import { useOptimisticStore } from '../lib/optimistic';
@@ -28,10 +29,16 @@ interface SessionDetail {
     id: string;
     status: string;
     table_code?: string;
+    restaurant_id?: string;
     cancelled_reason?: string | null;
     cancelled_at?: string | null;
   };
-  items: Array<{ menu_item_id: string; quantity: number }>;
+  items: Array<{
+    menu_item_id: string;
+    quantity: number;
+    portion_size?: string | null;
+    notes?: string | null;
+  }>;
   captures: Array<{ phase: string; captured_at: string }>;
   score?: { overall_score: number; suspicious: boolean } | null;
   reward?: Reward | null;
@@ -83,6 +90,19 @@ export function SessionStatus() {
     },
   });
 
+  // Menu lookup so the "Your order" card can render item names and
+  // per-line subtotals. Slower cache — the menu barely changes mid-
+  // meal, and if a dish is 86'd server-side it'll still render from
+  // the cached menu, which is the correct product behaviour.
+  const restaurantId = data?.session.restaurant_id;
+  const { data: menu } = useQuery({
+    queryKey: ['menu', restaurantId],
+    queryFn: () =>
+      api.get<MenuItem[]>(`/restaurants/${restaurantId}/menu`, token),
+    enabled: Boolean(restaurantId && token),
+    staleTime: 5 * 60_000,
+  });
+
   if (isLoading || !data) {
     return (
       <div className="d-screen min-h-full px-5 py-12">
@@ -122,6 +142,25 @@ export function SessionStatus() {
       </div>
 
       <div className="px-4 pb-6 flex-1 flex flex-col gap-4">
+        {/* "Your order" card — visible for the whole life of the meal
+            (through pending_staff_validation) so the diner can always
+            see what's on the ticket and add more if they change their
+            mind. Hidden once the session reaches a terminal reward /
+            reject / rewarded state — at that point the bill takes over
+            as the source of truth. */}
+        {data.items.length > 0 &&
+          !['rewarded', 'staff_rejected', 'disputed', 'cancelled'].includes(
+            status,
+          ) && (
+            <OrderSummaryCard
+              sessionId={id}
+              items={data.items}
+              menu={menu ?? []}
+              canAddMore={['open', 'before_captured', 'eating'].includes(status)}
+              t={t}
+            />
+          )}
+
         {/* Optimistic upload failure — the before-photo submit didn't
             land on the server. We surface a red banner with a
             "try again" CTA that sends the diner back to the camera.
@@ -593,6 +632,117 @@ function SproutCelebration({
           {t('session_status.grew_forest_sub')}
         </p>
       </div>
+    </section>
+  );
+}
+
+/**
+ * OrderSummaryCard — "here's what you ordered" panel on the session-
+ * status screen. Answers the user complaint that after confirming an
+ * order there was nowhere to see what was on the ticket. Also carries
+ * the "Add more items" CTA, which routes back to /sessions/:id/order
+ * (Order.tsx detects the existing items and switches into add-on
+ * mode instead of restarting the basket).
+ */
+function OrderSummaryCard({
+  sessionId,
+  items,
+  menu,
+  canAddMore,
+  t,
+}: {
+  sessionId: string;
+  items: Array<{
+    menu_item_id: string;
+    quantity: number;
+    portion_size?: string | null;
+    notes?: string | null;
+  }>;
+  menu: MenuItem[];
+  canAddMore: boolean;
+  t: (k: string, opts?: Record<string, unknown>) => string;
+}) {
+  const menuById = new Map(menu.map((m) => [m.id, m] as const));
+  const subtotalMinor = items.reduce((sum, it) => {
+    const mi = menuById.get(it.menu_item_id);
+    return sum + (mi ? mi.price_minor * it.quantity : 0);
+  }, 0);
+
+  return (
+    <section className="card p-4 flex flex-col gap-3 border-line/60">
+      <header className="row spread items-center">
+        <div className="row gap-2 items-center">
+          <Receipt size={16} className="text-brand" />
+          <h2 className="display text-[17px] leading-tight">
+            {t('session_status.your_order_heading')}
+          </h2>
+        </div>
+        <span className="text-[11.5px] text-muted tnum">
+          {t('session_status.your_order_count', { count: items.length })}
+        </span>
+      </header>
+      <ul className="flex flex-col divide-y divide-line/40 -my-1">
+        {items.map((it, idx) => {
+          const mi = menuById.get(it.menu_item_id);
+          const name = mi?.name ?? t('session_status.your_order_unknown_item');
+          const lineTotal = mi ? (mi.price_minor * it.quantity) / 100 : null;
+          const portion =
+            it.portion_size && it.portion_size !== 'regular'
+              ? it.portion_size.toUpperCase()
+              : null;
+          return (
+            <li
+              key={`${it.menu_item_id}-${idx}`}
+              className="py-2 flex items-start gap-3"
+            >
+              <span className="font-mono font-bold text-[13.5px] tnum text-ink shrink-0 w-6">
+                {it.quantity}×
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="row items-baseline gap-1.5 flex-wrap">
+                  <span className="text-[14px] font-semibold text-ink">
+                    {name}
+                  </span>
+                  {portion && (
+                    <span className="text-[10px] uppercase font-bold text-muted">
+                      {portion}
+                    </span>
+                  )}
+                </div>
+                {it.notes && (
+                  <div className="text-[12px] text-muted italic mt-0.5 leading-snug">
+                    {it.notes}
+                  </div>
+                )}
+              </div>
+              {lineTotal !== null && (
+                <span className="font-mono text-[13.5px] tnum text-ink shrink-0">
+                  ₹{lineTotal.toFixed(0)}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {subtotalMinor > 0 && (
+        <div className="row spread items-baseline pt-2 border-t border-line/40">
+          <span className="text-[12.5px] text-muted uppercase tracking-wide font-semibold">
+            {t('session_status.your_order_subtotal')}
+          </span>
+          <span className="font-mono font-bold text-[15px] tnum text-ink">
+            ₹{(subtotalMinor / 100).toFixed(0)}
+          </span>
+        </div>
+      )}
+      {canAddMore && (
+        <Link
+          to={`/sessions/${sessionId}/order`}
+          className="btn btn-outline min-h-[40px] text-[13.5px] w-full row gap-1.5 items-center justify-center"
+        >
+          <Plus size={15} />
+          {t('session_status.your_order_add_more')}
+        </Link>
+      )}
     </section>
   );
 }
