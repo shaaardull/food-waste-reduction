@@ -84,6 +84,45 @@ def upload_menu_extraction(extraction_id: UUID, image_bytes: bytes, mime: str) -
     return key
 
 
+def upload_menu_item_photo(
+    menu_item_id: UUID, image_bytes: bytes, mime: str
+) -> str:
+    """Store the diner-facing dish photo. Distinct prefix so:
+      * The retention job (which walks captures/ only) never touches
+        these — dish photos live for the life of the menu item.
+      * The prefix can be given ``public-read`` via bucket policy so
+        the diner Order screen loads photos with a plain GET, no
+        signed URL required.
+    Uses a stable key so a re-upload cleanly overwrites the previous
+    photo — one dish, one photo."""
+    ext = "jpg" if mime == "image/jpeg" else "png"
+    key = f"menu-photos/{menu_item_id}/photo.{ext}"
+    s3 = _client()
+    s3.put_object(
+        Bucket=settings.S3_BUCKET,
+        Key=key,
+        Body=image_bytes,
+        ContentType=mime,
+        # ACL isn't relied on here — the bucket policy grants public
+        # read on menu-photos/*. Keeping the object plain lets that
+        # policy govern access.
+        CacheControl="public, max-age=86400",
+    )
+    return key
+
+
+def public_url(key: str) -> str:
+    """Public URL for objects on the ``menu-photos/*`` prefix. Uses the
+    S3 virtual-hosted style so the diner PWA can render an <img> with
+    no signing round-trip.
+
+    Assumes the bucket has ``public-read`` on that prefix — set up
+    once at bucket creation time (see runbook / infra docs)."""
+    return (
+        f"https://{settings.S3_BUCKET}.s3.{settings.S3_REGION}.amazonaws.com/{key}"
+    )
+
+
 def signed_url(key: str, expires_seconds: int = 900) -> str:
     s3 = _client()
     return s3.generate_presigned_url(

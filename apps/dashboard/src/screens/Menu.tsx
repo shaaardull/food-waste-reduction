@@ -19,6 +19,9 @@ import {
   Check,
   Sparkles,
   ArchiveRestore,
+  ImagePlus,
+  Trash,
+  Loader2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api } from '../lib/api';
@@ -489,7 +492,55 @@ function EditSheet({
   const [rewardEligible, setRewardEligible] = useState(
     item?.is_reward_eligible ?? false,
   );
+  // Locally-updated photo URL — the save mutation touches only the
+  // non-photo fields; photo upload/remove hit their own endpoints so
+  // the diner sees a picture even if the staff forgets to click Save.
+  const [photoUrl, setPhotoUrl] = useState<string | null>(
+    item?.reference_image_url ?? null,
+  );
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const uploadPhoto = useMutation({
+    mutationFn: async (file: File) => {
+      if (!item) throw new Error('cannot upload before save');
+      const form = new FormData();
+      form.append('photo', file);
+      return api.post<MenuItem>(
+        `/restaurants/${restaurantId}/menu-items/${item.id}/photo`,
+        form,
+        token,
+      );
+    },
+    onMutate: () => setPhotoBusy(true),
+    onSuccess: (updated) => {
+      setPhotoUrl(updated.reference_image_url);
+      setPhotoBusy(false);
+    },
+    onError: (e: ApiException) => {
+      setPhotoBusy(false);
+      setError(e.message ?? 'Photo upload failed');
+    },
+  });
+
+  const removePhoto = useMutation({
+    mutationFn: async () => {
+      if (!item) throw new Error('nothing to remove');
+      return api.del<MenuItem>(
+        `/restaurants/${restaurantId}/menu-items/${item.id}/photo`,
+        token,
+      );
+    },
+    onMutate: () => setPhotoBusy(true),
+    onSuccess: () => {
+      setPhotoUrl(null);
+      setPhotoBusy(false);
+    },
+    onError: (e: ApiException) => {
+      setPhotoBusy(false);
+      setError(e.message ?? 'Photo remove failed');
+    },
+  });
 
   // Union of known + locally-added (this session) categories, with
   // dedupe. Case-insensitive comparison because "Tandoor" and "tandoor"
@@ -626,6 +677,75 @@ function EditSheet({
               {t('menu_editor.field_description_hint')}
             </span>
           </label>
+
+          {/* Dish photo — only in edit mode. In create mode we don't
+              have an item id yet; staff saves the dish first, then
+              re-opens to attach a photo. Hint at that. */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[12.5px] font-semibold text-s-ink">
+              {t('menu_editor.field_photo')}
+            </span>
+            {mode === 'create' ? (
+              <p className="text-[12px] text-s-muted italic">
+                {t('menu_editor.field_photo_after_save_hint')}
+              </p>
+            ) : (
+              <div className="row gap-3 items-center">
+                <div className="w-20 h-20 rounded-md bg-s-bg border border-s-line overflow-hidden flex items-center justify-center shrink-0">
+                  {photoBusy ? (
+                    <Loader2
+                      className="animate-spin text-s-muted"
+                      size={22}
+                    />
+                  ) : photoUrl ? (
+                    <img
+                      src={photoUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <ImagePlus size={22} className="text-s-muted" />
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                  <label
+                    className={clsx(
+                      'btn btn-outline text-[12.5px] px-3 h-8 inline-flex items-center gap-1.5 justify-center cursor-pointer',
+                      photoBusy && 'opacity-55 pointer-events-none',
+                    )}
+                  >
+                    <ImagePlus size={13} />
+                    {photoUrl
+                      ? t('menu_editor.field_photo_replace')
+                      : t('menu_editor.field_photo_upload')}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadPhoto.mutate(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  {photoUrl && !photoBusy && (
+                    <button
+                      type="button"
+                      onClick={() => removePhoto.mutate()}
+                      className="text-[11.5px] text-danger font-semibold row gap-1 items-center hover:underline"
+                    >
+                      <Trash size={11} />
+                      {t('menu_editor.field_photo_remove')}
+                    </button>
+                  )}
+                  <span className="text-[11px] text-s-muted leading-snug">
+                    {t('menu_editor.field_photo_hint')}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
           <label className="flex flex-col gap-1.5">
             <span className="text-[12.5px] font-semibold text-s-ink">
               {t('menu_editor.field_price')}

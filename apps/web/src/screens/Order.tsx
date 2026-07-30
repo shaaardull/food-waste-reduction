@@ -421,10 +421,19 @@ export function Order() {
                     return (
                       <div key={item.id} className="card p-3">
                         <div className="row gap-3 items-start">
-                          <div
-                            className="dish dish-plate w-[74px] h-[74px] flex-shrink-0"
-                            data-label=""
-                          />
+                          {item.reference_image_url ? (
+                            <img
+                              src={item.reference_image_url}
+                              alt=""
+                              className="w-[74px] h-[74px] flex-shrink-0 rounded-full object-cover border border-line/40 bg-cream"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div
+                              className="dish dish-plate w-[74px] h-[74px] flex-shrink-0"
+                              data-label=""
+                            />
+                          )}
                           <div className="flex-1 min-w-0">
                             <div className="font-semibold text-base">
                               {item.name}

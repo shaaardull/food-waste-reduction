@@ -302,6 +302,91 @@ async def delete_menu_item(
     return MenuItemOut.model_validate(item)
 
 
+# --- Menu-item photo upload ---
+# Cap for the raw upload. Photos larger than this are almost certainly
+# unprocessed camera output and would bloat the diner Order screen for
+# no visual gain. Staff can pre-compress if their originals are huge.
+MENU_PHOTO_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+_MENU_PHOTO_ALLOWED_MIMES = {"image/jpeg", "image/png"}
+
+
+@router.post(
+    "/{restaurant_id}/menu-items/{item_id}/photo",
+    response_model=MenuItemOut,
+)
+async def upload_menu_item_photo(
+    restaurant_id: UUID,
+    item_id: UUID,
+    photo: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MenuItemOut:
+    """Upload a dish photo for a menu item. Stores at the stable key
+    ``menu-photos/{item_id}/photo.{ext}`` on the public prefix of the
+    images bucket, then sets ``menu_items.reference_image_url`` to
+    the plain public URL so the diner Order screen can render it
+    directly without a signed-URL round-trip. A re-upload cleanly
+    overwrites the previous photo (stable key + a small hash suffix
+    on the URL busts caches)."""
+    await _require_any_restaurant_staff(db, user, restaurant_id)
+    item = await db.get(MenuItem, item_id)
+    if item is None or item.restaurant_id != restaurant_id:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+
+    body = await photo.read()
+    if len(body) > MENU_PHOTO_MAX_BYTES:
+        raise ImageInvalid()
+    try:
+        mime, _sha = storage.validate_and_hash(body)
+    except Exception as exc:  # noqa: BLE001
+        raise ImageInvalid() from exc
+    if mime not in _MENU_PHOTO_ALLOWED_MIMES:
+        raise ImageInvalid()
+
+    key = storage.upload_menu_item_photo(item_id, body, mime)
+    # Cache-buster so browsers pick up the fresh photo immediately
+    # after re-upload despite the stable key. Timestamp query param
+    # is enough — it's outside the S3 canonical URL.
+    photo_url = f"{storage.public_url(key)}?v={int(datetime.now(UTC).timestamp())}"
+    item.reference_image_url = photo_url
+    await db.commit()
+    await db.refresh(item)
+    return MenuItemOut.model_validate(item)
+
+
+@router.delete(
+    "/{restaurant_id}/menu-items/{item_id}/photo",
+    response_model=MenuItemOut,
+)
+async def remove_menu_item_photo(
+    restaurant_id: UUID,
+    item_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MenuItemOut:
+    """Clear the dish photo — nulls the reference_image_url and best-
+    effort deletes the S3 object. The Order screen will fall back to
+    the plate placeholder circle."""
+    await _require_any_restaurant_staff(db, user, restaurant_id)
+    item = await db.get(MenuItem, item_id)
+    if item is None or item.restaurant_id != restaurant_id:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+
+    if item.reference_image_url:
+        for ext in ("jpg", "png"):
+            try:
+                storage.delete(f"menu-photos/{item_id}/photo.{ext}")
+            except Exception:  # noqa: BLE001
+                # Non-fatal — if the object is already gone or a
+                # transient S3 error hits, we still null the column
+                # so the diner UI reflects the intent.
+                pass
+    item.reference_image_url = None
+    await db.commit()
+    await db.refresh(item)
+    return MenuItemOut.model_validate(item)
+
+
 # Menu categories we consider "valid" server-side. The Claude tool
 # schema constrains its output to this same set, but a defensive
 # server-side coerce keeps a hallucinated category from bleeding into
