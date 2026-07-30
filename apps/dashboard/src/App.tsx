@@ -267,6 +267,11 @@ function StaffRail({
     icon: ReactNode;
     end?: boolean;
     adminOnly?: boolean;
+    /** When true, filter this item out of the rail. Used for feature-
+     *  gated surfaces (e.g. Kitchen when the restaurant has KOTs
+     *  turned off) so opt-out restaurants don't wander into empty
+     *  screens. */
+    hidden?: boolean;
     /** Live queue depth for this surface. Undefined = no badge. */
     count?: number;
     /** Colour hint for the badge — `alert` (red) for disputes so
@@ -290,7 +295,15 @@ function StaffRail({
       icon: <ListOrdered size={16} />,
     },
     { to: '/orders/past', label: t('app.nav.past_orders'), icon: <History size={16} /> },
-    { to: '/kitchen', label: t('app.nav.kitchen'), icon: <ChefHat size={16} /> },
+    {
+      to: '/kitchen',
+      label: t('app.nav.kitchen'),
+      icon: <ChefHat size={16} />,
+      // Feature-gated: only visible when the restaurant has KOTs
+      // turned on in Settings. Default off, so a fresh restaurant
+      // doesn't see a Kitchen tab until they opt in.
+      hidden: activeRestaurant?.kot_enabled !== true,
+    },
     {
       to: '/validations',
       label: t('app.nav.validations'),
@@ -386,6 +399,7 @@ function StaffRail({
           below its content and pushes the footer off-screen. */}
       <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-2 flex flex-col gap-0.5">
         {items
+          .filter((it) => !it.hidden)
           .filter((it) => !it.adminOnly || user?.role === 'admin')
           .map((it) => (
             <NavLink

@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.kot_event import KotEvent
 from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
+from app.models.restaurant import Restaurant
 
 
 async def _snapshot_items(
@@ -120,6 +121,17 @@ async def emit_void(
     )
 
 
+async def _restaurant_kot_enabled(
+    db: AsyncSession, restaurant_id: UUID
+) -> bool:
+    """Look up the restaurant's kot_enabled toggle. False means every
+    emission below no-ops. Missing restaurant row (shouldn't happen
+    under FK) also gates off — fail closed rather than write orphan
+    kot_events."""
+    restaurant = await db.get(Restaurant, restaurant_id)
+    return bool(restaurant and restaurant.kot_enabled)
+
+
 async def _emit(
     db: AsyncSession,
     *,
@@ -129,6 +141,9 @@ async def _emit(
     triggered_by_user_id: UUID | None,
 ) -> list[KotEvent]:
     if not items:
+        return []
+    # Feature gate — no KOTs unless the restaurant has opted in.
+    if not await _restaurant_kot_enabled(db, session.restaurant_id):
         return []
     by_station = await _snapshot_items(db, items)
     now = datetime.now(UTC)
@@ -164,6 +179,10 @@ async def emit_reprint(
     event, so the ticket byte sequence is stable — nothing recomputed
     from live rows.
     """
+    # Same feature gate as fresh emissions — reprints are meaningless
+    # if the restaurant has turned KOTs off.
+    if not await _restaurant_kot_enabled(db, session.restaurant_id):
+        return []
     stmt = select(KotEvent).where(
         KotEvent.meal_session_id == session.id,
         KotEvent.event_type.in_(("new", "add_on")),

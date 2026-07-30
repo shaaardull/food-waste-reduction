@@ -2,7 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Settings as SettingsIcon, Check, Receipt, Gift } from 'lucide-react';
+import {
+  Settings as SettingsIcon,
+  Check,
+  Receipt,
+  Gift,
+  ChefHat,
+} from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Restaurant } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
@@ -150,6 +156,16 @@ export function Settings() {
           require submitting the GST form. Optimistic update on the
           restaurant cache so the change reflects immediately. */}
       <RewardsToggleCard
+        restaurant={restaurant!}
+        restaurantId={restaurantId!}
+        token={token}
+      />
+
+      {/* Kitchen Display System / KOT opt-in. Default off — flip on
+          only if you have a kitchen tablet or thermal printer. When
+          off, the Kitchen nav item disappears and no KOTs are
+          emitted server-side. */}
+      <KotToggleCard
         restaurant={restaurant!}
         restaurantId={restaurantId!}
         token={token}
@@ -579,6 +595,94 @@ function RewardsToggleCard({
           {enabled
             ? t('settings.rewards_enabled_hint_on')
             : t('settings.rewards_enabled_hint_off')}
+        </p>
+      </div>
+      <label className="inline-flex items-center gap-2 cursor-pointer shrink-0 mt-1">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={toggle.isPending}
+          onChange={(e) => toggle.mutate(e.target.checked)}
+          className="w-4 h-4 accent-brand"
+        />
+      </label>
+    </div>
+  );
+}
+
+/**
+ * KotToggleCard — Kitchen Display System / Kitchen Order Ticket
+ * opt-in. Default OFF; a restaurant flips it on only if they have a
+ * kitchen tablet or thermal printer ready. When off, the Kitchen nav
+ * item is hidden and the API skips KOT emission entirely — the
+ * kitchen workflow doesn't exist for that restaurant.
+ */
+function KotToggleCard({
+  restaurant,
+  restaurantId,
+  token,
+}: {
+  restaurant: Restaurant;
+  restaurantId: string;
+  token: string | null;
+}) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [pendingValue, setPendingValue] = useState<boolean | null>(null);
+  const enabled = pendingValue ?? restaurant.kot_enabled ?? false;
+
+  const toggle = useMutation({
+    mutationFn: async (next: boolean) =>
+      api.patch<Restaurant>(
+        `/restaurants/${restaurantId}`,
+        { kot_enabled: next },
+        token,
+      ),
+    onMutate: (next) => {
+      setPendingValue(next);
+    },
+    onSuccess: (updated) => {
+      setPendingValue(null);
+      void qc.invalidateQueries({
+        queryKey: ['restaurant-detail', restaurantId],
+      });
+      useAuthStore.getState().setActiveRestaurant(updated);
+    },
+    onError: () => {
+      setPendingValue(null);
+    },
+  });
+
+  return (
+    <div className="rounded-lg border border-s-line bg-s-paper p-5 flex items-start gap-4">
+      <div
+        className={clsx(
+          'w-10 h-10 shrink-0 rounded-md flex items-center justify-center',
+          enabled ? 'bg-amber/15 text-amber' : 'bg-s-bg text-s-muted',
+        )}
+      >
+        <ChefHat size={18} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="row items-center gap-2 flex-wrap">
+          <h2 className="display text-[18px] text-s-ink">
+            {t('settings.kot_enabled_label')}
+          </h2>
+          <span
+            className={clsx(
+              'text-[10.5px] font-bold uppercase tracking-wide px-2 py-0.5 rounded',
+              enabled ? 'bg-amber/15 text-amber' : 'bg-s-bg text-s-muted',
+            )}
+          >
+            {enabled
+              ? t('settings.kot_status_on')
+              : t('settings.kot_status_off')}
+          </span>
+        </div>
+        <p className="text-[12.5px] text-s-muted leading-snug mt-1 max-w-[54ch]">
+          {enabled
+            ? t('settings.kot_enabled_hint_on')
+            : t('settings.kot_enabled_hint_off')}
         </p>
       </div>
       <label className="inline-flex items-center gap-2 cursor-pointer shrink-0 mt-1">

@@ -40,6 +40,9 @@ class RestaurantOut(BaseModel):
     # GET /restaurants/:slug so the PWA can gate the reward flow and
     # show a "paused" notice without a separate settings fetch.
     rewards_enabled: bool = True
+    # KDS / KOT opt-in. Default off; restaurants that want the kitchen
+    # board flip it on in Settings.
+    kot_enabled: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -91,6 +94,7 @@ class RestaurantPatchIn(BaseModel):
     bill_prefix: str | None = Field(default=None, max_length=32)
     gst_enabled: bool | None = None
     rewards_enabled: bool | None = None
+    kot_enabled: bool | None = None
 
 
 class MenuItemOut(BaseModel):

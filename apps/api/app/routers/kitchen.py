@@ -36,7 +36,7 @@ from app.errors import NotRestaurantStaff
 from app.models.kot_event import KotEvent
 from app.models.meal_session import MealSession, MealSessionItem
 from app.models.menu_item import MenuItem
-from app.models.restaurant import RestaurantStaff
+from app.models.restaurant import Restaurant, RestaurantStaff
 from app.models.user import User
 from app.security import get_current_user
 from app.services import kot
@@ -135,8 +135,16 @@ async def get_queue(
     and then by session. Cards are sorted **newest-first** within
     each station so a fresh KOT lands at the top of the column where
     the chef is most likely to look — older orders that are already
-    being worked on scroll below."""
+    being worked on scroll below.
+
+    Returns an empty station map when the restaurant has KOTs
+    disabled — the chef shouldn't see a stale queue if the feature
+    was just turned off mid-shift."""
     await _ensure_staff(db, user, restaurant_id)
+
+    restaurant_row = await db.get(Restaurant, restaurant_id)
+    if restaurant_row is None or not restaurant_row.kot_enabled:
+        return KitchenQueueOut(stations={})
 
     rows = (
         await db.execute(

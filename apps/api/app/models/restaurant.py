@@ -62,6 +62,14 @@ class Restaurant(Base, UUIDPKMixin, TimestampMixin):
     rewards_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
+    # Kitchen Display System / Kitchen Order Ticket opt-in. Default OFF
+    # so onboarding stays opinionless — a small café with a
+    # counter-side kitchen doesn't need KOTs at all. When false, the
+    # KOT emission service no-ops, the Kitchen queue endpoint returns
+    # empty, and the dashboard hides the Kitchen nav item.
+    kot_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
 
 class RestaurantStaff(Base, UUIDPKMixin, TimestampMixin):

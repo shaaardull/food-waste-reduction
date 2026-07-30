@@ -80,6 +80,10 @@ export interface Restaurant {
   // shows a "rewards paused" notice on the menu screen and the API
   // short-circuits reward issuance in the validation flow.
   rewards_enabled?: boolean;
+  // Kitchen Display System opt-in. Default off; when false the
+  // dashboard hides the Kitchen nav item and the API skips KOT event
+  // emission.
+  kot_enabled?: boolean;
 }
 
 export interface MenuItem {
