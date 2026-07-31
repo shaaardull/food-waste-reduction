@@ -347,6 +347,11 @@ function Footer() {
               <div className="text-[11.5px] text-muted mt-0.5">
                 Parent company · Mumbai, India
               </div>
+              {/* CIN disclosure required on every business
+                  communication by Companies Act, 2013 §12(3)(c). */}
+              <div className="text-[11px] text-muted mt-0.5 font-mono">
+                CIN: U62013MR2026PTC479210
+              </div>
             </div>
           </div>
           <p className="mt-4 text-[12.5px] text-muted leading-[1.6] max-w-[38ch]">

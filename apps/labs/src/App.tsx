@@ -69,6 +69,11 @@ export function App() {
 
         <footer className="mt-24 pb-12 text-center text-[12px] text-neutral-500">
           © 2026 Hypergeometric Labs Pvt. Ltd. Mumbai, India.
+          {/* CIN disclosure required on every business communication by
+              Companies Act, 2013 §12(3)(c). */}
+          <div className="mt-1 text-[11px] font-mono text-neutral-500">
+            CIN: U62013MR2026PTC479210
+          </div>
         </footer>
       </div>
     </div>
