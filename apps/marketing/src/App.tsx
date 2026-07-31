@@ -394,14 +394,11 @@ function Footer() {
             </li>
             <li>
               <a
-                href="https://superpositionlabs.co.in"
+                href="https://hypergeometriclabs.com"
                 className="inline-flex items-center gap-1.5 text-ink hover:text-brand"
                 target="_blank"
                 rel="noreferrer"
               >
-                {/* TODO(rebrand-domain): swap href to
-                    hypergeometriclabs.co.in when the new domain is
-                    registered and DNS-routed. */}
                 Parent company →
               </a>
             </li>
