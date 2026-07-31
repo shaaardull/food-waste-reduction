@@ -1,7 +1,4 @@
-// TODO(rebrand-domain): swap to hello@hypergeometriclabs.co.in once the
-// new domain is registered and SES sender identity is verified. Legacy
-// mailbox on the old domain remains active for continuity.
-const CONTACT_EMAIL = 'hello@superpositionlabs.co.in';
+const CONTACT_EMAIL = 'hello@hypergeometriclabs.com';
 
 interface Product {
   name: string;

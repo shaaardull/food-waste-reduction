@@ -34,13 +34,8 @@ import {
 const DINER_URL = import.meta.env.VITE_DINER_URL ?? 'http://localhost:5173';
 const DASHBOARD_URL =
   import.meta.env.VITE_DASHBOARD_URL ?? 'http://localhost:5174';
-// TODO(rebrand-domain): once hypergeometriclabs.co.in is registered
-// and SES sender identity is verified, swap the default and update
-// VITE_CONTACT_EMAIL in prod env. Legacy mailbox on the old domain
-// remains active for continuity.
 const CONTACT_EMAIL =
-  import.meta.env.VITE_CONTACT_EMAIL ??
-  'hello-platecleanrewards@superpositionlabs.co.in';
+  import.meta.env.VITE_CONTACT_EMAIL ?? 'hello@hypergeometriclabs.com';
 
 export function App() {
   return (
