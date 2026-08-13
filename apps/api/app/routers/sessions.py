@@ -45,7 +45,7 @@ from app.schemas.session import (
     WalkinVoidIn,
 )
 from app.security import get_current_user, haversine_m
-from app.services import billing, fraud, kot, nonce, rate_limit, storage
+from app.services import billing, consent as consent_svc, fraud, kot, nonce, rate_limit, storage
 
 router = APIRouter()
 settings = get_settings()
@@ -266,6 +266,14 @@ async def capture_before(
         db, session=session, client_lat=client_lat, client_lng=client_lng, user_id=user.id
     )
 
+    # Snapshot the diner's current Research Consent state at capture
+    # time. If they later withdraw, the retirement Celery task flips
+    # this to FALSE on their historic rows. Freezing the state here
+    # matches the legal principle that consent applies to the specific
+    # capture; withdrawal only stops future training uses.
+    research_ok = await consent_svc.has_active_research_consent(
+        db, session.diner_user_id
+    )
     key = storage.upload_capture(session.id, "before", body, mime)
     capture = PlateCapture(
         meal_session_id=session.id,
@@ -277,6 +285,7 @@ async def capture_before(
         client_lng=client_lng,
         device_fingerprint=device_fingerprint,
         nonce=nonce_value,
+        research_consent_at_capture=research_ok,
     )
     db.add(capture)
     session.status = "before_captured"
@@ -371,6 +380,9 @@ async def capture_after(
         db, session=session, client_lat=client_lat, client_lng=client_lng, user_id=user.id
     )
 
+    research_ok = await consent_svc.has_active_research_consent(
+        db, session.diner_user_id
+    )
     key = storage.upload_capture(session.id, "after", body, mime)
     capture = PlateCapture(
         meal_session_id=session.id,
@@ -382,6 +394,7 @@ async def capture_after(
         client_lng=client_lng,
         device_fingerprint=device_fingerprint,
         nonce=nonce_value,
+        research_consent_at_capture=research_ok,
     )
     db.add(capture)
     session.status = "after_submitted"

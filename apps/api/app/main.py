@@ -127,3 +127,9 @@ app.include_router(waitlist.router, prefix="/api/v1", tags=["waitlist"])
 # Kitchen Display System: staff-only queue view + per-item lifecycle
 # transitions + KOT event polling for the auto-print loop.
 app.include_router(kitchen.router, prefix="/api/v1", tags=["kitchen"])
+# Consent audit trail (ToS + Research Consent). The router mounts at
+# the API root because its routes span two shapes: /documents/... for
+# public lookups and /me/... for authenticated actions. Signup itself
+# is gated inside /auth/register + /auth/otp/verify, not here.
+from app.routers import consents  # noqa: E402
+app.include_router(consents.router, prefix="/api/v1", tags=["consents"])

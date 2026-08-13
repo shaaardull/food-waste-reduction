@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 
 def secrets_uuid() -> str:
@@ -40,6 +40,7 @@ from app.schemas.auth import (
     UserPatchIn,
 )
 from app.security import create_access_token, get_current_user, hash_password, verify_password
+from app.services import consent as consent_svc
 from app.services import rate_limit
 from app.services import sustainability as sustainability_svc
 from app.services.otp import request_otp, request_reset_otp, verify_otp, verify_reset_otp
@@ -48,13 +49,37 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=AuthOut, status_code=status.HTTP_201_CREATED)
-async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)) -> AuthOut:
+async def register(
+    payload: RegisterIn, request: Request, db: AsyncSession = Depends(get_db)
+) -> AuthOut:
     # Ethics rule 4: minor protection.
     if not payload.is_adult:
         raise ApiError(
             status_code=status.HTTP_400_BAD_REQUEST,
             code="MINOR_NOT_PERMITTED",
             message="You must be 18 or older to create an account.",
+        )
+
+    # ── Consent gates ────────────────────────────────────────────────
+    # Verify the client isn't posting a stale ToS version before we
+    # spend a bcrypt round. verify_client_version raises 409 with code
+    # STALE_DOCUMENT_VERSION which the client uses to trigger a refresh.
+    tos_version = await consent_svc.verify_client_version(
+        db, "diner_tos", payload.accepted_tos_version
+    )
+    research_version = None
+    if payload.research_consent_accepted:
+        if not payload.research_consent_version:
+            raise ApiError(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                code="RESEARCH_CONSENT_VERSION_REQUIRED",
+                message=(
+                    "research_consent_accepted=true requires "
+                    "research_consent_version."
+                ),
+            )
+        research_version = await consent_svc.verify_client_version(
+            db, "research_consent", payload.research_consent_version
         )
 
     phone = payload.phone.strip()
@@ -87,6 +112,29 @@ async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)) -> A
     )
     db.add(user)
     try:
+        # Flush to materialise user.id so the consent rows can FK to
+        # it inside this same transaction. We defer the outer commit
+        # until both the user and its consent audit rows are staged so
+        # a signup is atomic: no user without their ToS acceptance, no
+        # ToS row pointing at a non-existent user.
+        await db.flush()
+        await consent_svc.record_consent(
+            db,
+            user_id=user.id,
+            document_version=tos_version,
+            action="accepted",
+            context="signup",
+            request=request,
+        )
+        if research_version is not None:
+            await consent_svc.record_consent(
+                db,
+                user_id=user.id,
+                document_version=research_version,
+                action="accepted",
+                context="signup",
+                request=request,
+            )
         await db.commit()
     except IntegrityError as exc:
         # Race: two concurrent registrations with the same email/phone
@@ -236,7 +284,9 @@ async def otp_request(payload: OtpRequestIn) -> OtpRequestOut:
 
 
 @router.post("/otp/verify", response_model=AuthOut)
-async def otp_verify(payload: OtpVerifyIn, db: AsyncSession = Depends(get_db)) -> AuthOut:
+async def otp_verify(
+    payload: OtpVerifyIn, request: Request, db: AsyncSession = Depends(get_db)
+) -> AuthOut:
     phone = await verify_otp(payload.request_id, payload.code)
     if phone is None:
         raise HTTPException(
@@ -244,11 +294,61 @@ async def otp_verify(payload: OtpVerifyIn, db: AsyncSession = Depends(get_db)) -
         )
     result = await db.execute(select(User).where(User.phone == phone, User.deleted_at.is_(None)))
     user = result.scalar_one_or_none()
-    if user is None:
-        # Auto-provision a diner account for new phone numbers.
+    is_first_time_signup = user is None
+
+    if is_first_time_signup:
+        # Auto-provision a diner account for new phone numbers. This
+        # branch is a signup, so the consent gates apply exactly as
+        # they do on POST /auth/register. If the client didn't send
+        # the ToS acceptance we reject before creating the account.
+        if not payload.accepted_tos_version:
+            raise ApiError(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                code="TOS_ACCEPTANCE_REQUIRED",
+                message=(
+                    "First-time phone signup requires acceptance of "
+                    "the Diner Terms of Service."
+                ),
+            )
+        tos_version = await consent_svc.verify_client_version(
+            db, "diner_tos", payload.accepted_tos_version
+        )
+        research_version = None
+        if payload.research_consent_accepted:
+            if not payload.research_consent_version:
+                raise ApiError(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    code="RESEARCH_CONSENT_VERSION_REQUIRED",
+                    message=(
+                        "research_consent_accepted=true requires "
+                        "research_consent_version."
+                    ),
+                )
+            research_version = await consent_svc.verify_client_version(
+                db, "research_consent", payload.research_consent_version
+            )
         synthetic_email = f"phone+{phone.replace('+', '').replace(' ', '')}@plate-clean.local"
         user = User(email=synthetic_email, phone=phone, role="diner")
         db.add(user)
+        await db.flush()
+        await consent_svc.record_consent(
+            db,
+            user_id=user.id,
+            document_version=tos_version,
+            action="accepted",
+            context="signup",
+            request=request,
+        )
+        if research_version is not None:
+            await consent_svc.record_consent(
+                db,
+                user_id=user.id,
+                document_version=research_version,
+                action="accepted",
+                context="signup",
+                request=request,
+            )
+
     user.last_login_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(user)

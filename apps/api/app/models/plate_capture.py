@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -31,3 +31,10 @@ class PlateCapture(Base, UUIDPKMixin, TimestampMixin):
     client_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
     device_fingerprint: Mapped[str | None] = mapped_column(String, nullable=True)
     nonce: Mapped[str] = mapped_column(String, nullable=False)
+    # Frozen at capture time from the diner's current Research Consent
+    # state. Flipped to FALSE on their historic rows by the retirement
+    # Celery task if they later withdraw. Training-data queries filter
+    # WHERE research_consent_at_capture = TRUE (partial index in 0025).
+    research_consent_at_capture: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )

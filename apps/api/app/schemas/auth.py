@@ -16,6 +16,24 @@ class RegisterIn(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     display_name: str | None = Field(default=None, max_length=100)
     is_adult: bool = Field(description="User confirms they are 18+. Ethics rule 4 (minor protection).")
+    # Consent fields — see app.schemas.consent.SignupConsentPayload for
+    # the definitive shape. Inlined here rather than composed so the
+    # OpenAPI schema for POST /auth/register stays flat, which the
+    # generated frontend types prefer. The router validates versions
+    # against the current effective ones via consent_svc before it
+    # touches the users table.
+    accepted_tos_version: str = Field(
+        min_length=1, max_length=32,
+        description="Version of the Diner ToS the user accepted at signup.",
+    )
+    research_consent_accepted: bool = Field(
+        default=False,
+        description="True iff the user opted into Part B (research/AI improvement).",
+    )
+    research_consent_version: str | None = Field(
+        default=None, max_length=32,
+        description="Required if research_consent_accepted is True.",
+    )
 
 
 class LoginIn(BaseModel):
@@ -34,6 +52,17 @@ class OtpRequestOut(BaseModel):
 class OtpVerifyIn(BaseModel):
     request_id: str
     code: str = Field(min_length=4, max_length=8)
+    # Consent fields required only when this OTP verify auto-provisions
+    # a new diner account (phone number not previously seen). If the
+    # phone maps to an existing user the router ignores these — a login
+    # doesn't need re-acceptance. The client should always send them at
+    # first-OTP-signup and may omit them on subsequent logins.
+    accepted_tos_version: str | None = Field(
+        default=None, min_length=1, max_length=32,
+        description="Diner ToS version accepted at first-time signup via phone.",
+    )
+    research_consent_accepted: bool = False
+    research_consent_version: str | None = Field(default=None, max_length=32)
 
 
 class ForgotPasswordIn(BaseModel):

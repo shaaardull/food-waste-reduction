@@ -1,4 +1,5 @@
 from app.models.bill import Bill
+from app.models.consent import DocumentVersion, UserConsent
 from app.models.consumption_score import ConsumptionScore
 from app.models.dispute import Dispute
 from app.models.fraud_signal import FraudSignal
@@ -18,6 +19,8 @@ from app.models.waitlist_entry import WaitlistEntry
 
 __all__ = [
     "Bill",
+    "DocumentVersion",
+    "UserConsent",
     "User",
     "Restaurant",
     "RestaurantStaff",
