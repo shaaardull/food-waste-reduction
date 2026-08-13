@@ -11,11 +11,11 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import CHAR, DateTime, ForeignKey, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import INET, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import INET
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, UUIDPKMixin
-
 
 # Kept in Python as tuples so the router / service layer can validate
 # against the same source of truth as the DB CHECK constraints in

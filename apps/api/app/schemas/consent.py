@@ -7,7 +7,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 DocumentType = Literal["diner_tos", "staff_tos", "research_consent", "privacy_policy"]
 
 

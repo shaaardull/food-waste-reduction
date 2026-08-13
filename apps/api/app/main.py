@@ -132,4 +132,5 @@ app.include_router(kitchen.router, prefix="/api/v1", tags=["kitchen"])
 # public lookups and /me/... for authenticated actions. Signup itself
 # is gated inside /auth/register + /auth/otp/verify, not here.
 from app.routers import consents  # noqa: E402
+
 app.include_router(consents.router, prefix="/api/v1", tags=["consents"])

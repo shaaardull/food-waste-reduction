@@ -15,14 +15,12 @@ no-op. Safe to re-run.
 """
 from __future__ import annotations
 
-from sqlalchemy import create_engine, text, update
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
 from app.config import get_settings
 from app.logging import get_logger
-from app.models.meal_session import MealSession
-from app.models.plate_capture import PlateCapture
 
 log = get_logger(__name__)
 settings = get_settings()

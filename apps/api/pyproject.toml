@@ -91,6 +91,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S105", "S106", "S107", "N814", "S608", "N817", "F841", "I001"]  # passwords + import aliases + interpolated test cleanup SQL ok in tests
 "app/scripts/seed.py" = ["T20", "S105", "S106"]
+"app/scripts/publish_legal_docs.py" = ["T20"]  # legit CLI output on stdout
 "app/security.py" = ["N806"]  # haversine's R is a standard constant name
 "app/routers/auth.py" = ["E402", "I001"]  # secrets_uuid helper sits above imports by design
 

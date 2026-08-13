@@ -45,7 +45,8 @@ from app.schemas.session import (
     WalkinVoidIn,
 )
 from app.security import get_current_user, haversine_m
-from app.services import billing, consent as consent_svc, fraud, kot, nonce, rate_limit, storage
+from app.services import billing, fraud, kot, nonce, rate_limit, storage
+from app.services import consent as consent_svc
 
 router = APIRouter()
 settings = get_settings()
