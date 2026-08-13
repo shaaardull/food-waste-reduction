@@ -139,13 +139,25 @@ async def test_revenue_total_and_daily(client, db):
     diner_id = _uuid.UUID(diner_payload["id"])
     staff = _make_staff(db, restaurant.id, label="ao_rev_staff")
 
+    # Pin both counted bills to noon-in-tz of "yesterday in tz" so this
+    # test doesn't straddle a day boundary when CI runs near midnight in
+    # the restaurant's timezone. The old "now - 1d - 2h/1h" idiom broke
+    # whenever the current time happened to be within ~2 hours after
+    # midnight IST — the two bills would then land on different local
+    # days. Pinning to a fixed local noon removes the flake entirely.
+    tz = ZoneInfo(restaurant.timezone)
     now = datetime.now(UTC)
+    yesterday_noon_local = (
+        datetime.now(tz) - timedelta(days=1)
+    ).replace(hour=12, minute=0, second=0, microsecond=0)
+    yesterday_noon_utc = yesterday_noon_local.astimezone(UTC)
+
     _seed_billed_session(
         db,
         restaurant_id=restaurant.id,
         diner_user_id=diner_id,
         menu_item_id=main.id,
-        when=now - timedelta(days=1, hours=2),
+        when=yesterday_noon_utc - timedelta(hours=1),
         total_minor=50000,
     )
     _seed_billed_session(
@@ -153,7 +165,7 @@ async def test_revenue_total_and_daily(client, db):
         restaurant_id=restaurant.id,
         diner_user_id=diner_id,
         menu_item_id=main.id,
-        when=now - timedelta(days=1, hours=1),
+        when=yesterday_noon_utc + timedelta(hours=1),
         total_minor=25000,
     )
     # A voided bill inside the window — must NOT count.
@@ -162,7 +174,7 @@ async def test_revenue_total_and_daily(client, db):
         restaurant_id=restaurant.id,
         diner_user_id=diner_id,
         menu_item_id=main.id,
-        when=now - timedelta(days=1),
+        when=yesterday_noon_utc,
         total_minor=99999,
         voided=True,
     )
@@ -184,9 +196,9 @@ async def test_revenue_total_and_daily(client, db):
     assert res.status_code == 200, res.text
     body = res.json()
     assert body["revenue"]["total_minor"] == 75000
-    # The two counted bills fell on the same local day (yesterday-ish).
-    tz = ZoneInfo(restaurant.timezone)
-    expected_day = (now - timedelta(days=1)).astimezone(tz).strftime("%Y-%m-%d")
+    # Both counted bills land on the same local day (yesterday-in-tz)
+    # because the ±1h window around noon-local can't cross midnight.
+    expected_day = yesterday_noon_local.strftime("%Y-%m-%d")
     day_totals = {d["date"]: d["total_minor"] for d in body["revenue"]["daily"]}
     assert day_totals[expected_day] == 75000
 
