@@ -7,6 +7,7 @@ import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import { LangToggle } from '../components/LangToggle';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
+import { useConsentVersions } from '../hooks/useConsentVersions';
 
 type Mode = 'sign-in' | 'sign-up';
 
@@ -26,8 +27,14 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [isAdult, setIsAdult] = useState(false);
+  const [agreedToToS, setAgreedToToS] = useState(false);
+  const [researchOptIn, setResearchOptIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Fetched once on mount even in sign-in mode — the mode-toggle would
+  // otherwise cause a jarring "please wait" flash the first time a
+  // sign-in user switches to sign-up. Cost is two small GETs.
+  const consent = useConsentVersions();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,6 +54,15 @@ export function Login() {
               password,
               display_name: displayName,
               is_adult: isAdult,
+              // Signup middleware requires the exact currently-published
+              // version so the audit trail records what the user actually
+              // saw. useConsentVersions blocks the submit button until
+              // these load, so tos is non-null here.
+              accepted_tos_version: consent.tos?.version,
+              research_consent_accepted: researchOptIn,
+              research_consent_version: researchOptIn
+                ? consent.research?.version
+                : undefined,
             };
       const res = await api.post<{ user: User; token: string }>(path, payload);
       setAuth(res.user, res.token);
@@ -161,16 +177,75 @@ export function Login() {
           </Field>
 
           {mode === 'sign-up' && (
-            <label className="flex items-start gap-2 text-sm text-muted">
-              <input
-                type="checkbox"
-                required
-                checked={isAdult}
-                onChange={(e) => setIsAdult(e.target.checked)}
-                className="mt-1"
-              />
-              <span>{t('login.age_confirm')}</span>
-            </label>
+            <>
+              <label className="flex items-start gap-2 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  required
+                  checked={isAdult}
+                  onChange={(e) => setIsAdult(e.target.checked)}
+                  className="mt-1"
+                />
+                <span>{t('login.age_confirm')}</span>
+              </label>
+
+              {/* Required Terms of Service acceptance. Version comes from
+                  the backend so the audit trail records the exact text
+                  the user saw. Link opens in a new tab so the diner
+                  doesn't lose their half-typed signup form. */}
+              <label className="flex items-start gap-2 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  required
+                  checked={agreedToToS}
+                  onChange={(e) => setAgreedToToS(e.target.checked)}
+                  className="mt-1"
+                />
+                <span>
+                  {t('login.tos_prefix')}{' '}
+                  <a
+                    href="/terms/diner"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-brand hover:underline font-semibold"
+                  >
+                    {t('login.tos_link')}
+                  </a>
+                  {t('login.tos_suffix')}
+                </span>
+              </label>
+
+              {/* Optional research + AI improvement consent. Off by
+                  default; user must actively opt in. Legally-required
+                  under DPDP Act §6 that this be separate from and not
+                  bundled with the mandatory ToS acceptance above. */}
+              <label className="flex items-start gap-2 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={researchOptIn}
+                  onChange={(e) => setResearchOptIn(e.target.checked)}
+                  className="mt-1"
+                />
+                <span>
+                  {t('login.research_prefix')}{' '}
+                  <a
+                    href="/terms/research"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-brand hover:underline font-semibold"
+                  >
+                    {t('login.research_link')}
+                  </a>
+                  {t('login.research_suffix')}
+                </span>
+              </label>
+
+              {consent.error && (
+                <p className="text-[12.5px] text-danger">
+                  {t('login.consent_load_error')}
+                </p>
+              )}
+            </>
           )}
 
           {error && (
@@ -181,7 +256,11 @@ export function Login() {
 
           <button
             type="submit"
-            disabled={busy}
+            disabled={
+              busy ||
+              (mode === 'sign-up' &&
+                (consent.loading || !consent.tos || !agreedToToS))
+            }
             className="btn btn-primary btn-lg btn-block disabled:opacity-50"
           >
             {busy

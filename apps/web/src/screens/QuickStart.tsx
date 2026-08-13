@@ -6,6 +6,7 @@ import type { User } from '@plate-clean/shared-types';
 import { api, ApiException } from '../lib/api';
 import { useAuthStore } from '../lib/auth';
 import { LangToggle } from '../components/LangToggle';
+import { useConsentVersions } from '../hooks/useConsentVersions';
 
 type Step = 'phone' | 'code';
 
@@ -40,9 +41,16 @@ export function QuickStart() {
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [requestId, setRequestId] = useState<string | null>(null);
   const [isAdult, setIsAdult] = useState(false);
+  const [agreedToToS, setAgreedToToS] = useState(false);
+  const [researchOptIn, setResearchOptIn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const boxRefs = useRef<Array<HTMLInputElement | null>>([]);
+  // Fetched at mount so the checkboxes on the phone step can carry the
+  // right version numbers into the OTP verify payload. Backend only
+  // enforces consent on the first-time signup branch of otp/verify;
+  // returning users' verify calls ignore the fields.
+  const consent = useConsentVersions();
 
   // Focus first box when entering the code step.
   useEffect(() => {
@@ -82,7 +90,19 @@ export function QuickStart() {
     try {
       const res = await api.post<{ user: User; token: string }>(
         '/auth/otp/verify',
-        { request_id: requestId, code: submitted },
+        {
+          request_id: requestId,
+          code: submitted,
+          // Sent unconditionally. Backend only enforces them on the
+          // first-time signup branch (phone number never seen before);
+          // returning users' verify calls ignore them, so it is safe
+          // to always send.
+          accepted_tos_version: consent.tos?.version,
+          research_consent_accepted: researchOptIn,
+          research_consent_version: researchOptIn
+            ? consent.research?.version
+            : undefined,
+        },
       );
       setAuth(res.user, res.token);
       navigate('/scan');
@@ -204,6 +224,61 @@ export function QuickStart() {
               <span>{t('quick_start.age_confirm')}</span>
             </label>
 
+            {/* Required Terms of Service acceptance. Backend enforces
+                on the first-time signup branch of otp/verify; unchecked
+                would 400 there, so we gate the button on this too. */}
+            <label className="flex items-start gap-2 text-sm text-muted">
+              <input
+                type="checkbox"
+                required
+                checked={agreedToToS}
+                onChange={(e) => setAgreedToToS(e.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                {t('quick_start.tos_prefix')}{' '}
+                <a
+                  href="/terms/diner"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-brand hover:underline font-semibold"
+                >
+                  {t('quick_start.tos_link')}
+                </a>
+                {t('quick_start.tos_suffix')}
+              </span>
+            </label>
+
+            {/* Optional research + AI improvement consent. Off by
+                default. DPDP Act §6 forbids bundling this with the
+                mandatory ToS above. */}
+            <label className="flex items-start gap-2 text-sm text-muted">
+              <input
+                type="checkbox"
+                checked={researchOptIn}
+                onChange={(e) => setResearchOptIn(e.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                {t('quick_start.research_prefix')}{' '}
+                <a
+                  href="/terms/research"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-brand hover:underline font-semibold"
+                >
+                  {t('quick_start.research_link')}
+                </a>
+                {t('quick_start.research_suffix')}
+              </span>
+            </label>
+
+            {consent.error && (
+              <p className="text-[12.5px] text-danger">
+                {t('quick_start.consent_load_error')}
+              </p>
+            )}
+
             {error && (
               <p className="text-sm text-danger bg-danger-wash border border-danger/20 rounded-md px-3 py-2">
                 {error}
@@ -212,7 +287,13 @@ export function QuickStart() {
 
             <button
               type="submit"
-              disabled={busy || !isAdult}
+              disabled={
+                busy ||
+                !isAdult ||
+                !agreedToToS ||
+                consent.loading ||
+                !consent.tos
+              }
               className="btn btn-primary btn-lg btn-block disabled:opacity-50"
             >
               {busy ? t('quick_start.sending') : t('quick_start.send_code')}

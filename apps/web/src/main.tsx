@@ -23,6 +23,7 @@ import { Profile } from './screens/Profile';
 import { QrResolve } from './screens/QrResolve';
 import { QuickStart } from './screens/QuickStart';
 import { Stats } from './screens/Stats';
+import { Terms } from './screens/Terms';
 import { Waitlist } from './screens/Waitlist';
 
 const queryClient = new QueryClient({
@@ -60,6 +61,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="rewards" element={<Rewards />} />
             <Route path="profile" element={<Profile />} />
             <Route path="stats" element={<Stats />} />
+            <Route path="terms/:docType" element={<Terms />} />
             <Route path="wait/:slug" element={<Waitlist />} />
           </Route>
         </Routes>

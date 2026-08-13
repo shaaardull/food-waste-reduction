@@ -104,6 +104,13 @@
     "phone_label": "Phone number",
     "phone_hint": "Include the country code, e.g. +91 for India.",
     "age_confirm": "I confirm I am 18 or older.",
+    "tos_prefix": "I agree to the",
+    "tos_link": "Terms of Service",
+    "tos_suffix": ".",
+    "research_prefix": "I consent to my plate images being used for",
+    "research_link": "research and AI model improvement",
+    "research_suffix": " (optional).",
+    "consent_load_error": "We couldn't load the Terms of Service. Please refresh.",
     "send_code": "Send me a code",
     "sending": "Sending…",
     "code_sent_to": "We sent a 6-digit code to {{phone}}.",
@@ -134,7 +141,7 @@
     "methodology_1": "We compare consumption against a 60% typical-meal baseline. Anything finished above that counts as saved food.",
     "methodology_2": "Carbon factor: 2.5 kg CO₂e per kg of cooked food (lifecycle-inclusive, mixed Indian-meal average). One mature tree absorbs ≈ 0.06 kg CO₂e/day.",
     "generated_at": "Generated {{datetime}}",
-    "back_to_home": "← Back to home",
+    "back_to_home": "Back to home",
     "empty_title": "Not enough data yet to show aggregate numbers",
     "empty_blurb": "We only publish numbers once enough restaurants and meals are counted in this window — so a single pilot can't be re-identified. Check back as we grow.",
     "empty_progress_restaurants": "{{got}}/{{floor}} restaurants active",
@@ -150,6 +157,13 @@
     "password": "Password",
     "forgot_password": "Forgot password?",
     "age_confirm": "I confirm I am 18 or older.",
+    "tos_prefix": "I agree to the",
+    "tos_link": "Terms of Service",
+    "tos_suffix": ".",
+    "research_prefix": "I consent to my plate images being used for",
+    "research_link": "research and AI model improvement",
+    "research_suffix": " (optional).",
+    "consent_load_error": "We couldn't load the Terms of Service. Please refresh.",
     "submit_sign_in": "Sign in",
     "submit_create": "Create account",
     "working": "Working…",
@@ -537,5 +551,11 @@
     "leave_confirm": "Leave the waitlist? Your spot won't be held.",
     "leave_stay": "Stay",
     "leave_confirm_cta": "Yes, leave"
+  },
+  "terms": {
+    "loading": "Loading…",
+    "unknown": "That document type doesn't exist.",
+    "load_error": "Couldn't load the document. Please try again.",
+    "eyebrow_version": "Version {{version}}"
   }
 }
