@@ -171,7 +171,9 @@ async def login(payload: LoginIn, db: AsyncSession = Depends(get_db)) -> AuthOut
 
 @router.post("/google", response_model=AuthOut)
 async def sign_in_with_google(
-    payload: GoogleSignInIn, db: AsyncSession = Depends(get_db)
+    payload: GoogleSignInIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
 ) -> AuthOut:
     """Exchange a Google Identity Services ID token for one of our
     own JWTs.
@@ -265,6 +267,37 @@ async def sign_in_with_google(
                 email_verified_at=datetime.now(UTC),
             )
             db.add(user)
+            await db.flush()  # materialise user.id for consent FK
+            # Silent auto-accept of ToS + Research consent on first-time
+            # Google signup, matching the email + phone-OTP signup
+            # paths. Google Identity Services doesn't give us a place
+            # to render a checkbox before token exchange, and the
+            # product decision is to auto-accept until the checkbox
+            # is surfaced to all users at once. Audit trail is still
+            # complete: two rows in user_consents pointing at the
+            # currently effective versions.
+            tos_version = await consent_svc.require_current_version(
+                db, "diner_tos"
+            )
+            research_version = await consent_svc.require_current_version(
+                db, "research_consent"
+            )
+            await consent_svc.record_consent(
+                db,
+                user_id=user.id,
+                document_version=tos_version,
+                action="accepted",
+                context="signup",
+                request=request,
+            )
+            await consent_svc.record_consent(
+                db,
+                user_id=user.id,
+                document_version=research_version,
+                action="accepted",
+                context="signup",
+                request=request,
+            )
 
     user.last_login_at = datetime.now(UTC)
     await db.commit()

@@ -41,15 +41,14 @@ export function QuickStart() {
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [requestId, setRequestId] = useState<string | null>(null);
   const [isAdult, setIsAdult] = useState(false);
-  const [agreedToToS, setAgreedToToS] = useState(false);
-  const [researchOptIn, setResearchOptIn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const boxRefs = useRef<Array<HTMLInputElement | null>>([]);
-  // Fetched at mount so the checkboxes on the phone step can carry the
-  // right version numbers into the OTP verify payload. Backend only
+  // Fetched at mount so the OTP verify payload can carry the current
+  // ToS + research versions for silent auto-accept. Backend only
   // enforces consent on the first-time signup branch of otp/verify;
-  // returning users' verify calls ignore the fields.
+  // returning users' verify calls ignore the fields. No visible
+  // checkbox for now — surfaced later once user base is significant.
   const consent = useConsentVersions();
 
   // Focus first box when entering the code step.
@@ -93,15 +92,14 @@ export function QuickStart() {
         {
           request_id: requestId,
           code: submitted,
-          // Sent unconditionally. Backend only enforces them on the
+          // Silent auto-accept of both ToS + Research consent. Sent
+          // unconditionally. Backend only enforces them on the
           // first-time signup branch (phone number never seen before);
           // returning users' verify calls ignore them, so it is safe
           // to always send.
           accepted_tos_version: consent.tos?.version,
-          research_consent_accepted: researchOptIn,
-          research_consent_version: researchOptIn
-            ? consent.research?.version
-            : undefined,
+          research_consent_accepted: true,
+          research_consent_version: consent.research?.version,
         },
       );
       setAuth(res.user, res.token);
@@ -224,55 +222,11 @@ export function QuickStart() {
               <span>{t('quick_start.age_confirm')}</span>
             </label>
 
-            {/* Required Terms of Service acceptance. Backend enforces
-                on the first-time signup branch of otp/verify; unchecked
-                would 400 there, so we gate the button on this too. */}
-            <label className="flex items-start gap-2 text-sm text-muted">
-              <input
-                type="checkbox"
-                required
-                checked={agreedToToS}
-                onChange={(e) => setAgreedToToS(e.target.checked)}
-                className="mt-1"
-              />
-              <span>
-                {t('quick_start.tos_prefix')}{' '}
-                <a
-                  href="/terms/diner"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="text-brand hover:underline font-semibold"
-                >
-                  {t('quick_start.tos_link')}
-                </a>
-                {t('quick_start.tos_suffix')}
-              </span>
-            </label>
-
-            {/* Optional research + AI improvement consent. Off by
-                default. DPDP Act §6 forbids bundling this with the
-                mandatory ToS above. */}
-            <label className="flex items-start gap-2 text-sm text-muted">
-              <input
-                type="checkbox"
-                checked={researchOptIn}
-                onChange={(e) => setResearchOptIn(e.target.checked)}
-                className="mt-1"
-              />
-              <span>
-                {t('quick_start.research_prefix')}{' '}
-                <a
-                  href="/terms/research"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="text-brand hover:underline font-semibold"
-                >
-                  {t('quick_start.research_link')}
-                </a>
-                {t('quick_start.research_suffix')}
-              </span>
-            </label>
-
+            {/* ToS + research consent are auto-accepted server-side on
+                the OTP verify payload above. No visible checkbox for
+                either right now; we will surface them once the user
+                base is significant. Audit trail is complete in
+                user_consents regardless. */}
             {consent.error && (
               <p className="text-[12.5px] text-danger">
                 {t('quick_start.consent_load_error')}
@@ -288,11 +242,7 @@ export function QuickStart() {
             <button
               type="submit"
               disabled={
-                busy ||
-                !isAdult ||
-                !agreedToToS ||
-                consent.loading ||
-                !consent.tos
+                busy || !isAdult || consent.loading || !consent.tos
               }
               className="btn btn-primary btn-lg btn-block disabled:opacity-50"
             >

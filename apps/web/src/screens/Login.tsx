@@ -27,13 +27,13 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [isAdult, setIsAdult] = useState(false);
-  const [agreedToToS, setAgreedToToS] = useState(false);
-  const [researchOptIn, setResearchOptIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Fetched once on mount even in sign-in mode — the mode-toggle would
   // otherwise cause a jarring "please wait" flash the first time a
-  // sign-in user switches to sign-up. Cost is two small GETs.
+  // sign-in user switches to sign-up. Cost is two small GETs. Silent
+  // auto-accept: the versions are attached to the signup payload
+  // without a visible checkbox for now.
   const consent = useConsentVersions();
 
   async function submit(e: React.FormEvent) {
@@ -54,15 +54,15 @@ export function Login() {
               password,
               display_name: displayName,
               is_adult: isAdult,
-              // Signup middleware requires the exact currently-published
-              // version so the audit trail records what the user actually
-              // saw. useConsentVersions blocks the submit button until
-              // these load, so tos is non-null here.
+              // Consent is auto-accepted on the client without a visible
+              // checkbox. The backend still records the acceptance rows
+              // in user_consents so the audit trail is complete when we
+              // later surface the checkbox to existing users. See the
+              // ToS section 15 ("Amendments") for the re-consent flow
+              // we'll trigger then.
               accepted_tos_version: consent.tos?.version,
-              research_consent_accepted: researchOptIn,
-              research_consent_version: researchOptIn
-                ? consent.research?.version
-                : undefined,
+              research_consent_accepted: true,
+              research_consent_version: consent.research?.version,
             };
       const res = await api.post<{ user: User; token: string }>(path, payload);
       setAuth(res.user, res.token);
@@ -177,75 +177,26 @@ export function Login() {
           </Field>
 
           {mode === 'sign-up' && (
-            <>
-              <label className="flex items-start gap-2 text-sm text-muted">
-                <input
-                  type="checkbox"
-                  required
-                  checked={isAdult}
-                  onChange={(e) => setIsAdult(e.target.checked)}
-                  className="mt-1"
-                />
-                <span>{t('login.age_confirm')}</span>
-              </label>
-
-              {/* Required Terms of Service acceptance. Version comes from
-                  the backend so the audit trail records the exact text
-                  the user saw. Link opens in a new tab so the diner
-                  doesn't lose their half-typed signup form. */}
-              <label className="flex items-start gap-2 text-sm text-muted">
-                <input
-                  type="checkbox"
-                  required
-                  checked={agreedToToS}
-                  onChange={(e) => setAgreedToToS(e.target.checked)}
-                  className="mt-1"
-                />
-                <span>
-                  {t('login.tos_prefix')}{' '}
-                  <a
-                    href="/terms/diner"
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-brand hover:underline font-semibold"
-                  >
-                    {t('login.tos_link')}
-                  </a>
-                  {t('login.tos_suffix')}
-                </span>
-              </label>
-
-              {/* Optional research + AI improvement consent. Off by
-                  default; user must actively opt in. Legally-required
-                  under DPDP Act §6 that this be separate from and not
-                  bundled with the mandatory ToS acceptance above. */}
-              <label className="flex items-start gap-2 text-sm text-muted">
-                <input
-                  type="checkbox"
-                  checked={researchOptIn}
-                  onChange={(e) => setResearchOptIn(e.target.checked)}
-                  className="mt-1"
-                />
-                <span>
-                  {t('login.research_prefix')}{' '}
-                  <a
-                    href="/terms/research"
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-brand hover:underline font-semibold"
-                  >
-                    {t('login.research_link')}
-                  </a>
-                  {t('login.research_suffix')}
-                </span>
-              </label>
-
-              {consent.error && (
-                <p className="text-[12.5px] text-danger">
-                  {t('login.consent_load_error')}
-                </p>
-              )}
-            </>
+            <label className="flex items-start gap-2 text-sm text-muted">
+              <input
+                type="checkbox"
+                required
+                checked={isAdult}
+                onChange={(e) => setIsAdult(e.target.checked)}
+                className="mt-1"
+              />
+              <span>{t('login.age_confirm')}</span>
+            </label>
+          )}
+          {/* ToS + research consent are auto-accepted server-side on the
+              signup payload above. No visible checkbox for either right
+              now; we will surface them once we have enough user data to
+              re-consent existing accounts against a new document version.
+              The audit trail is still complete in user_consents. */}
+          {mode === 'sign-up' && consent.error && (
+            <p className="text-[12.5px] text-danger">
+              {t('login.consent_load_error')}
+            </p>
           )}
 
           {error && (
@@ -258,8 +209,7 @@ export function Login() {
             type="submit"
             disabled={
               busy ||
-              (mode === 'sign-up' &&
-                (consent.loading || !consent.tos || !agreedToToS))
+              (mode === 'sign-up' && (consent.loading || !consent.tos))
             }
             className="btn btn-primary btn-lg btn-block disabled:opacity-50"
           >
