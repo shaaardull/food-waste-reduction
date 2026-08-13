@@ -67,6 +67,56 @@ def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
     loop.close()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _publish_test_legal_documents() -> Iterator[None]:
+    """Insert v1.0 of each legal document into document_versions so the
+    signup middleware's version-check succeeds during tests. Uses
+    minimal dummy content — the test suite doesn't need the full legal
+    text, only that a published version with version='1.0' exists for
+    each document_type the signup + consent endpoints look up.
+
+    Idempotent: if the row already exists (e.g. a previous CI run
+    populated the same test DB), skip. Content SHA is computed to match
+    the pgcrypto-backed trigger check_document_sha256 on
+    document_versions.
+    """
+    import hashlib
+    from datetime import UTC, datetime
+
+    from app.config import get_settings
+
+    engine = create_engine(get_settings().DATABASE_URL_SYNC, future=True)
+    with Session(engine, future=True) as s:
+        for doc_type in ("diner_tos", "staff_tos", "research_consent", "privacy_policy"):
+            existing = s.execute(
+                text(
+                    "SELECT id FROM document_versions "
+                    "WHERE document_type = :t AND version = '1.0'"
+                ),
+                {"t": doc_type},
+            ).scalar_one_or_none()
+            if existing is not None:
+                continue
+            content = f"Test {doc_type} v1.0 — dummy content for test fixture only."
+            content_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            s.execute(
+                text(
+                    "INSERT INTO document_versions ("
+                    "  document_type, version, effective_from, "
+                    "  content_markdown, content_sha256"
+                    ") VALUES (:t, '1.0', :ef, :c, :h)"
+                ),
+                {
+                    "t": doc_type,
+                    "ef": datetime.now(UTC),
+                    "c": content,
+                    "h": content_sha,
+                },
+            )
+        s.commit()
+    yield
+
+
 @pytest.fixture
 def db() -> Iterator[Session]:
     """Sync session for test setup (creating users/restaurants/menu items).
@@ -433,6 +483,9 @@ async def register_diner(
             "password": password,
             "display_name": f"Test {label}",
             "is_adult": True,
+            # v1.0 is published into document_versions by the
+            # _publish_test_legal_documents session fixture above.
+            "accepted_tos_version": "1.0",
         },
     )
     assert res.status_code in (200, 201), res.text

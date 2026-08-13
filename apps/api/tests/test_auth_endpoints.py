@@ -24,6 +24,10 @@ async def test_register_rejects_minor(client):
             "password": "plate-clean-demo",
             "display_name": "Minor",
             "is_adult": False,
+            # Signup middleware requires this field regardless of the
+            # minor check; without it Pydantic would 422 before the
+            # is_adult gate could run.
+            "accepted_tos_version": "1.0",
         },
     )
     assert res.status_code == 400
@@ -40,6 +44,7 @@ async def test_register_duplicate_email_returns_409(client):
         "password": "plate-clean-demo",
         "display_name": "Dupe",
         "is_adult": True,
+        "accepted_tos_version": "1.0",
     }
     first = await client.post("/api/v1/auth/register", json=payload)
     assert first.status_code == 201
@@ -60,6 +65,7 @@ async def test_register_duplicate_phone_returns_409(client):
         "password": "plate-clean-demo",
         "display_name": "Phone Dupe",
         "is_adult": True,
+        "accepted_tos_version": "1.0",
     }
     first = await client.post("/api/v1/auth/register", json=payload)
     assert first.status_code == 201
@@ -179,8 +185,16 @@ async def test_otp_full_round_trip(client):
     assert stored is not None
     _phone, code = stored.split("|", 1)
 
+    # First-time phone signup path requires the ToS acceptance the same
+    # way /auth/register does. Returning users omit it and hit the
+    # login branch.
     res = await client.post(
-        "/api/v1/auth/otp/verify", json={"request_id": request_id, "code": code}
+        "/api/v1/auth/otp/verify",
+        json={
+            "request_id": request_id,
+            "code": code,
+            "accepted_tos_version": "1.0",
+        },
     )
     assert res.status_code == 200
     body = res.json()
