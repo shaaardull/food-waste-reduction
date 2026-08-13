@@ -9,7 +9,7 @@ or none do. Slug collision → 409. Email collision → 409.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +22,7 @@ from app.schemas.auth import UserOut
 from app.schemas.onboarding import OnboardIn, OnboardOut
 from app.schemas.restaurant import RestaurantOut
 from app.security import create_access_token, hash_password
+from app.services import consent as consent_svc
 
 router = APIRouter()
 
@@ -33,6 +34,7 @@ router = APIRouter()
 )
 async def onboard_restaurant(
     payload: OnboardIn,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> OnboardOut:
     """Atomically create the owner, the restaurant, and the
@@ -103,6 +105,22 @@ async def onboard_restaurant(
             RestaurantStaff(
                 user_id=user.id, restaurant_id=restaurant.id, role="owner"
             )
+        )
+        # Silent auto-accept of the Staff Terms of Service. Frontend
+        # doesn't render a checkbox for now (product decision — will be
+        # surfaced later once user base is significant). The audit trail
+        # in user_consents is complete regardless: one row per new
+        # owner pointing at the currently effective staff_tos version.
+        staff_tos_version = await consent_svc.require_current_version(
+            db, "staff_tos"
+        )
+        await consent_svc.record_consent(
+            db,
+            user_id=user.id,
+            document_version=staff_tos_version,
+            action="accepted",
+            context="signup",
+            request=request,
         )
         await db.commit()
     except IntegrityError as exc:
